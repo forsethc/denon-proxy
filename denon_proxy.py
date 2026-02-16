@@ -257,6 +257,29 @@ class DenonProxyServer:
         self._server: Optional[asyncio.Server] = None
         self._json_api_server: Optional[asyncio.Server] = None
 
+    def _set_state_and_broadcast(self, payload: dict) -> None:
+        """Set state from payload (e.g. from JSON API) and broadcast to clients."""
+        s = self.state
+        if "power" in payload:
+            v = payload["power"]
+            s.power = str(v).upper() if v else None
+        if "volume" in payload:
+            v = payload["volume"]
+            s.volume = str(v) if v is not None else None
+        if "input_source" in payload:
+            v = payload["input_source"]
+            s.input_source = str(v) if v is not None else None
+        if "mute" in payload:
+            s.mute = bool(payload["mute"])
+        if "sound_mode" in payload:
+            v = payload["sound_mode"]
+            s.sound_mode = str(v) if v is not None else None
+        status = s.get_status_dump()
+        if status:
+            for line in status.strip().splitlines():
+                if line.strip():
+                    self._broadcast(line.strip())
+
     def _broadcast(self, message: str) -> None:
         """Broadcast an AVR response to all connected clients."""
         client_list = list(self.clients)
@@ -383,13 +406,19 @@ class DenonProxyServer:
                 "state": state,
             }
 
+        # Only allow set_state when using VirtualAVR (no physical AVR)
+        set_state_cb = self._set_state_and_broadcast if not (self.config.get("avr_host") or "").strip() else None
         self._json_api_server = await run_json_api(
-            self.config, self.logger, _get_json_state
+            self.config, self.logger, _get_json_state,
+            set_state=set_state_cb,
         )
         if self._json_api_server:
             api_host = get_advertise_ip(self.config) or "localhost"
             api_port = int(self.config.get("web_ui_port", 8081))
-            self.logger.info("JSON API at http://%s:%d", api_host, api_port)
+            msg = f"JSON API at http://{api_host}:{api_port}"
+            if set_state_cb:
+                msg += " (POST /state to simulate AVR changes)"
+            self.logger.info(msg)
 
     async def stop(self) -> None:
         """Stop the proxy server."""
