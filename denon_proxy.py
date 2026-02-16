@@ -20,7 +20,7 @@ import logging
 import signal
 import sys
 from pathlib import Path
-from typing import Callable, Optional, Set
+from typing import Callable, Optional, Set, Union
 
 try:
     import yaml
@@ -34,7 +34,14 @@ try:
 except ImportError:
     DENONAVR_AVAILABLE = False
 
-from avr_emulator import AVRState, get_advertise_ip, run_emulator_servers
+from avr_emulator import (
+    AVRConnection,
+    AVRState,
+    VirtualAVRConnection,
+    create_avr_connection,
+    get_advertise_ip,
+    run_emulator_servers,
+)
 
 from web_ui import run_json_api
 
@@ -112,130 +119,6 @@ def load_config(config_path: Optional[Path] = None) -> dict:
 
 
 # -----------------------------------------------------------------------------
-# AVR Connection - single telnet connection to physical AVR
-# -----------------------------------------------------------------------------
-
-class AVRConnection:
-    """
-    Maintains a single Telnet connection to the physical Denon AVR.
-    Receives responses and forwards them to the proxy for broadcasting.
-    """
-
-    def __init__(
-        self,
-        host: str,
-        port: int,
-        on_response: Callable[[str], None],
-        on_disconnect: Callable[[], None],
-        state: AVRState,
-        logger: logging.Logger,
-        demo_mode: bool = False,
-    ) -> None:
-        self.host = host
-        self.port = port
-        self.on_response = on_response
-        self.on_disconnect = on_disconnect
-        self.state = state
-        self.logger = logger
-        self.demo_mode = demo_mode
-        self.reader: Optional[asyncio.StreamReader] = None
-        self.writer: Optional[asyncio.StreamWriter] = None
-        self._buffer = b""
-        self._reconnect_task: Optional[asyncio.Task] = None
-
-    async def connect(self) -> bool:
-        """Establish connection to the AVR."""
-        try:
-            self.reader, self.writer = await asyncio.wait_for(
-                asyncio.open_connection(self.host, self.port),
-                timeout=5.0,
-            )
-            self.logger.info("Connected to AVR at %s:%d", self.host, self.port)
-            asyncio.create_task(self._read_loop())
-            return True
-        except (asyncio.TimeoutError, ConnectionRefusedError, OSError) as e:
-            self.logger.error("Failed to connect to AVR: %s", e)
-            return False
-
-    async def _read_loop(self) -> None:
-        """Read data from AVR and forward to callback."""
-        try:
-            while self.reader and not self.reader.at_eof():
-                data = await self.reader.read(1024)
-                if not data:
-                    break
-                self._buffer += data
-                while b"\r" in self._buffer or b"\n" in self._buffer:
-                    # Split on \r or \n
-                    for sep in (b"\r", b"\n"):
-                        if sep in self._buffer:
-                            line, _, self._buffer = self._buffer.partition(sep)
-                            break
-                    else:
-                        break
-                    try:
-                        msg = line.decode("utf-8").strip()
-                    except UnicodeDecodeError:
-                        continue
-                    if msg:
-                        self.state.update_from_message(msg)
-                        self.on_response(msg)
-        except asyncio.CancelledError:
-            pass
-        except Exception as e:
-            self.logger.warning("AVR read error: %s", e)
-        finally:
-            self._handle_disconnect()
-
-    def _handle_disconnect(self) -> None:
-        """Handle AVR disconnect and schedule reconnect."""
-        if self.writer:
-            try:
-                self.writer.close()
-                asyncio.create_task(self.writer.wait_closed())
-            except Exception:
-                pass
-            self.reader = None
-            self.writer = None
-        self.logger.warning("Disconnected from AVR")
-        self.on_disconnect()
-
-    async def send_command(self, command: str) -> bool:
-        """
-        Send a telnet command to the AVR. Returns True if sent successfully,
-        False if AVR not connected or send failed.
-        """
-        if not self.writer or self.writer.is_closing():
-            if not self.demo_mode:
-                self.logger.warning("Cannot send command, AVR not connected: %s", command)
-            return False
-        try:
-            data = (command.strip() + "\r").encode("utf-8")
-            self.writer.write(data)
-            await self.writer.drain()
-            self.logger.debug("Sent to AVR: %s", command.strip())
-            return True
-        except Exception as e:
-            self.logger.warning("Failed to send command to AVR: %s - %s", command, e)
-            return False
-
-    async def request_state(self) -> None:
-        """Request current state from AVR (power, volume, input, mute)."""
-        for cmd in ("PW?", "MV?", "SI?", "MU?", "ZM?"):
-            await self.send_command(cmd)
-            await asyncio.sleep(0.05)  # Brief delay between queries
-
-    def close(self) -> None:
-        """Close the AVR connection."""
-        if self._reconnect_task:
-            self._reconnect_task.cancel()
-        if self.writer:
-            self.writer.close()
-            self.reader = None
-            self.writer = None
-
-
-# -----------------------------------------------------------------------------
 # Client connection handler
 # -----------------------------------------------------------------------------
 
@@ -247,7 +130,7 @@ class ClientHandler(asyncio.Protocol):
 
     def __init__(
         self,
-        avr: AVRConnection,
+        avr: Union[AVRConnection, VirtualAVRConnection],
         state: AVRState,
         clients: Set["ClientHandler"],
         logger: logging.Logger,
@@ -318,7 +201,7 @@ class ClientHandler(asyncio.Protocol):
         optimistic = self.config.get("optimistic_state", True)
         delay = max(0.0, float(self.config.get("optimistic_broadcast_delay", 0.1)))
         snapshot = None
-        had_connection = self.avr.writer is not None and not self.avr.writer.is_closing()
+        had_connection = self.avr.is_connected()
 
         if optimistic:
             snapshot = self.state.snapshot()
@@ -335,7 +218,9 @@ class ClientHandler(asyncio.Protocol):
             self.logger.debug("Reverted optimistic state after failed send")
 
         if optimistic and snapshot is not None:
-            self._broadcast_state()
+            # VirtualAVR already sends via on_response; skip duplicate to avoid confusing HA
+            if not isinstance(self.avr, VirtualAVRConnection):
+                self._broadcast_state()
 
     def broadcast(self, message: str) -> None:
         """Send a message to this client."""
@@ -367,7 +252,7 @@ class DenonProxyServer:
         self.logger = logger
         self.state = AVRState()
         self.clients: Set[ClientHandler] = set()
-        self.avr: Optional[AVRConnection] = None
+        self.avr: Optional[Union[AVRConnection, VirtualAVRConnection]] = None
         self._server: Optional[asyncio.Server] = None
         self._json_api_server: Optional[asyncio.Server] = None
 
@@ -381,6 +266,8 @@ class DenonProxyServer:
 
     def _on_avr_response(self, message: str) -> None:
         """Called when the AVR sends a response."""
+        if self.logger.isEnabledFor(logging.DEBUG):
+            self.logger.debug("AVR response: %s", message)
         self._broadcast(message)
         # HA denonavr only processes ZM (not PW) for telnet updates; broadcast ZM equivalent for power
         # so the UI updates without needing an integration reload. ZMSTANDBY uses parameter "STANDBY"
@@ -397,19 +284,14 @@ class DenonProxyServer:
             await asyncio.sleep(2)
             if self.avr:
                 await self.avr.connect()
-                if self.avr.writer:
+                if self.avr.is_connected():
                     await self.avr.request_state()
 
         asyncio.create_task(reconnect())
 
-    def _is_demo_mode(self) -> bool:
-        """True if avr_host is empty (no physical AVR)."""
-        host = self.config.get("avr_host") or ""
-        return not str(host).strip()
-
     async def _sync_initial_state(self) -> None:
         """Use denonavr HTTP API to fetch initial state (if available)."""
-        if self._is_demo_mode() or not DENONAVR_AVAILABLE:
+        if not (self.config.get("avr_host") or "").strip() or not DENONAVR_AVAILABLE:
             return
         try:
             d = denonavr.DenonAVR(self.config["avr_host"])
@@ -441,38 +323,20 @@ class DenonProxyServer:
 
     async def start(self) -> None:
         """Start the proxy server and AVR connection."""
-        if self._is_demo_mode():
-            self.logger.warning(
-                "DEMO MODE: avr_host is empty - no physical AVR. "
-                "Proxy will accept clients but commands will not be sent to a receiver."
-            )
-            self.avr = AVRConnection(
-                host="",
-                port=self.config["avr_port"],
-                on_response=self._on_avr_response,
-                on_disconnect=self._on_avr_disconnect,
-                state=self.state,
-                logger=self.logger,
-                demo_mode=True,
-            )
-            # Don't connect - no physical AVR
-        else:
+        if (self.config.get("avr_host") or "").strip():
             await self._sync_initial_state()
 
-            self.avr = AVRConnection(
-                host=self.config["avr_host"],
-                port=self.config["avr_port"],
-                on_response=self._on_avr_response,
-                on_disconnect=self._on_avr_disconnect,
-                state=self.state,
-                logger=self.logger,
-                demo_mode=False,
-            )
-
-            connected = await self.avr.connect()
-            if connected:
-                await asyncio.sleep(0.5)
-                await self.avr.request_state()
+        self.avr = create_avr_connection(
+            self.config,
+            self.state,
+            self._on_avr_response,
+            self._on_avr_disconnect,
+            self.logger,
+        )
+        connected = await self.avr.connect()
+        if connected:
+            await asyncio.sleep(0.3)
+            await self.avr.request_state()
 
         # Start proxy server
         def factory():
@@ -493,26 +357,25 @@ class DenonProxyServer:
             reuse_address=True,
         )
         connect_host = get_advertise_ip(self.config) or (host if host and host != "0.0.0.0" else "localhost")
-        if self._is_demo_mode():
-            self.logger.info("Proxy listening on %s:%d (DEMO - no AVR)", connect_host, port)
-        else:
+        avr_host = (self.config.get("avr_host") or "").strip()
+        if avr_host:
             self.logger.info("Proxy listening on %s:%d (AVR: %s:%d)",
-                             connect_host, port, self.config["avr_host"], self.config["avr_port"])
+                             connect_host, port, avr_host, self.config.get("avr_port", 23))
+        else:
+            self.logger.info("Proxy listening on %s:%d (virtual AVR)", connect_host, port)
         self.logger.info("Connect Home Assistant and UC Remote 3 to %s:%d", connect_host, port)
 
         # JSON status API
         def _get_json_state() -> dict:
             clients = [c._peername[0] if c._peername else "?" for c in list(self.clients)]
-            avr_connected = bool(
-                self.avr and self.avr.writer and not self.avr.writer.is_closing()
-            )
+            avr_connected = bool(self.avr and self.avr.is_connected())
             state = {
                 k: v
                 for k, v in vars(self.state).items()
                 if not k.startswith("_")
             }
             return {
-                "demo_mode": self._is_demo_mode(),
+                "avr": self.avr.get_details() if self.avr else {"type": "none"},
                 "avr_connected": avr_connected,
                 "clients": clients,
                 "client_count": len(clients),
