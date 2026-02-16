@@ -207,6 +207,11 @@ The advertised name is configurable via `ssdp_friendly_name`. Home Assistant wil
 - Ensure the proxy is running and connected to the AVR
 - Check logs with `log_level: DEBUG` in config
 
+### Power state not updating in Home Assistant (2026.x)
+
+- The denonavr integration has **Use telnet** off by default. With telnet disabled, power updates come from HTTP polling (~10 seconds).
+- For **instant** power updates: Integration → Configure → enable **Use telnet**. The proxy broadcasts ZM/ZMSTANDBY so HA receives power changes via telnet.
+
 ### Port 23 requires root
 
 - Use `proxy_port: 2323` (or another high port) and configure clients to use that port

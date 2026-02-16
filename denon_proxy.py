@@ -383,11 +383,13 @@ class DenonProxyServer:
         """Called when the AVR sends a response."""
         self._broadcast(message)
         # HA denonavr only processes ZM (not PW) for telnet updates; broadcast ZM equivalent for power
-        # so the UI updates without needing an integration reload
+        # so the UI updates without needing an integration reload. ZMSTANDBY uses parameter "STANDBY"
+        # which denonavr's _power_callback accepts; ZMOFF may use "OFF" which some versions reject.
         if message == "PWON":
             self._broadcast("ZMON")
         elif message in ("PWSTANDBY", "PWSTANDBY ") or "STANDBY" in message.upper():
-            self._broadcast("ZMOFF")
+            self._broadcast("ZMSTANDBY")
+            self._broadcast("ZMOFF")  # Some receivers/denonavr expect ZMOFF
 
     def _on_avr_disconnect(self) -> None:
         """Called when AVR disconnects - schedule reconnect."""

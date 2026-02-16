@@ -97,10 +97,12 @@ class AVRState:
         lines = []
         if self.power:
             lines.append(f"PW{self.power}")
-            # ZM (Zone Main) so HA denonavr receives power updates via telnet (it ignores PW)
+            # ZM (Zone Main) so HA denonavr receives power updates via telnet (it ignores PW).
+            # ZMSTANDBY uses parameter "STANDBY" which denonavr accepts; ZMOFF for compatibility.
             if self.power == "ON":
                 lines.append("ZMON")
             elif self.power in ("STANDBY", "OFF"):
+                lines.append("ZMSTANDBY")
                 lines.append("ZMOFF")
         if self.volume:
             lines.append(f"MV{self.volume}")
