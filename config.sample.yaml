@@ -3,8 +3,9 @@
 # Copy this file to config.yaml and edit as needed.
 #   cp config.sample.yaml config.yaml
 
-# IP address or hostname of the physical Denon AVR
-avr_host: "192.168.1.100"
+# IP address or hostname of the physical Denon AVR.
+# Default is empty (DEMO mode - no physical AVR; accepts clients but does not forward commands).
+avr_host: ""
 
 # Telnet port on the physical AVR (typically 23)
 avr_port: 23

@@ -11,6 +11,11 @@ Denon AVR receivers only support **one active Telnet connection** at a time. If 
 - Broadcasts AVR responses to all connected clients
 - Maintains internal state (power, volume, input, mute) so new clients see the correct state immediately
 
+## Project Structure
+
+- **`denon_proxy.py`** – Main proxy: Telnet multiplexer, client handling, AVR connection
+- **`avr_emulator.py`** – Denon AVR emulation: `AVRState` (canonical state model), HTTP/SSDP (device discovery, Deviceinfo, AppCommand, MainZone XML). Used by the proxy when SSDP is enabled; can also be used standalone for testing
+
 ## Requirements
 
 - Python 3.10+
@@ -48,7 +53,7 @@ proxy_port: 2323             # Port for clients (2323 avoids needing root for po
 
 | Option      | Default   | Description                                    |
 |------------|-----------|------------------------------------------------|
-| `avr_host` | 192.168.1.100 | IP or hostname of the physical AVR         |
+| `avr_host` | "" (demo) | IP or hostname of the physical AVR. Empty = demo mode (no AVR) |
 | `avr_port` | 23        | Telnet port on the AVR                         |
 | `proxy_host` | 0.0.0.0 | Bind address (0.0.0.0 = all interfaces)       |
 | `proxy_port` | 2323    | Port clients connect to                        |
@@ -57,6 +62,15 @@ proxy_port: 2323             # Port for clients (2323 avoids needing root for po
 | `ssdp_friendly_name` | Denon AVR Proxy | Name shown in Home Assistant           |
 | `ssdp_http_port` | 8080 | Port for device description XML                |
 | `ssdp_advertise_ip` | "" | IP to advertise (empty = auto-detect)      |
+
+### Troubleshooting "Unknown Error" or Timeout
+
+If adding the device in Home Assistant fails with "Unknown error" or "Timeout":
+
+1. **Check Home Assistant logs** – Settings → System → Logs. The actual exception (e.g. `AvrIncompleteResponseError`) will appear there and pinpoint the issue.
+2. **Ensure port 60006 is available** – denonavr fetches device info from port 60006 for AVR-X models. The proxy binds 80, 8080, and 60006. If 60006 is in use, restart the proxy.
+3. **Use the proxy IP** – When adding manually, enter the **proxy's** IP (the machine running denon-proxy), not the physical AVR's IP.
+4. **Run proxy with DEBUG** – `log_level: DEBUG` in config will log which AppCommand requests denonavr sends.
 
 ### Environment Variables
 
