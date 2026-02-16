@@ -580,6 +580,9 @@ class DeviceDescriptionHandler(asyncio.Protocol):
                     self.config, self.state, body_bytes, self.logger
                 )
 
+            peername = self.transport.get_extra_info("peername") if self.transport else None
+            client_ip = peername[0] if peername else "?"
+
             if body is not None:
                 resp = (
                     b"HTTP/1.1 200 OK\r\n"
@@ -588,12 +591,12 @@ class DeviceDescriptionHandler(asyncio.Protocol):
                     b"Connection: close\r\n\r\n"
                 ) + body
                 self.transport.write(resp)
-                self.logger.debug("HTTP: %s %s -> 200 OK", method, path)
+                self.logger.debug("Client %s request: %s %s -> 200 OK", client_ip, method, path)
             else:
                 if path_lower == "/ws":
-                    self.logger.debug("HTTP: %s %s -> no handler", method, path)
+                    self.logger.debug("Client %s request: %s %s -> no handler", client_ip, method, path)
                 else:
-                    self.logger.warning("HTTP: %s %s -> no handler", method, path)
+                    self.logger.warning("Client %s request: %s %s -> no handler", client_ip, method, path)
         except Exception as e:
             self.logger.warning("HTTP handler error: %s", e)
         self._close()

@@ -124,6 +124,7 @@ class AVRConnection:
         on_disconnect: Callable[[], None],
         state: AVRState,
         logger: logging.Logger,
+        demo_mode: bool = False,
     ) -> None:
         self.host = host
         self.port = port
@@ -131,6 +132,7 @@ class AVRConnection:
         self.on_disconnect = on_disconnect
         self.state = state
         self.logger = logger
+        self.demo_mode = demo_mode
         self.reader: Optional[asyncio.StreamReader] = None
         self.writer: Optional[asyncio.StreamWriter] = None
         self._buffer = b""
@@ -199,7 +201,8 @@ class AVRConnection:
         False if AVR not connected or send failed.
         """
         if not self.writer or self.writer.is_closing():
-            self.logger.warning("Cannot send command, AVR not connected: %s", command)
+            if not self.demo_mode:
+                self.logger.warning("Cannot send command, AVR not connected: %s", command)
             return False
         try:
             data = (command.strip() + "\r").encode("utf-8")
@@ -292,7 +295,8 @@ class ClientHandler(asyncio.Protocol):
         if any(ord(c) < 32 and c not in "\r\n\t" for c in command):
             return
 
-        self.logger.debug("Client %s command: %s", self._peername, command)
+        client_ip = self._peername[0] if self._peername else "?"
+        self.logger.debug("Client %s command: %s", client_ip, command)
         asyncio.create_task(self._handle_command_async(command))
 
     def _broadcast_state(self) -> None:
@@ -363,8 +367,11 @@ class DenonProxyServer:
 
     def _broadcast(self, message: str) -> None:
         """Broadcast an AVR response to all connected clients."""
-        for client in list(self.clients):
+        client_list = list(self.clients)
+        for client in client_list:
             client.broadcast(message)
+        if client_list and self.logger.isEnabledFor(logging.DEBUG):
+            self.logger.debug("Broadcast to %d client(s): %s", len(client_list), message)
 
     def _on_avr_response(self, message: str) -> None:
         """Called when the AVR sends a response."""
@@ -432,6 +439,7 @@ class DenonProxyServer:
                 on_disconnect=self._on_avr_disconnect,
                 state=self.state,
                 logger=self.logger,
+                demo_mode=True,
             )
             # Don't connect - no physical AVR
         else:
@@ -444,6 +452,7 @@ class DenonProxyServer:
                 on_disconnect=self._on_avr_disconnect,
                 state=self.state,
                 logger=self.logger,
+                demo_mode=False,
             )
 
             connected = await self.avr.connect()
