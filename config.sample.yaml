@@ -1,0 +1,43 @@
+# Denon AVR Proxy Configuration
+#
+# Copy this file to config.yaml and edit as needed.
+#   cp config.sample.yaml config.yaml
+
+# IP address or hostname of the physical Denon AVR
+avr_host: "192.168.1.100"
+
+# Telnet port on the physical AVR (typically 23)
+avr_port: 23
+
+# IP address to bind the proxy server (0.0.0.0 = all interfaces)
+proxy_host: "0.0.0.0"
+
+# Port for clients to connect to (e.g., Home Assistant, UC Remote 3)
+# Use 23 for standard telnet, or another port (e.g., 2323) if 23 requires root
+proxy_port: 2323
+
+# Logging verbosity: DEBUG, INFO, WARNING, ERROR
+log_level: "INFO"
+
+# SSDP discovery (e.g. for Home Assistant auto-discovery)
+enable_ssdp: false
+
+# When SSDP is enabled: friendly name shown in Home Assistant
+ssdp_friendly_name: "Denon AVR Proxy"
+
+# When SSDP is enabled: port for serving device description XML (HA fetches this)
+# Use 8080 to mimic real Denon AVRs; requires root for 80
+ssdp_http_port: 8080
+
+# When SSDP is enabled: IP to advertise in LOCATION
+# Leave empty to auto-detect from primary interface
+ssdp_advertise_ip: ""
+
+# Optimistically update internal state when receiving commands, revert only if
+# sending to the physical AVR fails. When no AVR is connected (e.g. testing),
+# keep the optimistic state.
+optimistic_state: true
+
+# Delay (seconds) before broadcasting optimistic state to clients. Emulates AVR
+# confirmation; avoids broadcasting change then immediately reverting on send failure.
+optimistic_broadcast_delay: 0.1

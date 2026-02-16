@@ -1,0 +1,11 @@
+# Denon AVR Proxy - Dependencies
+# Python 3.10+ required for asyncio features
+
+# Denon AVR control and parsing (for initial state sync via HTTP)
+denonavr>=0.10.0
+
+# Configuration file support
+PyYAML>=6.0
+
+# Async HTTP (dependency of denonavr, explicit for clarity)
+httpx>=0.24.0
