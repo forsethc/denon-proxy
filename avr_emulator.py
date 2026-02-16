@@ -35,7 +35,7 @@ from typing import Any, Optional
 
 class AVRState:
     """
-    Tracks Denon AVR state (power, volume, input, mute).
+    Tracks Denon AVR state (power, volume, input, mute, sound_mode).
     Used by the emulator for HTTP/XML responses and by the proxy for telnet.
     """
 
@@ -45,10 +45,11 @@ class AVRState:
         self.volume: Optional[str] = "50"      # e.g. "50" (0-98), "MAX"
         self.input_source: Optional[str] = "CD"  # e.g. "CD", "TUNER", "DVD"
         self.mute: Optional[bool] = False      # True = muted
+        self.sound_mode: Optional[str] = "STEREO"  # e.g. STEREO, MULTI CH IN, DOLBY DIGITAL
         self.raw_responses: list[str] = []     # Recent responses (proxy use)
 
     def update_from_message(self, message: str) -> None:
-        """Update state from a Denon telnet response (PW, MV, SI, MU, ZM)."""
+        """Update state from a Denon telnet response (PW, MV, SI, MU, ZM, MS)."""
         if not message or len(message) < 2:
             return
 
@@ -86,6 +87,11 @@ class AVRState:
             if param and param != "?":
                 self.input_source = param
 
+        elif message.startswith("MS") and len(message) > 2:
+            param = message[2:].strip()
+            if param and param != "?":
+                self.sound_mode = param
+
     def get_status_dump(self) -> str:
         """Return Denon telnet-format status lines for new clients."""
         lines = []
@@ -102,6 +108,8 @@ class AVRState:
             lines.append(f"SI{self.input_source}")
         if self.mute is not None:
             lines.append("MUON" if self.mute else "MUOFF")
+        if self.sound_mode:
+            lines.append(f"MS{self.sound_mode}")
         return "\r\n".join(lines) + "\r\n" if lines else ""
 
     def snapshot(self) -> dict:
@@ -111,6 +119,7 @@ class AVRState:
             "volume": self.volume,
             "input_source": self.input_source,
             "mute": self.mute,
+            "sound_mode": self.sound_mode,
         }
 
     def restore(self, snapshot: dict) -> None:
@@ -119,6 +128,7 @@ class AVRState:
         self.volume = snapshot.get("volume")
         self.input_source = snapshot.get("input_source")
         self.mute = snapshot.get("mute")
+        self.sound_mode = snapshot.get("sound_mode")
 
     def apply_command(self, command: str) -> bool:
         """Optimistically apply a Denon telnet command. Returns True if state changed."""
@@ -159,6 +169,11 @@ class AVRState:
             param = cmd[2:].strip()
             if param and param != "?":
                 self.input_source = param
+                applied = True
+        elif cmd.startswith("MS") and len(cmd) > 2:
+            param = cmd[2:].strip()
+            if param and param != "?":
+                self.sound_mode = param
                 applied = True
         return applied
 
@@ -294,7 +309,7 @@ def appcommand_response_xml(
     mute_val = "on" if (state and getattr(state, "mute", None)) else "off"
     input_src = (getattr(state, "input_source", None) if state else None) or "CD"
     friendly_name = config.get("ssdp_friendly_name", "Denon AVR Proxy")
-    sound_mode = "STEREO"
+    sound_mode = (getattr(state, "sound_mode", None) if state else None) or "STEREO"
 
     cmds_requested = parse_appcommand_request(body_bytes)
     if logger and logger.isEnabledFor(logging.DEBUG):
@@ -385,6 +400,7 @@ def mainzone_xml(state: Any, friendly_name: str = "Denon AVR Proxy") -> bytes:
     volume = (getattr(state, "volume", None) if state else None) or "50"
     mute_val = "on" if (state and getattr(state, "mute", None)) else "off"
     input_src = (getattr(state, "input_source", None) if state else None) or "CD"
+    sound_mode = (getattr(state, "sound_mode", None) if state else None) or "STEREO"
     func_names = [fn for fn, _ in DEMO_SOURCES]
     input_func_list = "\n".join(f"    <Value>{fn}</Value>" for fn in func_names)
     rename_source = "\n".join(f"    <Value>{fn}</Value>" for fn in func_names)
@@ -397,8 +413,8 @@ def mainzone_xml(state: Any, friendly_name: str = "Denon AVR Proxy") -> bytes:
   <MasterVolume><value>{volume}</value></MasterVolume>
   <Mute><value>{mute_val}</value></Mute>
   <InputFuncSelect><value>{input_src}</value></InputFuncSelect>
-  <selectSurround><value>STEREO</value></selectSurround>
-  <SurrMode><value>STEREO</value></SurrMode>
+  <selectSurround><value>{sound_mode}</value></selectSurround>
+  <SurrMode><value>{sound_mode}</value></SurrMode>
   <ECOMode><value>Off</value></ECOMode>
   <InputFuncList>
 {input_func_list}
