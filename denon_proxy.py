@@ -15,6 +15,7 @@ Usage:
 
 import argparse
 import asyncio
+import json
 import logging
 import signal
 import sys
@@ -33,7 +34,9 @@ try:
 except ImportError:
     DENONAVR_AVAILABLE = False
 
-from avr_emulator import AVRState, run_emulator_servers
+from avr_emulator import AVRState, get_advertise_ip, run_emulator_servers
+
+from web_ui import run_json_api
 
 # -----------------------------------------------------------------------------
 # Logging setup
@@ -71,6 +74,8 @@ def load_config(config_path: Optional[Path] = None) -> dict:
         "ssdp_advertise_ip": "",
         "optimistic_state": True,
         "optimistic_broadcast_delay": 0.1,
+        "enable_web_ui": False,
+        "web_ui_port": 8081,
     }
 
     config = defaults.copy()
@@ -364,6 +369,7 @@ class DenonProxyServer:
         self.clients: Set[ClientHandler] = set()
         self.avr: Optional[AVRConnection] = None
         self._server: Optional[asyncio.Server] = None
+        self._json_api_server: Optional[asyncio.Server] = None
 
     def _broadcast(self, message: str) -> None:
         """Broadcast an AVR response to all connected clients."""
@@ -376,6 +382,12 @@ class DenonProxyServer:
     def _on_avr_response(self, message: str) -> None:
         """Called when the AVR sends a response."""
         self._broadcast(message)
+        # HA denonavr only processes ZM (not PW) for telnet updates; broadcast ZM equivalent for power
+        # so the UI updates without needing an integration reload
+        if message == "PWON":
+            self._broadcast("ZMON")
+        elif message in ("PWSTANDBY", "PWSTANDBY ") or "STANDBY" in message.upper():
+            self._broadcast("ZMOFF")
 
     def _on_avr_disconnect(self) -> None:
         """Called when AVR disconnects - schedule reconnect."""
@@ -478,12 +490,40 @@ class DenonProxyServer:
             port,
             reuse_address=True,
         )
+        connect_host = get_advertise_ip(self.config) or (host if host and host != "0.0.0.0" else "localhost")
         if self._is_demo_mode():
-            self.logger.info("Proxy listening on %s:%d (DEMO - no AVR)", host, port)
+            self.logger.info("Proxy listening on %s:%d (DEMO - no AVR)", connect_host, port)
         else:
             self.logger.info("Proxy listening on %s:%d (AVR: %s:%d)",
-                             host, port, self.config["avr_host"], self.config["avr_port"])
-        self.logger.info("Connect Home Assistant and UC Remote 3 to %s:%d", host, port)
+                             connect_host, port, self.config["avr_host"], self.config["avr_port"])
+        self.logger.info("Connect Home Assistant and UC Remote 3 to %s:%d", connect_host, port)
+
+        # JSON status API
+        def _get_json_state() -> dict:
+            clients = [c._peername[0] if c._peername else "?" for c in list(self.clients)]
+            avr_connected = bool(
+                self.avr and self.avr.writer and not self.avr.writer.is_closing()
+            )
+            state = {
+                k: v
+                for k, v in vars(self.state).items()
+                if not k.startswith("_")
+            }
+            return {
+                "demo_mode": self._is_demo_mode(),
+                "avr_connected": avr_connected,
+                "clients": clients,
+                "client_count": len(clients),
+                "state": state,
+            }
+
+        self._json_api_server = await run_json_api(
+            self.config, self.logger, _get_json_state
+        )
+        if self._json_api_server:
+            api_host = get_advertise_ip(self.config) or "localhost"
+            api_port = int(self.config.get("web_ui_port", 8081))
+            self.logger.info("JSON API at http://%s:%d", api_host, api_port)
 
     async def stop(self) -> None:
         """Stop the proxy server."""
@@ -491,6 +531,10 @@ class DenonProxyServer:
             self._server.close()
             await self._server.wait_closed()
             self._server = None
+        if self._json_api_server:
+            self._json_api_server.close()
+            await self._json_api_server.wait_closed()
+            self._json_api_server = None
         if self.avr:
             self.avr.close()
         self.logger.info("Proxy stopped")

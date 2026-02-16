@@ -40,10 +40,11 @@ class AVRState:
     """
 
     def __init__(self) -> None:
-        self.power: Optional[str] = None       # ON, STANDBY, OFF
-        self.volume: Optional[str] = None      # e.g. "50" (0-98), "MAX"
-        self.input_source: Optional[str] = None  # e.g. "CD", "TUNER", "DVD"
-        self.mute: Optional[bool] = None       # True = muted
+        # Defaults for demo mode / before AVR responds
+        self.power: Optional[str] = "ON"       # ON, STANDBY, OFF
+        self.volume: Optional[str] = "50"      # e.g. "50" (0-98), "MAX"
+        self.input_source: Optional[str] = "CD"  # e.g. "CD", "TUNER", "DVD"
+        self.mute: Optional[bool] = False      # True = muted
         self.raw_responses: list[str] = []     # Recent responses (proxy use)
 
     def update_from_message(self, message: str) -> None:
@@ -90,6 +91,11 @@ class AVRState:
         lines = []
         if self.power:
             lines.append(f"PW{self.power}")
+            # ZM (Zone Main) so HA denonavr receives power updates via telnet (it ignores PW)
+            if self.power == "ON":
+                lines.append("ZMON")
+            elif self.power in ("STANDBY", "OFF"):
+                lines.append("ZMOFF")
         if self.volume:
             lines.append(f"MV{self.volume}")
         if self.input_source:
