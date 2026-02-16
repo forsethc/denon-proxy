@@ -17,6 +17,7 @@ import argparse
 import asyncio
 import json
 import logging
+import os
 import signal
 import sys
 from pathlib import Path
@@ -392,6 +393,10 @@ class DenonProxyServer:
 
     async def stop(self) -> None:
         """Stop the proxy server."""
+        # Close all client connections first so server.wait_closed() doesn't hang
+        for client in list(self.clients):
+            if client.transport and not client.transport.is_closing():
+                client.transport.abort()
         if self._server:
             self._server.close()
             await self._server.wait_closed()
@@ -416,8 +421,14 @@ async def main_async(config: dict) -> None:
 
     # Handle shutdown gracefully - must not block event loop or Ctrl-C won't work
     stop_event = asyncio.Event()
+    _shutting_down = False
 
     def shutdown():
+        nonlocal _shutting_down
+        if _shutting_down:
+            logger.warning("Second Ctrl-C: forcing exit")
+            os._exit(1)
+        _shutting_down = True
         stop_event.set()
 
     _signal_handlers_set = False
@@ -452,14 +463,19 @@ async def main_async(config: dict) -> None:
 
     await stop_event.wait()
 
-    if ssdp_transport:
-        ssdp_transport.close()
-    if http_server:
-        servers = http_server if isinstance(http_server, list) else [http_server]
-        for srv in servers:
-            srv.close()
-            await srv.wait_closed()
-    await proxy.stop()
+    logger.info("Shutting down...")
+    try:
+        if ssdp_transport:
+            ssdp_transport.close()
+        if http_server:
+            servers = http_server if isinstance(http_server, list) else [http_server]
+            for srv in servers:
+                srv.close()
+            for srv in servers:
+                await asyncio.wait_for(srv.wait_closed(), timeout=2.0)
+        await asyncio.wait_for(proxy.stop(), timeout=5.0)
+    except asyncio.TimeoutError:
+        logger.warning("Shutdown timed out, exiting anyway")
 
 
 def main() -> int:
