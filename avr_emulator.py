@@ -505,8 +505,8 @@ def get_sources(config: dict) -> list[tuple[str, str]]:
     config["_resolved_sources"] = result
     device_sources = config.get("_device_sources")
     if device_sources and isinstance(device_sources, (list, tuple)):
-        _logger.info("Device sources from AVR:\n  %s", "\n  ".join(f"{f} → {n}" for f, n in device_sources))
-    _logger.info("Resolved input sources:\n  %s", "\n  ".join(f"{f} → {n}" for f, n in result))
+        _logger.info("Device sources from AVR:\n  %s", "\n  ".join(f"{f} -> {n}" for f, n in device_sources))
+    _logger.info("Resolved input sources:\n  %s", "\n  ".join(f"{f} -> {n}" for f, n in result))
     return result
 
 
