@@ -20,6 +20,10 @@ proxy_port: 23
 # Logging verbosity: DEBUG, INFO, WARNING, ERROR
 log_level: "INFO"
 
+# Command groups to log at INFO (others stay DEBUG when log_level is DEBUG)
+# Groups: power (PW, ZM), volume (MV), input (SI), mute (MU), sound_mode (MS)
+# log_command_groups_info: [power, volume]
+
 # Custom input sources: map Denon function codes to display names in Home Assistant.
 # Use this if you only use certain inputs and want names to match your AVR's custom names.
 # Format: dict (func_code: "Display Name") or list of [func, name] pairs.

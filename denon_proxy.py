@@ -85,6 +85,7 @@ def load_config(config_path: Optional[Path] = None) -> dict:
         "optimistic_broadcast_delay": 0.1,
         "enable_web_ui": False,
         "web_ui_port": 8081,
+        "log_command_groups_info": [],  # e.g. ["power", "volume"] - these groups logged at INFO
     }
 
     config = defaults.copy()
@@ -118,6 +119,35 @@ def load_config(config_path: Optional[Path] = None) -> dict:
         config["log_level"] = os.getenv("LOG_LEVEL")
 
     return config
+
+
+# Denon telnet command groups for configurable logging
+_COMMAND_GROUPS = {
+    "PW": "power",
+    "ZM": "power",
+    "MV": "volume",
+    "SI": "input",
+    "MU": "mute",
+    "MS": "sound_mode",
+}
+
+
+def _command_group(cmd: str) -> str:
+    """Return the group name for a Denon telnet command (e.g. PWON -> power)."""
+    if not cmd or len(cmd) < 2:
+        return "other"
+    prefix = cmd[:2].upper()
+    if prefix == "MV" and len(cmd) > 2 and "MAX" in cmd.upper():
+        return "other"  # MVMAX is config, not state
+    return _COMMAND_GROUPS.get(prefix, "other")
+
+
+def _should_log_command_info(config: dict, cmd: str) -> bool:
+    """True if this command's group is configured for INFO-level logging."""
+    groups = config.get("log_command_groups_info") or []
+    if not groups:
+        return False
+    return _command_group(cmd) in groups
 
 
 # -----------------------------------------------------------------------------
@@ -186,7 +216,10 @@ class ClientHandler(asyncio.Protocol):
             return
 
         client_ip = self._peername[0] if self._peername else "?"
-        self.logger.debug("Client %s command: %s", client_ip, command)
+        if _should_log_command_info(self.config, command):
+            self.logger.info("Client %s command: %s", client_ip, command)
+        else:
+            self.logger.debug("Client %s command: %s", client_ip, command)
         asyncio.create_task(self._handle_command_async(command))
 
     def _broadcast_state(self) -> None:
@@ -286,12 +319,17 @@ class DenonProxyServer:
         client_list = list(self.clients)
         for client in client_list:
             client.broadcast(message)
-        if client_list and self.logger.isEnabledFor(logging.DEBUG):
-            self.logger.debug("Broadcast to %d client(s): %s", len(client_list), message)
+        if client_list:
+            if _should_log_command_info(self.config, message):
+                self.logger.info("Broadcast to %d client(s): %s", len(client_list), message)
+            elif self.logger.isEnabledFor(logging.DEBUG):
+                self.logger.debug("Broadcast to %d client(s): %s", len(client_list), message)
 
     def _on_avr_response(self, message: str) -> None:
         """Called when the AVR sends a response."""
-        if self.logger.isEnabledFor(logging.DEBUG):
+        if _should_log_command_info(self.config, message):
+            self.logger.info("AVR response: %s", message)
+        elif self.logger.isEnabledFor(logging.DEBUG):
             self.logger.debug("AVR response: %s", message)
         self._broadcast(message)
         # HA denonavr only processes ZM (not PW) for telnet updates; broadcast ZM equivalent for power

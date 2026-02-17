@@ -58,6 +58,7 @@ proxy_port: 23               # Port for clients (HA requires 23)
 | `proxy_host` | 0.0.0.0 | Bind address (0.0.0.0 = all interfaces)       |
 | `proxy_port` | 23      | Port clients connect to (HA requires 23)       |
 | `log_level` | INFO     | DEBUG, INFO, WARNING, or ERROR                  |
+| `log_command_groups_info` | [] | Command groups to log at INFO: power, volume, input, mute, sound_mode |
 | `enable_ssdp` | false  | SSDP discovery for Home Assistant              |
 | `ssdp_friendly_name` | Denon AVR Proxy | Name shown in Home Assistant           |
 | `ssdp_http_port` | 8080 | Port for device description XML                |
