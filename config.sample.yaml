@@ -15,7 +15,7 @@ proxy_host: "0.0.0.0"
 
 # Port for clients to connect to (e.g., Home Assistant, UC Remote 3)
 # Use 23 for standard telnet, or another port (e.g., 2323) if 23 requires root
-proxy_port: 2323
+proxy_port: 23
 
 # Logging verbosity: DEBUG, INFO, WARNING, ERROR
 log_level: "INFO"
@@ -34,7 +34,7 @@ log_level: "INFO"
 #   NET: "Streaming"
 
 # SSDP discovery (e.g. for Home Assistant auto-discovery)
-enable_ssdp: false
+enable_ssdp: true
 
 # When SSDP is enabled: friendly name shown in Home Assistant
 ssdp_friendly_name: "Denon AVR Proxy"
