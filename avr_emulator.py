@@ -539,7 +539,8 @@ def appcommand_response_xml(
     State should have: power, volume, mute, input_source (all optional).
     """
     power = (getattr(state, "power", None) if state else None) or "ON"
-    volume = (getattr(state, "volume", None) if state else None) or "50"
+    vol_raw = (getattr(state, "volume", None) if state else None) or "50"
+    volume = _volume_to_db(vol_raw)
     mute_val = "on" if (state and getattr(state, "mute", None)) else "off"
     input_src = (getattr(state, "input_source", None) if state else None) or "CD"
     friendly_name = config.get("ssdp_friendly_name", "Denon AVR Proxy")
@@ -628,10 +629,30 @@ def appcommand_response_xml(
     return xml_str.encode("utf-8")
 
 
+def _volume_to_db(vol_str: Optional[str]) -> str:
+    """Convert Denon telnet volume (0-98, MAX, MAX 98) to dB for status XML."""
+    if not vol_str or not str(vol_str).strip():
+        return "-80.0"
+    s = str(vol_str).strip().upper()
+    # Extract numeric part: "MAX 98" -> 98, "50" -> 50, "MAX" -> 98
+    if "MAX" in s:
+        parts = s.split()
+        vol_int = int(parts[-1]) if len(parts) > 1 and parts[-1].isdigit() else 98
+    elif s.isdigit():
+        vol_int = int(s)
+    else:
+        return "-80.0"
+    vol_int = max(0, min(98, vol_int))
+    # Denon: 80 = 0 dB, ~0.5 dB per step: dB = (vol - 80) * 0.5
+    db = (vol_int - 80) * 0.5
+    return f"{db:.1f}"
+
+
 def mainzone_xml(state: Any, friendly_name: str = "Denon AVR Proxy") -> bytes:
     """Build MainZone XML for denonavr status polling."""
     power = (getattr(state, "power", None) if state else None) or "ON"
-    volume = (getattr(state, "volume", None) if state else None) or "50"
+    vol_raw = (getattr(state, "volume", None) if state else None) or "50"
+    volume = _volume_to_db(vol_raw)
     mute_val = "on" if (state and getattr(state, "mute", None)) else "off"
     input_src = (getattr(state, "input_source", None) if state else None) or "CD"
     sound_mode = (getattr(state, "sound_mode", None) if state else None) or "STEREO"
