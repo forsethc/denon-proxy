@@ -314,7 +314,7 @@ class DenonProxyServer:
         asyncio.create_task(reconnect())
 
     async def _sync_initial_state(self) -> None:
-        """Use denonavr HTTP API to fetch initial state (if available)."""
+        """Use denonavr HTTP API to fetch initial state and device sources (if available)."""
         if not (self.config.get("avr_host") or "").strip() or not DENONAVR_AVAILABLE:
             return
         try:
@@ -339,6 +339,13 @@ class DenonProxyServer:
                 self.state.input_source = d.input_func
             if d.muted is not None:
                 self.state.mute = d.muted
+            # Fetch device sources for display and for validating user config
+            rev = getattr(d.input, "_input_func_map_rev", None)
+            if rev and isinstance(rev, dict):
+                self.config["_device_sources"] = [
+                    (func, str(display or func)) for func, display in rev.items()
+                ]
+                self.logger.info("Fetched %d input sources from AVR", len(self.config["_device_sources"]))
             self.logger.info("Initial state from HTTP: power=%s vol=%s input=%s mute=%s",
                              self.state.power, self.state.volume,
                              self.state.input_source, self.state.mute)

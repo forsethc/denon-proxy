@@ -20,6 +20,19 @@ proxy_port: 2323
 # Logging verbosity: DEBUG, INFO, WARNING, ERROR
 log_level: "INFO"
 
+# Custom input sources: map Denon function codes to display names in Home Assistant.
+# Use this if you only use certain inputs and want names to match your AVR's custom names.
+# Format: dict (func_code: "Display Name") or list of [func, name] pairs.
+# func_code is what the AVR expects (e.g. CD, BD, HDMI1); display_name appears in HA.
+# Omit or leave empty: with a physical AVR, sources are fetched from the device
+# (including custom names); otherwise the default list is used.
+# sources:
+#   CD: "CD"
+#   BD: "PlayStation"
+#   HDMI1: "Apple TV"
+#   HDMI2: "Cable Box"
+#   NET: "Streaming"
+
 # SSDP discovery (e.g. for Home Assistant auto-discovery)
 enable_ssdp: false
 

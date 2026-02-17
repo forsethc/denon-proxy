@@ -30,6 +30,8 @@ import socket
 import xml.etree.ElementTree as ET
 from typing import Any, Callable, Optional
 
+_logger = logging.getLogger(__name__)
+
 # -----------------------------------------------------------------------------
 # AVR State - canonical Denon AVR state model
 # -----------------------------------------------------------------------------
@@ -440,6 +442,73 @@ DEMO_SOURCES = [
 ]
 
 
+def get_sources(config: dict) -> list[tuple[str, str]]:
+    """
+    Return list of (func_name, display_name) for input sources.
+    func_name is the Denon code (e.g. CD, BD, HDMI1) used in SI commands.
+    display_name is shown in Home Assistant.
+    Uses config['sources'] if provided (dict or list of [func, name] pairs).
+    If no config mapping and config['_device_sources'] exists (populated from
+    physical AVR during sync), uses that. Otherwise DEMO_SOURCES.
+    When user provides sources, filters out any func codes that don't exist on
+    the AVR (if _device_sources available) and logs a warning for each.
+    """
+    cached = config.get("_resolved_sources")
+    if cached is not None:
+        return cached
+
+    cfg = config.get("sources")
+    if cfg:
+        out: list[tuple[str, str]] = []
+        if isinstance(cfg, dict):
+            for fn, dn in cfg.items():
+                fn_str = str(fn).strip()
+                dn_str = str(dn).strip() if dn else fn_str
+                if fn_str:
+                    out.append((fn_str, dn_str))
+        elif isinstance(cfg, (list, tuple)):
+            for item in cfg:
+                if isinstance(item, (list, tuple)) and len(item) >= 2:
+                    fn_str = str(item[0]).strip()
+                    dn_str = str(item[1]).strip() if item[1] else fn_str
+                    if fn_str:
+                        out.append((fn_str, dn_str))
+                elif isinstance(item, dict):
+                    fn = item.get("func") or item.get("func_name") or item.get("source")
+                    dn = item.get("name") or item.get("display_name") or fn
+                    if fn:
+                        out.append((str(fn).strip(), str(dn).strip() if dn else str(fn).strip()))
+        # Filter out sources that don't exist on the AVR
+        device_sources = config.get("_device_sources")
+        if device_sources and isinstance(device_sources, (list, tuple)):
+            valid_funcs = {str(f).strip() for f, _ in device_sources if f}
+            filtered: list[tuple[str, str]] = []
+            for fn, dn in out:
+                if fn in valid_funcs:
+                    filtered.append((fn, dn))
+                else:
+                    _logger.warning(
+                        "Input source '%s' (display: '%s') not found on AVR, skipping",
+                        fn, dn,
+                    )
+            out = filtered
+        result = out if out else DEMO_SOURCES
+    else:
+        # No user mapping: prefer device sources (from physical AVR) over defaults
+        device_sources = config.get("_device_sources")
+        if device_sources and isinstance(device_sources, (list, tuple)):
+            result = [(str(f).strip(), str(n).strip() if n else str(f).strip()) for f, n in device_sources if f]
+        else:
+            result = DEMO_SOURCES
+
+    config["_resolved_sources"] = result
+    device_sources = config.get("_device_sources")
+    if device_sources and isinstance(device_sources, (list, tuple)):
+        _logger.info("Device sources from AVR:\n  %s", "\n  ".join(f"{f} → {n}" for f, n in device_sources))
+    _logger.info("Resolved input sources:\n  %s", "\n  ".join(f"{f} → {n}" for f, n in result))
+    return result
+
+
 # -----------------------------------------------------------------------------
 # Helpers
 # -----------------------------------------------------------------------------
@@ -469,7 +538,7 @@ def deviceinfo_xml(config: dict) -> str:
     (avoids port 60006 aios_device.xml which can cause HA config flow issues)."""
     sources_xml = "\n".join(
         f'      <Source><FuncName>{fn}</FuncName><DefaultName>{dn}</DefaultName></Source>'
-        for fn, dn in DEMO_SOURCES
+        for fn, dn in get_sources(config)
     )
     return f"""<?xml version="1.0" encoding="utf-8"?>
 <Device_Info>
@@ -648,17 +717,21 @@ def _volume_to_db(vol_str: Optional[str]) -> str:
     return f"{db:.1f}"
 
 
-def mainzone_xml(state: Any, friendly_name: str = "Denon AVR Proxy") -> bytes:
+def mainzone_xml(state: Any, config: Optional[dict] = None) -> bytes:
     """Build MainZone XML for denonavr status polling."""
+    config = config or {}
+    friendly_name = config.get("ssdp_friendly_name", "Denon AVR Proxy")
     power = (getattr(state, "power", None) if state else None) or "ON"
     vol_raw = (getattr(state, "volume", None) if state else None) or "50"
     volume = _volume_to_db(vol_raw)
     mute_val = "on" if (state and getattr(state, "mute", None)) else "off"
     input_src = (getattr(state, "input_source", None) if state else None) or "CD"
     sound_mode = (getattr(state, "sound_mode", None) if state else None) or "STEREO"
-    func_names = [fn for fn, _ in DEMO_SOURCES]
+    sources = get_sources(config)
+    func_names = [fn for fn, _ in sources]
+    display_names = [dn for _, dn in sources]
     input_func_list = "\n".join(f"    <Value>{fn}</Value>" for fn in func_names)
-    rename_source = "\n".join(f"    <Value>{fn}</Value>" for fn in func_names)
+    rename_source = "\n".join(f"    <Value>{dn}</Value>" for dn in display_names)
     source_delete = "\n".join("    <Value>USE</Value>" for _ in func_names)
     return f"""<?xml version="1.0" encoding="utf-8"?>
 <item>
@@ -848,10 +921,7 @@ class DeviceDescriptionHandler(asyncio.Protocol):
                 elif "aios_device.xml" in path_lower or "upnp/desc" in path_lower:
                     body = self.description_xml
                 elif "mainzonexmlstatus" in path_lower or "mainzonexml" in path_lower:
-                    body = mainzone_xml(
-                        self.state,
-                        self.config.get("ssdp_friendly_name", "Denon AVR Proxy"),
-                    )
+                    body = mainzone_xml(self.state, self.config)
             elif method == "POST" and "/goform/appcommand.xml" in path_lower:
                 body = appcommand_response_xml(
                     self.config, self.state, body_bytes, self.logger
@@ -906,7 +976,7 @@ async def run_emulator_servers(
         logger.warning("SSDP: Could not determine IP to advertise. Set ssdp_advertise_ip in config.")
         return None, None
 
-    logger.info("SSDP advertising as %s at %s", config.get("ssdp_friendly_name"), advertise_ip)
+    logger.info("SSDP advertising as '%s' at %s", config.get("ssdp_friendly_name"), advertise_ip)
 
     ssdp_transport = None
     try:

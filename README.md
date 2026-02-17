@@ -62,6 +62,7 @@ proxy_port: 2323             # Port for clients (2323 avoids needing root for po
 | `ssdp_friendly_name` | Denon AVR Proxy | Name shown in Home Assistant           |
 | `ssdp_http_port` | 8080 | Port for device description XML                |
 | `ssdp_advertise_ip` | "" | IP to advertise (empty = auto-detect)      |
+| `sources` | (from AVR or default) | Custom input sources: dict of `func_code: "Display Name"`. Omit to use actual device sources (including custom renames) when a physical AVR is connected |
 
 ### Troubleshooting "Unknown Error" or Timeout
 
