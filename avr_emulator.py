@@ -544,7 +544,7 @@ def deviceinfo_xml(config: dict) -> str:
     return f"""<?xml version="1.0" encoding="utf-8"?>
 <Device_Info>
   <ModelName>AVR-3808</ModelName>
-  <CommApiVers>0100</CommApiVers>
+  <CommApiVers>0300</CommApiVers>
   <DeviceZones>1</DeviceZones>
   <DeviceZoneCapabilities>
     <Zone><No>0</No></Zone>
@@ -631,9 +631,12 @@ def appcommand_response_xml(
                 f"<friendlyname>{friendly_name}</friendlyname></cmd>"
             )
         elif ct == "GetAllZonePowerStatus":
+            # Both zone1 (AppCommand) and list format (some clients expect zone names)
             cmd_responses.append(
                 f'  <cmd id="{cid}" cmd_text="GetAllZonePowerStatus">'
-                f"<zone1>{power}</zone1></cmd>"
+                f"<zone1>{power}</zone1>"
+                f'<list><listvalue><zone>Main</zone><value>{power}</value></listvalue></list>'
+                f"</cmd>"
             )
         elif ct == "GetAllZoneVolume":
             cmd_responses.append(
@@ -672,9 +675,10 @@ def appcommand_response_xml(
                 "<mode>Off</mode></cmd>"
             )
         elif ct == "GetToneControl":
+            # denonavr uses convert_string_int_bool for status/adjust: expects "0" or "1", not "Off"/"On"
             cmd_responses.append(
                 f'  <cmd id="{cid}" cmd_text="GetToneControl">'
-                '<status>Off</status><adjust>0</adjust>'
+                '<status>0</status><adjust>0</adjust>'
                 '<basslevel>0</basslevel><bassvalue>50</bassvalue>'
                 '<treblelevel>0</treblelevel><treblevalue>50</treblevalue></cmd>'
             )
@@ -760,19 +764,36 @@ def mainzone_xml(state: Any, config: Optional[dict] = None) -> bytes:
 </item>""".encode("utf-8")
 
 
+def _escape_xml_text(s: str) -> str:
+    """Escape &, <, >, " for use in XML element text."""
+    return (
+        str(s)
+        .replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+        .replace('"', "&quot;")
+    )
+
+
 def device_description_xml(config: dict, advertise_ip: str) -> str:
-    """Minimal UPnP device description XML matching what Home Assistant expects."""
+    """Minimal UPnP device description XML matching what Home Assistant expects.
+    Uses physical AVR manufacturer/model from _avr_info when available (e.g. after
+    HTTP sync) so UC Remote and other clients can detect Denon vs Marantz correctly."""
     friendly_name = config.get("ssdp_friendly_name", "Denon AVR Proxy")
     http_port = config.get("ssdp_http_port", 8080)
     serial = f"proxy-{advertise_ip.replace('.', '-')}"
+    avr_info = config.get("_avr_info") or {}
+    manufacturer = (avr_info.get("manufacturer") or "Denon").strip() or "Denon"
+    raw_model = (avr_info.get("model_name") or "").strip()
+    model_name = f"{raw_model} Proxy" if raw_model else "AVR-Proxy"
     return f"""<?xml version="1.0" encoding="utf-8"?>
 <root xmlns="urn:schemas-upnp-org:device-1-0">
   <specVersion><major>1</major><minor>0</minor></specVersion>
   <device>
     <deviceType>urn:schemas-upnp-org:device:MediaRenderer:1</deviceType>
     <friendlyName>{friendly_name}</friendlyName>
-    <manufacturer>Denon</manufacturer>
-    <modelName>AVR-Proxy</modelName>
+    <manufacturer>{_escape_xml_text(manufacturer)}</manufacturer>
+    <modelName>{_escape_xml_text(model_name)}</modelName>
     <serialNumber>{serial}</serialNumber>
     <UDN>uuid:denon-proxy-{serial}</UDN>
     <presentationURL>http://{advertise_ip}:{http_port}/description.xml</presentationURL>
