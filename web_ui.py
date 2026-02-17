@@ -113,7 +113,8 @@ async def run_json_api(
     """
     Start the JSON status API server.
 
-    GET / or /status returns current state.
+    GET / or /status returns current state. AVR object includes manufacturer,
+    model_name, serial_number, friendly_name, and sources when available.
     POST /state with JSON body {power, volume, input_source, mute, sound_mode}
     sets virtual AVR state and broadcasts to clients (for testing).
 

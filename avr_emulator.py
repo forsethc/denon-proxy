@@ -76,7 +76,8 @@ class AVRState:
 
         elif message.startswith("MV") and len(message) > 2:
             param = message[2:].strip()
-            if param and param != "?":
+            # MVMAX / MVMAX xx = max volume setting, not current; skip
+            if param and param != "?" and "MAX" not in param.upper():
                 self.volume = param
 
         elif message.startswith("MU"):
@@ -698,22 +699,25 @@ def appcommand_response_xml(
     return xml_str.encode("utf-8")
 
 
-def _volume_to_db(vol_str: Optional[str]) -> str:
-    """Convert Denon telnet volume (0-98, MAX, MAX 98) to dB for status XML."""
+def _volume_to_level(vol_str: Optional[str]) -> float:
+    """Extract numeric level 0-98 from Denon volume. Handles half steps (e.g. 535=53.5)."""
     if not vol_str or not str(vol_str).strip():
-        return "-80.0"
+        return 80.0
     s = str(vol_str).strip().upper()
-    # Extract numeric part: "MAX 98" -> 98, "50" -> 50, "MAX" -> 98
     if "MAX" in s:
         parts = s.split()
-        vol_int = int(parts[-1]) if len(parts) > 1 and parts[-1].isdigit() else 98
-    elif s.isdigit():
-        vol_int = int(s)
-    else:
-        return "-80.0"
-    vol_int = max(0, min(98, vol_int))
-    # Denon: 80 = 0 dB, ~0.5 dB per step: dB = (vol - 80) * 0.5
-    db = (vol_int - 80) * 0.5
+        return min(98.0, float(parts[-1]) if len(parts) > 1 and parts[-1].isdigit() else 98.0)
+    if s.isdigit():
+        # 3 digits = XX.X (e.g. 535 = 53.5), 2 digits = XX (e.g. 50 = 50)
+        val = float(s) / 10.0 if len(s) == 3 else float(s)
+        return max(0.0, min(98.0, val))
+    return 80.0
+
+
+def _volume_to_db(vol_str: Optional[str]) -> str:
+    """Convert Denon telnet volume (0-98, half steps, MAX, etc.) to dB for status XML."""
+    vol = _volume_to_level(vol_str)
+    db = (vol - 80) * 0.5
     return f"{db:.1f}"
 
 

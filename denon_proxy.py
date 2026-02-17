@@ -39,6 +39,7 @@ from avr_emulator import (
     AVRConnection,
     AVRState,
     VirtualAVRConnection,
+    _volume_to_level,
     create_avr_connection,
     get_advertise_ip,
     run_emulator_servers,
@@ -339,7 +340,13 @@ class DenonProxyServer:
                 self.state.input_source = d.input_func
             if d.muted is not None:
                 self.state.mute = d.muted
-            # Fetch device sources for display and for validating user config
+            # Fetch device info and sources for JSON API and source resolution
+            self.config["_avr_info"] = {
+                "manufacturer": getattr(d, "manufacturer", None),
+                "model_name": getattr(d, "model_name", None),
+                "serial_number": getattr(d, "serial_number", None),
+                "friendly_name": getattr(d, "name", None),
+            }
             rev = getattr(d.input, "_input_func_map_rev", None)
             if rev and isinstance(rev, dict):
                 self.config["_device_sources"] = [
@@ -399,15 +406,25 @@ class DenonProxyServer:
         # JSON status API
         def _get_json_state() -> dict:
             clients = [c._peername[0] if c._peername else "?" for c in list(self.clients)]
-            avr_connected = bool(self.avr and self.avr.is_connected())
             state = {
                 k: v
                 for k, v in vars(self.state).items()
-                if not k.startswith("_")
+                if not k.startswith("_") and k != "raw_responses"
             }
+            if "volume" in state and state["volume"] is not None:
+                state["volume"] = _volume_to_level(state["volume"])
+            avr = dict(self.avr.get_details()) if self.avr else {"type": "none"}
+            avr_info = self.config.get("_avr_info") or {}
+            if avr_info:
+                avr["manufacturer"] = avr_info.get("manufacturer")
+                avr["model_name"] = avr_info.get("model_name")
+                avr["serial_number"] = avr_info.get("serial_number")
+                avr["friendly_name"] = avr_info.get("friendly_name")
+            sources = self.config.get("_resolved_sources") or self.config.get("_device_sources")
+            if sources:
+                avr["sources"] = [{"func": f, "display": n} for f, n in sources]
             return {
-                "avr": self.avr.get_details() if self.avr else {"type": "none"},
-                "avr_connected": avr_connected,
+                "avr": avr,
                 "clients": clients,
                 "client_count": len(clients),
                 "state": state,
