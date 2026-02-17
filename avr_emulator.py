@@ -26,10 +26,16 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 import socket
 import struct
 import xml.etree.ElementTree as ET
 from typing import Any, Callable, Optional
+
+try:
+    import httpx
+except ImportError:
+    httpx = None  # type: ignore
 
 SSDP_MCAST_GRP = "239.255.255.250"
 SSDP_MCAST_PORT = 1900
@@ -780,6 +786,44 @@ def _escape_xml_text(s: str) -> str:
     )
 
 
+async def _fetch_avr_description(avr_host: str, logger: logging.Logger) -> Optional[str]:
+    """Fetch description.xml from the physical AVR. Returns None on failure."""
+    if not httpx:
+        return None
+    for port in (8080, 80, 60006):
+        url = f"http://{avr_host}:{port}/description.xml"
+        try:
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                r = await client.get(url)
+                if r.status_code == 200 and r.text:
+                    return r.text
+        except Exception as e:
+            logger.debug("Fetch %s: %s", url, e)
+    return None
+
+
+def _rewrite_avr_description(
+    xml_str: str, avr_host: str, advertise_ip: str, http_port: int, logger: logging.Logger
+) -> str:
+    """Rewrite AVR's description.xml: replace host in URLs, add ' Proxy' to friendlyName."""
+    # Replace http://avr_host[:port]/ with http://advertise_ip:http_port/
+    xml_str = re.sub(
+        rf"http://{re.escape(avr_host)}(?::\d+)?/",
+        f"http://{advertise_ip}:{http_port}/",
+        xml_str,
+        flags=re.IGNORECASE,
+    )
+    # Add " Proxy" to friendlyName if not already present
+    def add_proxy(m: re.Match) -> str:
+        content = m.group(1)
+        if content.endswith(" Proxy"):
+            return m.group(0)
+        return f"<friendlyName>{content} Proxy</friendlyName>"
+
+    xml_str = re.sub(r"<friendlyName>(.*?)</friendlyName>", add_proxy, xml_str, count=1)
+    return xml_str
+
+
 def device_description_xml(config: dict, advertise_ip: str) -> str:
     """Minimal UPnP device description XML matching what Home Assistant expects.
     Uses physical AVR manufacturer/model from _avr_info when available (e.g. after
@@ -1027,7 +1071,16 @@ async def run_emulator_servers(
         logger.warning("SSDP requires port 1900 (may need root): %s", e)
 
     http_port = config.get("ssdp_http_port", 8080)
-    desc_xml = device_description_xml(config, advertise_ip).encode("utf-8")
+    avr_host = (config.get("avr_host") or "").strip()
+    desc_xml_str = None
+    if avr_host:
+        raw = await _fetch_avr_description(avr_host, logger)
+        if raw:
+            desc_xml_str = _rewrite_avr_description(raw, avr_host, advertise_ip, http_port, logger)
+            logger.info("Using AVR description.xml from %s (friendlyName + Proxy)", avr_host)
+    if desc_xml_str is None:
+        desc_xml_str = device_description_xml(config, advertise_ip)
+    desc_xml = desc_xml_str.encode("utf-8")
     devinfo_xml = deviceinfo_xml(config).encode("utf-8")
     appcmd_xml = appcommand_friendlyname_xml(config).encode("utf-8")
 
