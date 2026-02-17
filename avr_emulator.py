@@ -27,8 +27,12 @@ from __future__ import annotations
 import asyncio
 import logging
 import socket
+import struct
 import xml.etree.ElementTree as ET
 from typing import Any, Callable, Optional
+
+SSDP_MCAST_GRP = "239.255.255.250"
+SSDP_MCAST_PORT = 1900
 
 _logger = logging.getLogger(__name__)
 
@@ -544,6 +548,7 @@ def deviceinfo_xml(config: dict) -> str:
     return f"""<?xml version="1.0" encoding="utf-8"?>
 <Device_Info>
   <ModelName>AVR-3808</ModelName>
+  <CategoryName>AV RECEIVER</CategoryName>
   <CommApiVers>0300</CommApiVers>
   <DeviceZones>1</DeviceZones>
   <DeviceZoneCapabilities>
@@ -860,6 +865,7 @@ class SSDPProtocol(asyncio.DatagramProtocol):
             st = parse_msearch_st(msg)
             if not st or not any(m in st for m in self.MATCH_ST):
                 return
+            self.logger.debug("SSDP M-SEARCH from %s (ST=%s)", addr, st[:50])
             resp = ssdp_response(self.config, self._advertise_ip, st)
             if self.transport:
                 self.transport.sendto(resp, addr)
@@ -1008,6 +1014,9 @@ async def run_emulator_servers(
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         sock.bind(("0.0.0.0", 1900))
+        # Join SSDP multicast group to receive M-SEARCH from HA, UC Remote, etc.
+        mreq = struct.pack("=4sI", socket.inet_aton(SSDP_MCAST_GRP), socket.INADDR_ANY)
+        sock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
         loop = asyncio.get_running_loop()
         ssdp_transport, _ = await loop.create_datagram_endpoint(
             lambda: SSDPProtocol(config, logger),

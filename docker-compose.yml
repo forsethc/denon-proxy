@@ -9,6 +9,7 @@ services:
       - "23:23"           # Telnet (HA requires port 23)
       - "8080:8080"       # SSDP HTTP
       - "8081:8081"       # Web UI (when enabled)
+      - "60006:60006"     # AVR-X 2016 device description
     volumes:
       # Mount your config (create from config.sample.yaml). Omit for demo mode with env vars.
       - ./config.yaml:/app/config.yaml:ro
