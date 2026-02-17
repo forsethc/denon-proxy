@@ -803,16 +803,11 @@ async def _fetch_avr_description(avr_host: str, logger: logging.Logger) -> Optio
 
 
 def _rewrite_avr_description(
-    xml_str: str, avr_host: str, advertise_ip: str, http_port: int, logger: logging.Logger
+    xml_str: str, avr_host: str, advertise_ip: str, logger: logging.Logger
 ) -> str:
-    """Rewrite AVR's description.xml: replace host in URLs, add ' Proxy' to friendlyName."""
-    # Replace http://avr_host[:port]/ with http://advertise_ip:http_port/
-    xml_str = re.sub(
-        rf"http://{re.escape(avr_host)}(?::\d+)?/",
-        f"http://{advertise_ip}:{http_port}/",
-        xml_str,
-        flags=re.IGNORECASE,
-    )
+    """Rewrite AVR's description.xml: replace host with proxy IP, add ' Proxy' to friendlyName."""
+    # This assumes the avr and the proxy use the same ports for everything (if any are specified)
+    xml_str = xml_str.replace(avr_host, advertise_ip)
     # Add " Proxy" to friendlyName if not already present
     def add_proxy(m: re.Match) -> str:
         content = m.group(1)
@@ -1076,7 +1071,7 @@ async def run_emulator_servers(
     if avr_host:
         raw = await _fetch_avr_description(avr_host, logger)
         if raw:
-            desc_xml_str = _rewrite_avr_description(raw, avr_host, advertise_ip, http_port, logger)
+            desc_xml_str = _rewrite_avr_description(raw, avr_host, advertise_ip, logger)
             logger.info("Using AVR description.xml from %s (friendlyName + Proxy)", avr_host)
     if desc_xml_str is None:
         desc_xml_str = device_description_xml(config, advertise_ip)
