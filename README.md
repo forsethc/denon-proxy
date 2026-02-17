@@ -46,7 +46,7 @@ pip install -r requirements.txt
 
 ```yaml
 avr_host: "192.168.1.100"   # Your Denon AVR's IP
-proxy_port: 2323             # Port for clients (2323 avoids needing root for port 23)
+proxy_port: 23               # Port for clients (HA requires 23)
 ```
 
 ### Configuration Options
@@ -56,7 +56,7 @@ proxy_port: 2323             # Port for clients (2323 avoids needing root for po
 | `avr_host` | "" (demo) | IP or hostname of the physical AVR. Empty = demo mode (no AVR) |
 | `avr_port` | 23        | Telnet port on the AVR                         |
 | `proxy_host` | 0.0.0.0 | Bind address (0.0.0.0 = all interfaces)       |
-| `proxy_port` | 2323    | Port clients connect to                        |
+| `proxy_port` | 23      | Port clients connect to (HA requires 23)       |
 | `log_level` | INFO     | DEBUG, INFO, WARNING, or ERROR                  |
 | `enable_ssdp` | false  | SSDP discovery for Home Assistant              |
 | `ssdp_friendly_name` | Denon AVR Proxy | Name shown in Home Assistant           |
@@ -78,7 +78,7 @@ If adding the device in Home Assistant fails with "Unknown error" or "Timeout":
 You can override config with environment variables:
 
 ```bash
-AVR_HOST=192.168.1.100 PROXY_PORT=2323 python denon_proxy.py
+AVR_HOST=192.168.1.100 python denon_proxy.py
 ```
 
 ## Running
@@ -95,16 +95,35 @@ Or with a custom config file:
 python denon_proxy.py --config config.yaml
 ```
 
-### Running on Port 23 (Standard Telnet)
+### Running on Port 23
 
-On Linux/macOS, port 23 typically requires root:
+The HA Denon integration only connects to port 23. On Linux/macOS, binding to port 23 typically requires root or `cap_net_bind_service` (Docker adds this automatically):
 
 ```bash
 sudo python denon_proxy.py
-# And set proxy_port: 23 in config
 ```
 
-Or use port 2323 (default) and configure clients to connect to that port instead.
+### Docker
+
+```bash
+# Create config from sample (required for docker-compose)
+cp config.sample.yaml config.yaml
+# Edit config.yaml with your AVR host, etc.
+
+# Build and run with docker-compose
+docker compose up -d
+
+# Or with Docker directly (config optional; env vars override)
+docker build -t denon-proxy .
+docker run -d --name denon-proxy \
+  --cap-add=NET_BIND_SERVICE \
+  -p 23:23 -p 8080:8080 -p 8081:8081 \
+  -v $(pwd)/config.yaml:/app/config.yaml:ro \
+  -e AVR_HOST=192.168.1.100 \
+  denon-proxy
+```
+
+**SSDP discovery:** For Home Assistant auto-discovery, SSDP multicast (UDP 1900) often needs host networking. In docker-compose, set `network_mode: host` and remove the `ports` section. Set `ssdp_advertise_ip` to your host's IP in config.
 
 ## Connecting Clients
 
@@ -113,7 +132,7 @@ Or use port 2323 (default) and configure clients to connect to that port instead
 **With SSDP discovery** (recommended):
 
 1. Set `enable_ssdp: true` in config
-2. Set `proxy_port: 23` (Home Assistant expects telnet on port 23) and run with `sudo` if needed
+2. Run with `sudo` (or Docker with `cap_net_bind_service`) since port 23 requires it
 3. Set `ssdp_advertise_ip` to your proxy's IP if auto-detect fails
 4. Add the **Denon AVR Network Receivers** integration — the proxy should appear as "Discovered"
 
@@ -122,9 +141,7 @@ Or use port 2323 (default) and configure clients to connect to that port instead
 1. Set `enable_ssdp: true` in config (the HTTP server is needed for denonavr setup)
 2. Add the **Denon AVR Network Receivers** integration
 3. Enter the proxy's IP address when prompted
-4. For custom port (e.g. 2323), use manual configuration if the integration supports it
-
-> **Note:** The standard Home Assistant Denon integration uses port 23. If you use proxy_port 2323, you may need a custom integration or to run the proxy as root on port 23.
+4. The HA integration does not support custom ports — the proxy must run on port 23.
 
 ### UC Remote 3
 
@@ -135,7 +152,7 @@ Or use port 2323 (default) and configure clients to connect to that port instead
 ### Telnet Test
 
 ```bash
-telnet <proxy-ip> 2323
+telnet <proxy-ip> 23
 ```
 
 Then type Denon commands and press Enter:
@@ -188,7 +205,7 @@ The advertised name is configurable via `ssdp_friendly_name`. Home Assistant wil
 [Other client]  ─┘       (single Telnet)
 ```
 
-- **Proxy server** listens on TCP (default 2323)
+- **Proxy server** listens on TCP port 23
 - **State tracking** parses AVR responses to maintain power, volume, input, mute
 - **New clients** receive current state immediately upon connection
 - **Command forwarding** sends client commands to the AVR; responses are broadcast to all clients
@@ -215,8 +232,7 @@ The advertised name is configurable via `ssdp_friendly_name`. Home Assistant wil
 
 ### Port 23 requires root
 
-- Use `proxy_port: 2323` (or another high port) and configure clients to use that port
-- Or run the proxy with `sudo` for port 23
+- Run the proxy with `sudo` (or Docker with `cap_net_bind_service`) for port 23
 
 ### Manual add fails instantly
 
@@ -230,7 +246,7 @@ The advertised name is configurable via `ssdp_friendly_name`. Home Assistant wil
 - UDP 1900 requires root on Linux: run with `sudo`
 - Set `ssdp_advertise_ip` to your proxy's LAN IP if auto-detect fails
 - Ensure port 8080 is free for the device description HTTP server (or set `ssdp_http_port`)
-- Home Assistant expects telnet on port 23 — use `proxy_port: 23` for seamless discovery
+- Home Assistant requires port 23 — use `sudo` or Docker for binding
 
 ## License
 

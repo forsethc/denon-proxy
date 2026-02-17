@@ -14,7 +14,7 @@ avr_port: 23
 proxy_host: "0.0.0.0"
 
 # Port for clients to connect to (e.g., Home Assistant, UC Remote 3)
-# Use 23 for standard telnet, or another port (e.g., 2323) if 23 requires root
+# Must be 23 - HA Denon integration does not support custom ports
 proxy_port: 23
 
 # Logging verbosity: DEBUG, INFO, WARNING, ERROR

@@ -1,0 +1,18 @@
+services:
+  denon-proxy:
+    build: .
+    container_name: denon-proxy
+    restart: unless-stopped
+    cap_add:
+      - NET_BIND_SERVICE   # Required for port 23
+    ports:
+      - "23:23"           # Telnet (HA requires port 23)
+      - "8080:8080"       # SSDP HTTP
+      - "8081:8081"       # Web UI (when enabled)
+    volumes:
+      # Mount your config (create from config.sample.yaml). Omit for demo mode with env vars.
+      - ./config.yaml:/app/config.yaml:ro
+    environment:
+      - AVR_HOST=${AVR_HOST:-}
+      - AVR_PORT=${AVR_PORT:-23}
+      - PROXY_PORT=${PROXY_PORT:-23}
