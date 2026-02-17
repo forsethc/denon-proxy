@@ -59,7 +59,6 @@ class AVRState:
         self.input_source: Optional[str] = "CD"  # e.g. "CD", "TUNER", "DVD"
         self.mute: Optional[bool] = False      # True = muted
         self.sound_mode: Optional[str] = "STEREO"  # e.g. STEREO, MULTI CH IN, DOLBY DIGITAL
-        self.raw_responses: list[str] = []     # Recent responses (proxy use)
 
     def update_from_message(self, message: str) -> None:
         """Update state from a Denon telnet response (PW, MV, SI, MU, ZM, MS)."""
@@ -222,7 +221,6 @@ class AVRConnection:
         self.reader: Optional[asyncio.StreamReader] = None
         self.writer: Optional[asyncio.StreamWriter] = None
         self._buffer = b""
-        self._reconnect_task: Optional[asyncio.Task] = None
 
     def is_connected(self) -> bool:
         """Return True if connected to the AVR."""
@@ -311,8 +309,6 @@ class AVRConnection:
 
     def close(self) -> None:
         """Close the AVR connection."""
-        if self._reconnect_task:
-            self._reconnect_task.cancel()
         if self.writer:
             self.writer.close()
             self.reader = None
@@ -341,7 +337,6 @@ class VirtualAVRConnection:
         self.on_disconnect = on_disconnect
         self.logger = logger
         self._connected = False
-        self.writer = None  # No real stream; used for is_connected checks
 
     def is_connected(self) -> bool:
         return self._connected

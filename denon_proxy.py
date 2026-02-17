@@ -106,7 +106,6 @@ def load_config(config_path: Optional[Path] = None) -> dict:
         config.update(yaml.safe_load(f) or {})
 
     # Environment overrides
-    import os
     if os.getenv("AVR_HOST"):
         config["avr_host"] = os.getenv("AVR_HOST")
     if os.getenv("AVR_PORT"):
@@ -447,7 +446,7 @@ class DenonProxyServer:
             state = {
                 k: v
                 for k, v in vars(self.state).items()
-                if not k.startswith("_") and k != "raw_responses"
+                if not k.startswith("_")
             }
             if "volume" in state and state["volume"] is not None:
                 state["volume"] = _volume_to_level(state["volume"])
@@ -522,12 +521,10 @@ async def main_async(config: dict) -> None:
         _shutting_down = True
         stop_event.set()
 
-    _signal_handlers_set = False
     try:
         loop = asyncio.get_running_loop()
         for sig in (signal.SIGINT, signal.SIGTERM):
             loop.add_signal_handler(sig, shutdown)
-        _signal_handlers_set = True
     except NotImplementedError:
         # add_signal_handler not supported on Windows - use signal.signal
         try:
