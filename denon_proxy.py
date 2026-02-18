@@ -15,7 +15,6 @@ Usage:
 
 import argparse
 import asyncio
-import json
 import logging
 import os
 import signal
@@ -440,7 +439,7 @@ class DenonProxyServer:
             self.logger.info("Proxy listening on %s:%d (virtual AVR)", connect_host, port)
         self.logger.info("Connect Home Assistant and UC Remote 3 to %s:%d", connect_host, port)
 
-        # JSON status API
+        # Web UI / JSON status API
         def _get_json_state() -> dict:
             clients = [c._peername[0] if c._peername else "?" for c in list(self.clients)]
             state = {
@@ -451,6 +450,7 @@ class DenonProxyServer:
             if "volume" in state and state["volume"] is not None:
                 state["volume"] = _volume_to_level(state["volume"])
             avr = dict(self.avr.get_details()) if self.avr else {"type": "none"}
+            avr["connected"] = self.avr.is_connected() if self.avr else False
             avr_info = self.config.get("_avr_info") or {}
             if avr_info:
                 avr["manufacturer"] = avr_info.get("manufacturer")
@@ -469,17 +469,32 @@ class DenonProxyServer:
 
         # Only allow set_state when using VirtualAVR (no physical AVR)
         set_state_cb = self._set_state_and_broadcast if not (self.config.get("avr_host") or "").strip() else None
+
+        def _send_command_cb(cmd: str) -> None:
+            async def _do() -> None:
+                if self.avr:
+                    await self.avr.send_command(cmd)
+            asyncio.create_task(_do())
+
+        def _request_state_cb() -> None:
+            async def _do() -> None:
+                if self.avr and self.avr.is_connected():
+                    await self.avr.request_state()
+            asyncio.create_task(_do())
+
         self._json_api_server = await run_json_api(
             self.config, self.logger, _get_json_state,
             set_state=set_state_cb,
+            send_command=_send_command_cb,
+            request_state=_request_state_cb,
         )
         if self._json_api_server:
             api_host = get_advertise_ip(self.config) or "localhost"
             api_port = int(self.config.get("web_ui_port", 8081))
-            msg = f"JSON API at http://{api_host}:{api_port}"
-            if set_state_cb:
-                msg += " (POST /state to simulate AVR changes)"
-            self.logger.info(msg)
+            self.logger.info(
+                "Web UI at http://%s:%d (dashboard, JSON API, commands)",
+                api_host, api_port,
+            )
 
     async def stop(self) -> None:
         """Stop the proxy server."""
