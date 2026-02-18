@@ -20,7 +20,7 @@ import os
 import signal
 import sys
 from pathlib import Path
-from typing import Callable, Optional, Set, Union
+from typing import Any, Callable, Iterable, Optional, Set, Union
 
 try:
     import yaml
@@ -182,6 +182,46 @@ def _should_log_command_info(config: dict, cmd: str) -> bool:
     if not groups:
         return False
     return _command_group(cmd) in groups
+
+
+def build_json_state(
+    state: AVRState,
+    avr: Optional[Union[AVRConnection, VirtualAVRConnection]],
+    clients: Iterable[Any],
+    config: dict,
+) -> dict:
+    """
+    Build JSON status dict for Web UI / SSE.
+
+    Pure function for testability. Caller passes state, avr, clients, config.
+    """
+    client_ips = [c._peername[0] if getattr(c, "_peername", None) else "?" for c in list(clients)]
+    state_dict = {
+        k: v
+        for k, v in vars(state).items()
+        if not k.startswith("_")
+    }
+    if "volume" in state_dict and state_dict["volume"] is not None:
+        vol_max = getattr(avr, "volume_max", 98.0) if avr else 98.0
+        state_dict["volume"] = volume_to_level(state_dict["volume"], vol_max)
+    avr_dict = dict(avr.get_details()) if avr else {"type": "none"}
+    avr_dict["connected"] = avr.is_connected() if avr else False
+    avr_dict["volume_max"] = getattr(avr, "volume_max", 98.0) if avr else 98.0
+    avr_info = config.get("_avr_info") or {}
+    if avr_info:
+        avr_dict["manufacturer"] = avr_info.get("manufacturer")
+        avr_dict["model_name"] = avr_info.get("model_name")
+        avr_dict["serial_number"] = avr_info.get("serial_number")
+        avr_dict["friendly_name"] = avr_info.get("friendly_name")
+    sources = config.get("_resolved_sources") or config.get("_device_sources")
+    if sources:
+        avr_dict["sources"] = [{"func": f, "display": n} for f, n in sources]
+    return {
+        "avr": avr_dict,
+        "clients": client_ips,
+        "client_count": len(client_ips),
+        "state": state_dict,
+    }
 
 
 def _parse_client_data(buffer: bytes, data: bytes) -> tuple[list[str], bytes]:
@@ -529,32 +569,7 @@ class DenonProxyServer:
 
         # Web UI / JSON status API
         def _get_json_state() -> dict:
-            clients = [c._peername[0] if c._peername else "?" for c in list(self.clients)]
-            state = {
-                k: v
-                for k, v in vars(self.state).items()
-                if not k.startswith("_")
-            }
-            if "volume" in state and state["volume"] is not None:
-                state["volume"] = volume_to_level(state["volume"], self.avr.volume_max)
-            avr = dict(self.avr.get_details()) if self.avr else {"type": "none"}
-            avr["connected"] = self.avr.is_connected() if self.avr else False
-            avr["volume_max"] = self.avr.volume_max
-            avr_info = self.config.get("_avr_info") or {}
-            if avr_info:
-                avr["manufacturer"] = avr_info.get("manufacturer")
-                avr["model_name"] = avr_info.get("model_name")
-                avr["serial_number"] = avr_info.get("serial_number")
-                avr["friendly_name"] = avr_info.get("friendly_name")
-            sources = self.config.get("_resolved_sources") or self.config.get("_device_sources")
-            if sources:
-                avr["sources"] = [{"func": f, "display": n} for f, n in sources]
-            return {
-                "avr": avr,
-                "clients": clients,
-                "client_count": len(clients),
-                "state": state,
-            }
+            return build_json_state(self.state, self.avr, self.clients, self.config)
 
         # Only allow set_state when using VirtualAVR (no physical AVR)
         set_state_cb = self._set_state_and_broadcast if not (self.config.get("avr_host") or "").strip() else None
