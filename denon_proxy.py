@@ -66,30 +66,34 @@ def setup_logging(level: str = "INFO") -> None:
 # Configuration
 # -----------------------------------------------------------------------------
 
-def load_config(config_path: Optional[Path] = None) -> dict:
-    """Load configuration from YAML file with environment overrides."""
+_DEFAULT_CONFIG = {
+    "avr_host": "",
+    "avr_port": 23,
+    "proxy_host": "0.0.0.0",
+    "proxy_port": 23,
+    "log_level": "INFO",
+    "enable_ssdp": True,
+    "ssdp_friendly_name": "Denon AVR Proxy",
+    "ssdp_http_port": 8080,
+    "ssdp_advertise_ip": "",
+    "optimistic_state": True,
+    "optimistic_broadcast_delay": 0.1,
+    "enable_web_ui": False,
+    "web_ui_port": 8081,
+    "log_command_groups_info": [],  # e.g. ["power", "volume"] - these groups logged at INFO
+}
+
+
+def _load_config_dict_from_file(config_path: Optional[Path]) -> dict:
+    """
+    Load raw config data (dict) from YAML file.
+
+    Does not apply defaults or environment overrides so it can be tested
+    separately from I/O.
+    """
     if yaml is None:
         raise ImportError("PyYAML is required. Install with: pip install pyyaml")
-    defaults = {
-        "avr_host": "",
-        "avr_port": 23,
-        "proxy_host": "0.0.0.0",
-        "proxy_port": 23,
-        "log_level": "INFO",
-        "enable_ssdp": True,
-        "ssdp_friendly_name": "Denon AVR Proxy",
-        "ssdp_http_port": 8080,
-        "ssdp_advertise_ip": "",
-        "optimistic_state": True,
-        "optimistic_broadcast_delay": 0.1,
-        "enable_web_ui": False,
-        "web_ui_port": 8081,
-        "log_command_groups_info": [],  # e.g. ["power", "volume"] - these groups logged at INFO
-    }
 
-    config = defaults.copy()
-
-    # Load config: explicit path, or config.yaml in project dir
     if config_path:
         if not config_path.exists():
             raise FileNotFoundError(f"Config not found: {config_path}")
@@ -101,21 +105,53 @@ def load_config(config_path: Optional[Path] = None) -> dict:
                 f"Config not found: {path}\n"
                 "Copy config.sample.yaml to config.yaml and edit as needed."
             )
+
     with open(path) as f:
-        config.update(yaml.safe_load(f) or {})
+        data = yaml.safe_load(f) or {}
+    if not isinstance(data, dict):
+        raise ValueError(f"Config file must contain a mapping, got {type(data).__name__}")
+    return data
 
-    # Environment overrides
-    if os.getenv("AVR_HOST"):
-        config["avr_host"] = os.getenv("AVR_HOST")
-    if os.getenv("AVR_PORT"):
-        config["avr_port"] = int(os.getenv("AVR_PORT"))
-    if os.getenv("PROXY_HOST"):
-        config["proxy_host"] = os.getenv("PROXY_HOST")
-    if os.getenv("PROXY_PORT"):
-        config["proxy_port"] = int(os.getenv("PROXY_PORT"))
-    if os.getenv("LOG_LEVEL"):
-        config["log_level"] = os.getenv("LOG_LEVEL")
 
+def _apply_env_overrides(config: dict) -> None:
+    """Apply environment variable overrides in-place."""
+    avr_host = os.getenv("AVR_HOST")
+    if avr_host is not None:
+        config["avr_host"] = avr_host
+
+    avr_port = os.getenv("AVR_PORT")
+    if avr_port:
+        config["avr_port"] = int(avr_port)
+
+    proxy_host = os.getenv("PROXY_HOST")
+    if proxy_host is not None:
+        config["proxy_host"] = proxy_host
+
+    proxy_port = os.getenv("PROXY_PORT")
+    if proxy_port:
+        config["proxy_port"] = int(proxy_port)
+
+    log_level = os.getenv("LOG_LEVEL")
+    if log_level is not None:
+        config["log_level"] = log_level
+
+
+def load_config_from_dict(raw: dict) -> dict:
+    """
+    Merge defaults with a raw config dict (no file I/O or env).
+
+    This is pure and easy to unit-test.
+    """
+    config = _DEFAULT_CONFIG.copy()
+    config.update(raw or {})
+    return config
+
+
+def load_config(config_path: Optional[Path] = None) -> dict:
+    """Load configuration from YAML file with environment overrides."""
+    raw = _load_config_dict_from_file(config_path)
+    config = load_config_from_dict(raw)
+    _apply_env_overrides(config)
     return config
 
 
