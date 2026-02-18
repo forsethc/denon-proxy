@@ -148,6 +148,45 @@ def _should_log_command_info(config: dict, cmd: str) -> bool:
     return _command_group(cmd) in groups
 
 
+def _parse_client_data(buffer: bytes, data: bytes) -> tuple[list[str], bytes]:
+    """
+    Decode incoming client bytes into complete telnet command lines.
+
+    Returns (list_of_commands, remaining_buffer).
+    """
+    buffer += data
+    commands: list[str] = []
+    while b"\r" in buffer or b"\n" in buffer:
+        for sep in (b"\r", b"\n"):
+            if sep in buffer:
+                line, _, buffer = buffer.partition(sep)
+                break
+        else:
+            break
+        try:
+            cmd = line.decode("utf-8").strip()
+        except UnicodeDecodeError:
+            continue
+        if cmd:
+            commands.append(cmd)
+    return commands, buffer
+
+
+def _is_valid_client_command(command: str) -> bool:
+    """
+    Basic validation for Denon telnet commands from clients.
+
+    Denon commands are typically a 2+ letter prefix plus optional value.
+    Filters out telnet negotiation bytes and obviously invalid input.
+    """
+    if len(command) < 2:
+        return False
+    # Filter out telnet negotiation bytes if any leak through
+    if any(ord(c) < 32 and c not in "\r\n\t" for c in command):
+        return False
+    return True
+
+
 # -----------------------------------------------------------------------------
 # Client connection handler
 # -----------------------------------------------------------------------------
@@ -190,28 +229,13 @@ class ClientHandler(asyncio.Protocol):
 
     def data_received(self, data: bytes) -> None:
         """Handle data from client - parse commands and forward to AVR."""
-        self._buffer += data
-        while b"\r" in self._buffer or b"\n" in self._buffer:
-            for sep in (b"\r", b"\n"):
-                if sep in self._buffer:
-                    line, _, self._buffer = self._buffer.partition(sep)
-                    break
-            else:
-                break
-            try:
-                cmd = line.decode("utf-8").strip()
-            except UnicodeDecodeError:
-                continue
-            if cmd:
-                self._handle_command(cmd)
+        commands, self._buffer = _parse_client_data(self._buffer, data)
+        for cmd in commands:
+            self._handle_command(cmd)
 
     def _handle_command(self, command: str) -> None:
         """Process and forward a client command to the AVR."""
-        # Basic validation: Denon commands are typically 2-4 letter prefix + optional value
-        if len(command) < 2:
-            return
-        # Filter out telnet negotiation bytes if any leak through
-        if any(ord(c) < 32 and c not in "\r\n\t" for c in command):
+        if not _is_valid_client_command(command):
             return
 
         client_ip = self._peername[0] if self._peername else "?"
