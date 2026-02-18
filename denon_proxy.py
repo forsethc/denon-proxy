@@ -181,6 +181,7 @@ class ClientHandler(asyncio.Protocol):
         self._peername = transport.get_extra_info("peername")
         self.clients.add(self)
         self.logger.info("Client connected: %s (total: %d)", self._peername, len(self.clients))
+        self.config.get("_notify_web_state", lambda: None)()
 
         # Send current state to new client
         status = self.state.get_status_dump()
@@ -254,6 +255,7 @@ class ClientHandler(asyncio.Protocol):
             # VirtualAVR already sends via on_response; skip duplicate to avoid confusing HA
             if not isinstance(self.avr, VirtualAVRConnection):
                 self._broadcast_state()
+            self.config.get("_notify_web_state", lambda: None)()
 
     def broadcast(self, message: str) -> None:
         """Send a message to this client."""
@@ -268,6 +270,7 @@ class ClientHandler(asyncio.Protocol):
         self.clients.discard(self)
         self.transport = None
         self.logger.info("Client disconnected: %s (remaining: %d)", self._peername, len(self.clients))
+        self.config.get("_notify_web_state", lambda: None)()
 
 
 # -----------------------------------------------------------------------------
@@ -288,6 +291,7 @@ class DenonProxyServer:
         self.avr: Optional[Union[AVRConnection, VirtualAVRConnection]] = None
         self._server: Optional[asyncio.Server] = None
         self._json_api_server: Optional[asyncio.Server] = None
+        self._notify_web_state: Callable[[], None] = lambda: None
 
     def _set_state_and_broadcast(self, payload: dict) -> None:
         """Set state from payload (e.g. from JSON API) and broadcast to clients."""
@@ -311,6 +315,7 @@ class DenonProxyServer:
             for line in status.strip().splitlines():
                 if line.strip():
                     self._broadcast(line.strip())
+        self._notify_web_state()
 
     def _broadcast(self, message: str) -> None:
         """Broadcast an AVR response to all connected clients."""
@@ -338,6 +343,7 @@ class DenonProxyServer:
         elif message in ("PWSTANDBY", "PWSTANDBY ") or "STANDBY" in message.upper():
             self._broadcast("ZMSTANDBY")
             self._broadcast("ZMOFF")  # Some receivers/denonavr expect ZMOFF
+        self._notify_web_state()
 
     def _on_avr_disconnect(self) -> None:
         """Called when AVR disconnects - schedule reconnect."""
@@ -482,13 +488,15 @@ class DenonProxyServer:
                     await self.avr.request_state()
             asyncio.create_task(_do())
 
-        self._json_api_server = await run_json_api(
+        result = await run_json_api(
             self.config, self.logger, _get_json_state,
             set_state=set_state_cb,
             send_command=_send_command_cb,
             request_state=_request_state_cb,
         )
-        if self._json_api_server:
+        if result:
+            self._json_api_server, self._notify_web_state = result
+            self.config["_notify_web_state"] = self._notify_web_state
             api_host = get_advertise_ip(self.config) or "localhost"
             api_port = int(self.config.get("web_ui_port", 8081))
             self.logger.info(

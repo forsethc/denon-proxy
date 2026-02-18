@@ -61,7 +61,7 @@ optimistic_state: true
 optimistic_broadcast_delay: 0.1
 
 # Web UI: monitoring dashboard and JSON API (disabled by default)
-# When enabled: GET / = HTML dashboard, GET /status = JSON, POST /api/command,
-# POST /api/refresh to request state from AVR
+# When enabled: GET / = HTML dashboard, GET /events = SSE (live state push),
+# GET /status = JSON, POST /api/command, POST /api/refresh
 enable_web_ui: false
 web_ui_port: 8081

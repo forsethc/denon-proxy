@@ -2,7 +2,7 @@
 Web UI for denon-proxy.
 
 Serves a monitoring dashboard at GET / and a JSON API at GET /status, POST /state,
-POST /api/command, POST /api/refresh.
+POST /api/command, POST /api/refresh. GET /events streams state updates via SSE.
 """
 
 from __future__ import annotations
@@ -10,7 +10,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from typing import Any, Callable, Optional
+from typing import Any, Callable, Optional, Set
 
 
 # -----------------------------------------------------------------------------
@@ -157,22 +157,15 @@ DASHBOARD_HTML = """<!DOCTYPE html>
     <div class="card">
       <h2>Internal State (JSON)</h2>
       <pre class="json-block" id="json-state">{}</pre>
-      <div class="last-update">Auto-refresh: <span id="countdown">30</span>s</div>
+      <div class="last-update"><span id="update-status">Connecting...</span></div>
     </div>
   </div>
   <script>
-    let pollInterval;
     function api(path, opts) {
       return fetch(path, { ...opts, headers: { 'Content-Type': 'application/json', ...opts?.headers } });
     }
-    async function load() {
-      try {
-        const r = await api('/status');
-        const d = await r.json();
-        render(d);
-      } catch (e) {
-        document.getElementById('avr-status').innerHTML = '<span class="muted">Failed to load</span>';
-      }
+    function loadFromData(d) {
+      try { render(d); } catch (e) { document.getElementById('avr-status').innerHTML = '<span class="muted">Render error</span>'; }
     }
     function render(d) {
       const avr = d.avr || {};
@@ -192,10 +185,16 @@ DASHBOARD_HTML = """<!DOCTYPE html>
       document.getElementById('clients').innerHTML = clients.length
         ? '<ul class="client-list">' + clients.map(c => '<li>' + escapeHtml(c) + '</li>').join('') + '</ul>'
         : '<span class="muted">No clients connected</span>';
+      const src = state.input_source;
+      let inputLabel = src || '—';
+      if (src && avr.sources) {
+        const s = avr.sources.find(x => x.func === src);
+        inputLabel = s ? s.display + ' (' + s.func + ')' : src;
+      }
       const rows = [
         ['Power', state.power || '—'],
         ['Volume', state.volume != null ? state.volume + (typeof state.volume === 'number' ? ' (0–98)' : '') : '—'],
-        ['Input', state.input_source || '—'],
+        ['Input', inputLabel],
         ['Mute', state.mute != null ? (state.mute ? 'On' : 'Off') : '—'],
         ['Sound mode', state.sound_mode || '—']
       ];
@@ -203,13 +202,14 @@ DASHBOARD_HTML = """<!DOCTYPE html>
       document.getElementById('json-state').textContent = JSON.stringify(d, null, 2);
     }
     function escapeHtml(s) { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
-    async function sendCmd(cmd) { await api('/api/command', { method: 'POST', body: JSON.stringify({ command: cmd }) }); load(); }
+    async function sendCmd(cmd) { await api('/api/command', { method: 'POST', body: JSON.stringify({ command: cmd }) }); }
     function sendCustomCmd() { const v = document.getElementById('custom-cmd').value.trim(); if (v) { sendCmd(v); document.getElementById('custom-cmd').value = ''; } }
-    async function refreshState() { await api('/api/refresh', { method: 'POST' }); load(); }
-    let cd = 30;
-    function tick() { cd--; document.getElementById('countdown').textContent = cd; if (cd <= 0) { cd = 30; load(); } }
-    load();
-    pollInterval = setInterval(tick, 1000);
+    async function refreshState() { await api('/api/refresh', { method: 'POST' }); }
+    const es = new EventSource('/events');
+    es.onopen = () => { document.getElementById('update-status').textContent = 'Live (SSE)'; };
+    es.onerror = () => { document.getElementById('update-status').textContent = 'Reconnecting...'; };
+    es.onmessage = (e) => { loadFromData(JSON.parse(e.data)); };
+    fetch('/status').then(r => r.json()).then(loadFromData).catch(() => { document.getElementById('update-status').textContent = 'Initial load failed'; });
   </script>
 </body>
 </html>
@@ -217,12 +217,13 @@ DASHBOARD_HTML = """<!DOCTYPE html>
 
 
 class WebUIHandler(asyncio.Protocol):
-    """HTTP handler: HTML dashboard at GET /, JSON API at /status, /api/command, /api/refresh."""
+    """HTTP handler: HTML dashboard at GET /, JSON API, and SSE at GET /events."""
 
     def __init__(
         self,
         get_state: Callable[[], dict[str, Any]],
         logger: logging.Logger,
+        sse_subscribers: Set[Any],
         set_state: Optional[Callable[[dict[str, Any]], None]] = None,
         send_command: Optional[Callable[[str], None]] = None,
         request_state: Optional[Callable[[], None]] = None,
@@ -231,12 +232,20 @@ class WebUIHandler(asyncio.Protocol):
         self.set_state = set_state
         self.send_command = send_command
         self.request_state = request_state
+        self.sse_subscribers = sse_subscribers
+        self.on_sse_push = lambda: None  # Set by run_json_api
         self.logger = logger
         self.transport: Optional[asyncio.BaseTransport] = None
         self._buffer = b""
+        self._sse_mode = False
 
     def connection_made(self, transport: asyncio.BaseTransport) -> None:
         self.transport = transport
+
+    def connection_lost(self, exc: Optional[BaseException]) -> None:
+        if self._sse_mode and self.transport:
+            self.sse_subscribers.discard(self.transport)
+        self.transport = None
 
     def data_received(self, data: bytes) -> None:
         self._buffer += data
@@ -250,6 +259,8 @@ class WebUIHandler(asyncio.Protocol):
 
         if method == "GET" and path == "/":
             self._handle_dashboard()
+        elif method == "GET" and path == "/events":
+            self._handle_sse()
         elif method == "GET" and path in ("/status", "/api/status"):
             self._handle_get_status()
         elif method == "POST" and path == "/state":
@@ -263,6 +274,20 @@ class WebUIHandler(asyncio.Protocol):
 
     def _handle_dashboard(self) -> None:
         self._send_html(200, DASHBOARD_HTML)
+
+    def _handle_sse(self) -> None:
+        """Serve Server-Sent Events stream - push state on changes."""
+        self._sse_mode = True
+        headers = (
+            b"HTTP/1.1 200 OK\r\n"
+            b"Content-Type: text/event-stream\r\n"
+            b"Cache-Control: no-cache\r\n"
+            b"Connection: keep-alive\r\n\r\n"
+        )
+        if self.transport:
+            self.transport.write(headers)
+            self.sse_subscribers.add(self.transport)
+            self.on_sse_push()
 
     def _handle_get_status(self) -> None:
         try:
@@ -368,33 +393,57 @@ async def run_json_api(
     set_state: Optional[Callable[[dict[str, Any]], None]] = None,
     send_command: Optional[Callable[[str], None]] = None,
     request_state: Optional[Callable[[], None]] = None,
-) -> Optional[asyncio.Server]:
+) -> Optional[tuple[asyncio.Server, Callable[[], None]]]:
     """
     Start the Web UI server.
 
     GET / - HTML dashboard (monitoring, state, commands)
+    GET /events - Server-Sent Events stream of state updates
     GET /status - JSON status (avr, clients, state)
     POST /state - Set virtual AVR state (virtual mode only)
     POST /api/command - Send telnet command to AVR (JSON body: {"command": "PWON"})
     POST /api/refresh - Request current state from AVR
 
-    Returns the server if started, None if disabled or failed.
+    Returns (server, notify_state_changed) if started, None if disabled or failed.
+    Call notify_state_changed() when state changes to push to SSE clients.
     """
     if not config.get("enable_web_ui"):
         return None
     port = int(config.get("web_ui_port", 8081))
+    sse_subscribers: Set[Any] = set()
+
+    async def _push() -> None:
+        try:
+            state = get_state()
+            msg = ("data: " + json.dumps(state) + "\n\n").encode("utf-8")
+            for t in list(sse_subscribers):
+                try:
+                    t.write(msg)
+                except Exception:
+                    sse_subscribers.discard(t)
+        except Exception as e:
+            logger.debug("SSE push error: %s", e)
+
+    def notify_state_changed() -> None:
+        try:
+            asyncio.get_running_loop().create_task(_push())
+        except RuntimeError:
+            pass
+
     try:
         def factory():
-            return WebUIHandler(
-                get_state, logger,
+            h = WebUIHandler(
+                get_state, logger, sse_subscribers,
                 set_state=set_state,
                 send_command=send_command,
                 request_state=request_state,
             )
+            h.on_sse_push = notify_state_changed
+            return h
         server = await asyncio.get_running_loop().create_server(
             factory, "0.0.0.0", port, reuse_address=True,
         )
-        return server
+        return (server, notify_state_changed)
     except OSError as e:
         logger.warning("Web UI port %d unavailable: %s", port, e)
         return None
