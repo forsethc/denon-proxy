@@ -299,7 +299,11 @@ class ClientHandler(asyncio.Protocol):
 
         if optimistic:
             snapshot = self.state.snapshot()
-            if not self.state.apply_command(command):
+            if not self.state.apply_command(
+                command,
+                volume_step=float(self.config["volume_step"]),
+                volume_max=self.avr.volume_max,
+            ):
                 snapshot = None  # command didn't change state, nothing to revert
 
         send_task = asyncio.create_task(self.avr.send_command(command))
@@ -361,7 +365,7 @@ class DenonProxyServer:
     ) -> None:
         self.config = config
         self.logger = logger
-        self.state = AVRState(volume_step=float(config.get("volume_step", 0.5)))
+        self.state = AVRState()
         self.clients: Set[ClientHandler] = set()
         self.avr: Optional[Union[AVRConnection, VirtualAVRConnection]] = None
         self._server: Optional[asyncio.Server] = None
@@ -529,10 +533,9 @@ class DenonProxyServer:
                 for k, v in vars(self.state).items()
                 if not k.startswith("_")
             }
+            state["volume_max"] = self.avr.volume_max
             if "volume" in state and state["volume"] is not None:
-                state["volume"] = volume_to_level(
-                    state["volume"], state.get("volume_max", 98.0)
-                )
+                state["volume"] = volume_to_level(state["volume"], self.avr.volume_max)
             avr = dict(self.avr.get_details()) if self.avr else {"type": "none"}
             avr["connected"] = self.avr.is_connected() if self.avr else False
             avr_info = self.config.get("_avr_info") or {}

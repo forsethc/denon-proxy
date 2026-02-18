@@ -10,9 +10,25 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 from typing import Any, Callable, Optional
 
 from avr_state import AVRState
+
+# Default max volume when AVR has not sent MVMAX; many Denon/Marantz use 98.
+DEFAULT_MAX_VOLUME = 98.0
+
+
+def _parse_mvmax(param: str) -> Optional[float]:
+    """Parse MVMAX nn from param (e.g. 'MAX 60' or 'MAX60'). Returns None if no number."""
+    if not param.upper().startswith("MAX"):
+        return None
+    rest = param[3:].strip() if len(param) > 3 else ""
+    if not rest and " " in param:
+        parts = param.split()
+        rest = parts[-1] if len(parts) > 1 else ""
+    match = re.search(r"\d+", rest) if rest else None
+    return max(0.0, float(match.group())) if match else None
 
 
 # -----------------------------------------------------------------------------
@@ -44,6 +60,7 @@ class AVRConnection:
         self.reader: Optional[asyncio.StreamReader] = None
         self.writer: Optional[asyncio.StreamWriter] = None
         self._buffer = b""
+        self.volume_max: float = DEFAULT_MAX_VOLUME  # from AVR MVMAX when received
 
     def is_connected(self) -> bool:
         """Return True if connected to the AVR."""
@@ -87,6 +104,10 @@ class AVRConnection:
                     except UnicodeDecodeError:
                         continue
                     if msg:
+                        if msg.startswith("MV") and len(msg) > 2 and "MAX" in msg[2:].upper():
+                            parsed = _parse_mvmax(msg[2:].strip())
+                            if parsed is not None:
+                                self.volume_max = parsed
                         self.state.update_from_message(msg)
                         self.on_response(msg)
         except asyncio.CancelledError:
@@ -125,8 +146,8 @@ class AVRConnection:
             return False
 
     async def request_state(self) -> None:
-        """Request current state from AVR (power, volume, input, mute)."""
-        for cmd in ("PW?", "MV?", "SI?", "MU?", "ZM?"):
+        """Request current state from AVR (power, volume, input, mute, max volume)."""
+        for cmd in ("PW?", "MV?", "MVMAX?", "SI?", "MU?", "ZM?"):
             await self.send_command(cmd)
             await asyncio.sleep(0.05)
 
@@ -155,12 +176,15 @@ class VirtualAVRConnection:
         on_response: Callable[[str], None],
         on_disconnect: Callable[[], None],
         logger: logging.Logger,
+        volume_step: float,
     ) -> None:
         self.state = state
         self.on_response = on_response
         self.on_disconnect = on_disconnect
         self.logger = logger
         self._connected = False
+        self.volume_step = volume_step
+        self.volume_max: float = DEFAULT_MAX_VOLUME
 
     def is_connected(self) -> bool:
         return self._connected
@@ -181,7 +205,7 @@ class VirtualAVRConnection:
         if not cmd or len(cmd) < 2:
             return True
         self.logger.debug("Virtual AVR received: %s", cmd)
-        self.state.apply_command(cmd)
+        self.state.apply_command(cmd, volume_step=self.volume_step, volume_max=self.volume_max)
         # Emit the response(s) a real AVR would send for this command
         dump = self.state.get_status_dump().strip()
         prefix = cmd[:2].upper()
@@ -247,4 +271,5 @@ def create_avr_connection(
         on_response=on_response,
         on_disconnect=on_disconnect,
         logger=logger,
+        volume_step=float(config["volume_step"]),
     )

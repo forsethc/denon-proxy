@@ -8,11 +8,12 @@ Volume helpers are used for presentation (JSON, XML).
 
 from __future__ import annotations
 
-import re
 from typing import Optional
 
-# Default max volume when AVR has not sent MVMAX; many Denon/Marantz use 98
-DEFAULT_MAX_VOLUME = 98.0
+# Denon 0–98 scale: 80 = 0 dB reference; (vol - 80) * 0.5 ≈ dB.
+VOLUME_REFERENCE_LEVEL = 80.0
+# Default state/display level when we have no AVR value (e.g. demo, discovery). 50 ≈ -15 dB.
+VOLUME_DEFAULT_LEVEL = 50
 
 
 # -----------------------------------------------------------------------------
@@ -26,15 +27,13 @@ class AVRState:
     Used by the connection layer for telnet and by discovery for HTTP/XML.
     """
 
-    def __init__(self, volume_step: float = 0.5) -> None:
+    def __init__(self) -> None:
         # Defaults for demo mode / before AVR responds
         self.power: Optional[str] = "ON"       # ON, STANDBY, OFF
-        self.volume: Optional[str] = "50"      # e.g. "50" (0 to volume_max), "MAX"
+        self.volume: Optional[str] = str(VOLUME_DEFAULT_LEVEL)  # 0 to AVR max; overwritten by AVR
         self.input_source: Optional[str] = "CD"  # e.g. "CD", "TUNER", "DVD"
         self.mute: Optional[bool] = False      # True = muted
         self.sound_mode: Optional[str] = "STEREO"  # e.g. STEREO, MULTI CH IN, DOLBY DIGITAL
-        self.volume_step: float = volume_step  # step for MVUP/MVDOWN optimistic update (0.5 = half-step)
-        self.volume_max: float = DEFAULT_MAX_VOLUME  # from AVR MVMAX response when received; else default
 
     def update_from_message(self, message: str) -> None:
         """Update state from a Denon telnet response (PW, MV, SI, MU, ZM, MS)."""
@@ -64,14 +63,8 @@ class AVRState:
             if param == "?":
                 pass
             elif param.upper().startswith("MAX"):
-                # MVMAX or MVMAX nn = max volume limit from AVR (not current volume)
-                rest = param[3:].strip() if len(param) > 3 else ""
-                if not rest and " " in param:
-                    parts = param.split()
-                    rest = parts[-1] if len(parts) > 1 else ""
-                match = re.search(r"\d+", rest) if rest else None
-                if match:
-                    self.volume_max = max(0.0, float(match.group()))
+                # MVMAX = AVR max volume limit (handled by connection; not current volume)
+                pass
             elif param.upper() not in ("UP", "DOWN") and param:
                 self.volume = param
 
@@ -131,8 +124,16 @@ class AVRState:
         self.mute = snapshot.get("mute")
         self.sound_mode = snapshot.get("sound_mode")
 
-    def apply_command(self, command: str) -> bool:
-        """Optimistically apply a Denon telnet command. Returns True if state changed."""
+    def apply_command(
+        self,
+        command: str,
+        volume_step: float,
+        volume_max: float,
+    ) -> bool:
+        """Optimistically apply a Denon telnet command. Returns True if state changed.
+
+        volume_step and volume_max are AVR/config properties; pass from connection/config.
+        """
         if not command or len(command) < 2:
             return False
         cmd = command.strip().upper()
@@ -159,16 +160,14 @@ class AVRState:
             if param == "?":
                 pass
             elif param.upper() == "UP":
-                # Relative: increment by volume_step (optimistic until AVR response)
-                level = volume_to_level(self.volume, self.volume_max)
-                level = min(self.volume_max, level + self.volume_step)
-                self.volume = _format_volume(level, self.volume_max)
+                level = volume_to_level(self.volume, volume_max)
+                level = min(volume_max, level + volume_step)
+                self.volume = _format_volume(level, volume_max)
                 applied = True
             elif param.upper() == "DOWN":
-                # Relative: decrement by volume_step (optimistic until AVR response)
-                level = volume_to_level(self.volume, self.volume_max)
-                level = max(0.0, level - self.volume_step)
-                self.volume = _format_volume(level, self.volume_max)
+                level = volume_to_level(self.volume, volume_max)
+                level = max(0.0, level - volume_step)
+                self.volume = _format_volume(level, volume_max)
                 applied = True
             elif param and "MAX" not in param.upper():
                 self.volume = param
@@ -197,12 +196,11 @@ class AVRState:
 # Volume helpers (presentation: JSON, XML)
 # -----------------------------------------------------------------------------
 
-
-def _format_volume(level: float, max_volume: float = DEFAULT_MAX_VOLUME) -> str:
+def _format_volume(level: float, max_volume: float = 98.0) -> str:
     """Format numeric level as Denon telnet volume string.
 
     Denon uses 2 digits for whole steps (50 = 50) and 3 digits for half steps
-    (535 = 53.5). Clamps to max_volume (from AVR MVMAX or default). Returns e.g. '50', '535'.
+    (535 = 53.5). Clamps to max_volume. Returns e.g. '50', '535'.
     """
     level = max(0.0, min(max_volume, level))
     if level == int(level):
@@ -210,10 +208,10 @@ def _format_volume(level: float, max_volume: float = DEFAULT_MAX_VOLUME) -> str:
     return str(int(round(level * 10)))
 
 
-def volume_to_level(vol_str: Optional[str], max_volume: float = DEFAULT_MAX_VOLUME) -> float:
+def volume_to_level(vol_str: Optional[str], max_volume: float = 98.0) -> float:
     """Extract numeric level from Denon volume. Handles half steps (e.g. 535=53.5). Clamps to max_volume."""
     if not vol_str or not str(vol_str).strip():
-        return 80.0
+        return VOLUME_DEFAULT_LEVEL
     s = str(vol_str).strip().upper()
     if "MAX" in s:
         parts = s.split()
@@ -222,11 +220,11 @@ def volume_to_level(vol_str: Optional[str], max_volume: float = DEFAULT_MAX_VOLU
         # 3 digits = XX.X (e.g. 535 = 53.5), 2 digits = XX (e.g. 50 = 50)
         val = float(s) / 10.0 if len(s) == 3 else float(s)
         return max(0.0, min(max_volume, val))
-    return 80.0
+    return VOLUME_DEFAULT_LEVEL
 
 
 def volume_to_db(vol_str: Optional[str]) -> str:
     """Convert Denon telnet volume (0-98, half steps, MAX, etc.) to dB for status XML."""
     vol = volume_to_level(vol_str)
-    db = (vol - 80) * 0.5
+    db = (vol - VOLUME_REFERENCE_LEVEL) * 0.5
     return f"{db:.1f}"
