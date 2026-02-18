@@ -193,7 +193,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
       }
       const rows = [
         ['Power', state.power || '—'],
-        ['Volume', state.volume != null ? state.volume + (typeof state.volume === 'number' ? ' (0–98)' : '') : '—'],
+        ['Volume', state.volume != null ? state.volume + (typeof state.volume === 'number' ? ' (0–' + (avr.volume_max != null ? avr.volume_max : 98) + ')' : '') : '—'],
         ['Input', inputLabel],
         ['Mute', state.mute != null ? (state.mute ? 'On' : 'Off') : '—'],
         ['Sound mode', state.sound_mode || '—']
