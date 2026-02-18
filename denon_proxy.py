@@ -307,7 +307,15 @@ class DenonProxyServer:
     to a single AVR connection.
     """
 
-    def __init__(self, config: dict, logger: logging.Logger) -> None:
+    def __init__(
+        self,
+        config: dict,
+        logger: logging.Logger,
+        avr_factory: Callable[
+            [dict, AVRState, Callable[[str], None], Callable[[], None], logging.Logger],
+            Union[AVRConnection, VirtualAVRConnection],
+        ],
+    ) -> None:
         self.config = config
         self.logger = logger
         self.state = AVRState()
@@ -316,6 +324,7 @@ class DenonProxyServer:
         self._server: Optional[asyncio.Server] = None
         self._json_api_server: Optional[asyncio.Server] = None
         self._notify_web_state: Callable[[], None] = lambda: None
+        self._avr_factory = avr_factory
 
     def _set_state_and_broadcast(self, payload: dict) -> None:
         """Set state from payload (e.g. from JSON API) and broadcast to clients."""
@@ -430,7 +439,7 @@ class DenonProxyServer:
         if (self.config.get("avr_host") or "").strip():
             await self._sync_initial_state()
 
-        self.avr = create_avr_connection(
+        self.avr = self._avr_factory(
             self.config,
             self.state,
             self._on_avr_response,
@@ -554,7 +563,7 @@ class DenonProxyServer:
 async def main_async(config: dict) -> None:
     """Run the proxy server."""
     logger = logging.getLogger("denon-proxy")
-    proxy = DenonProxyServer(config, logger)
+    proxy = DenonProxyServer(config, logger, create_avr_connection)
 
     # Handle shutdown gracefully - must not block event loop or Ctrl-C won't work
     stop_event = asyncio.Event()
