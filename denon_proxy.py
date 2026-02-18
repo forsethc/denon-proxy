@@ -538,7 +538,6 @@ class DenonProxyServer:
             avr = dict(self.avr.get_details()) if self.avr else {"type": "none"}
             avr["connected"] = self.avr.is_connected() if self.avr else False
             avr["volume_max"] = self.avr.volume_max
-            avr["volume_step"] = float(self.config["volume_step"])
             avr_info = self.config.get("_avr_info") or {}
             if avr_info:
                 avr["manufacturer"] = avr_info.get("manufacturer")
