@@ -462,6 +462,8 @@ class DenonProxyServer:
                 self.state.input_source = d.input_func
             if d.muted is not None:
                 self.state.mute = d.muted
+            if getattr(d, "sound_mode", None):
+                self.state.sound_mode = d.sound_mode
             # Fetch device info and sources for JSON API and source resolution
             self.config["_avr_info"] = {
                 "manufacturer": getattr(d, "manufacturer", None),
@@ -475,9 +477,9 @@ class DenonProxyServer:
                     (func, str(display or func)) for func, display in rev.items()
                 ]
                 self.logger.info("Fetched %d input sources from AVR", len(self.config["_device_sources"]))
-            self.logger.info("Initial state from HTTP: power=%s vol=%s input=%s mute=%s",
+            self.logger.info("Initial state from HTTP: power=%s vol=%s input=%s mute=%s sound_mode=%s",
                              self.state.power, self.state.volume,
-                             self.state.input_source, self.state.mute)
+                             self.state.input_source, self.state.mute, self.state.sound_mode)
         except Exception as e:
             self.logger.debug("Could not sync initial state via HTTP: %s", e)
 
