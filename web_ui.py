@@ -189,7 +189,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
       let inputLabel = src || '—';
       if (src && avr.sources) {
         const s = avr.sources.find(x => x.func === src);
-        inputLabel = s ? s.display + ' (' + s.func + ')' : src;
+        inputLabel = s ? s.display_name + ' (' + s.func + ')' : src;
       }
       const rows = [
         ['Power', state.power || '—'],
@@ -253,7 +253,7 @@ class WebUIHandler(asyncio.Protocol):
         self.send_command = send_command
         self.request_state = request_state
         self.sse_subscribers = sse_subscribers
-        self.on_sse_push = lambda: None  # Set by run_json_api
+        self.on_sse_push = lambda: None  # Set by run_web_ui
         self.logger = logger
         self.transport: Optional[asyncio.BaseTransport] = None
         self._buffer = b""
@@ -399,7 +399,7 @@ class WebUIHandler(asyncio.Protocol):
             self.transport = None
 
 
-async def run_json_api(
+async def run_web_ui(
     config: dict,
     logger: logging.Logger,
     get_state: Callable[[], dict[str, Any]],

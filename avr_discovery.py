@@ -93,35 +93,35 @@ def get_sources(config: dict) -> list[tuple[str, str]]:
     if cfg:
         out: list[tuple[str, str]] = []
         if isinstance(cfg, dict):
-            for fn, dn in cfg.items():
-                fn_str = str(fn).strip()
-                dn_str = str(dn).strip() if dn else fn_str
-                if fn_str:
-                    out.append((fn_str, dn_str))
+            for func_name, display_name in cfg.items():
+                func_str = str(func_name).strip()
+                display_str = str(display_name).strip() if display_name else func_str
+                if func_str:
+                    out.append((func_str, display_str))
         elif isinstance(cfg, (list, tuple)):
             for item in cfg:
                 if isinstance(item, (list, tuple)) and len(item) >= 2:
-                    fn_str = str(item[0]).strip()
-                    dn_str = str(item[1]).strip() if item[1] else fn_str
-                    if fn_str:
-                        out.append((fn_str, dn_str))
+                    func_str = str(item[0]).strip()
+                    display_str = str(item[1]).strip() if item[1] else func_str
+                    if func_str:
+                        out.append((func_str, display_str))
                 elif isinstance(item, dict):
-                    fn = item.get("func") or item.get("func_name") or item.get("source")
-                    dn = item.get("name") or item.get("display_name") or fn
-                    if fn:
-                        out.append((str(fn).strip(), str(dn).strip() if dn else str(fn).strip()))
+                    func_name = item.get("func") or item.get("func_name") or item.get("source")
+                    display_name = item.get("name") or item.get("display_name") or func_name
+                    if func_name:
+                        out.append((str(func_name).strip(), str(display_name).strip() if display_name else str(func_name).strip()))
         # Filter out sources that don't exist on the AVR
         device_sources = config.get("_device_sources")
         if device_sources and isinstance(device_sources, (list, tuple)):
-            valid_funcs = {str(f).strip() for f, _ in device_sources if f}
+            valid_funcs = {str(func).strip() for func, _ in device_sources if func}
             filtered: list[tuple[str, str]] = []
-            for fn, dn in out:
-                if fn in valid_funcs:
-                    filtered.append((fn, dn))
+            for func_name, display_name in out:
+                if func_name in valid_funcs:
+                    filtered.append((func_name, display_name))
                 else:
                     _logger.warning(
-                        "Input source '%s' (display: '%s') not found on AVR, skipping",
-                        fn, dn,
+                        "Input source '%s' (display_name: '%s') not found on AVR, skipping",
+                        func_name, display_name,
                     )
             out = filtered
         result = out if out else DEMO_SOURCES
@@ -129,15 +129,15 @@ def get_sources(config: dict) -> list[tuple[str, str]]:
         # No user mapping: prefer device sources (from physical AVR) over defaults
         device_sources = config.get("_device_sources")
         if device_sources and isinstance(device_sources, (list, tuple)):
-            result = [(str(f).strip(), str(n).strip() if n else str(f).strip()) for f, n in device_sources if f]
+            result = [(str(func).strip(), str(display_name).strip() if display_name else str(func).strip()) for func, display_name in device_sources if func]
         else:
             result = DEMO_SOURCES
 
     config["_resolved_sources"] = result
     device_sources = config.get("_device_sources")
     if device_sources and isinstance(device_sources, (list, tuple)):
-        _logger.info("Device sources from AVR:\n  %s", "\n  ".join(f"{f} -> {n}" for f, n in device_sources))
-    _logger.info("Resolved input sources:\n  %s", "\n  ".join(f"{f} -> {n}" for f, n in result))
+        _logger.info("Device sources from AVR:\n  %s", "\n  ".join(f"{func} -> {display_name}" for func, display_name in device_sources))
+    _logger.info("Resolved input sources:\n  %s", "\n  ".join(f"{func} -> {display_name}" for func, display_name in result))
     return result
 
 
@@ -169,8 +169,8 @@ def deviceinfo_xml(config: dict) -> str:
     """Deviceinfo.xml - identify as pre-2016 AVR so denonavr uses port 8080/description.xml
     (avoids port 60006 aios_device.xml which can cause HA config flow issues)."""
     sources_xml = "\n".join(
-        f'      <Source><FuncName>{fn}</FuncName><DefaultName>{dn}</DefaultName></Source>'
-        for fn, dn in get_sources(config)
+        f'      <Source><FuncName>{func_name}</FuncName><DefaultName>{display_name}</DefaultName></Source>'
+        for func_name, display_name in get_sources(config)
     )
     return f"""<?xml version="1.0" encoding="utf-8"?>
 <Device_Info>
@@ -250,82 +250,82 @@ def appcommand_response_xml(
 
     cmds_requested = parse_appcommand_request(body_bytes)
     if logger and logger.isEnabledFor(logging.DEBUG):
-        logger.debug("AppCommand requested: %s", [ct for _, ct in cmds_requested])
+        logger.debug("AppCommand requested: %s", [cmd_text for _, cmd_text in cmds_requested])
     if not cmds_requested:
         cmds_requested = [("1", "GetFriendlyName")]
 
     cmd_responses = []
-    for cid, cmd_text in cmds_requested:
-        ct = cmd_text or ""
-        if ct == "GetFriendlyName":
+    for cmd_id, cmd_text in cmds_requested:
+        command_text = cmd_text or ""
+        if command_text == "GetFriendlyName":
             cmd_responses.append(
-                f'  <cmd id="{cid}" cmd_text="GetFriendlyName">'
+                f'  <cmd id="{cmd_id}" cmd_text="GetFriendlyName">'
                 f"<friendlyname>{friendly_name}</friendlyname></cmd>"
             )
-        elif ct == "GetAllZonePowerStatus":
+        elif command_text == "GetAllZonePowerStatus":
             # Both zone1 (AppCommand) and list format (some clients expect zone names)
             cmd_responses.append(
-                f'  <cmd id="{cid}" cmd_text="GetAllZonePowerStatus">'
+                f'  <cmd id="{cmd_id}" cmd_text="GetAllZonePowerStatus">'
                 f"<zone1>{power}</zone1>"
                 f'<list><listvalue><zone>Main</zone><value>{power}</value></listvalue></list>'
                 f"</cmd>"
             )
-        elif ct == "GetAllZoneVolume":
+        elif command_text == "GetAllZoneVolume":
             cmd_responses.append(
-                f'  <cmd id="{cid}" cmd_text="GetAllZoneVolume">'
+                f'  <cmd id="{cmd_id}" cmd_text="GetAllZoneVolume">'
                 f"<zone1><volume>{volume}</volume></zone1></cmd>"
             )
-        elif ct == "GetAllZoneMuteStatus":
+        elif command_text == "GetAllZoneMuteStatus":
             cmd_responses.append(
-                f'  <cmd id="{cid}" cmd_text="GetAllZoneMuteStatus">'
+                f'  <cmd id="{cmd_id}" cmd_text="GetAllZoneMuteStatus">'
                 f"<zone1>{mute_val}</zone1></cmd>"
             )
-        elif ct == "GetAllZoneSource":
+        elif command_text == "GetAllZoneSource":
             cmd_responses.append(
-                f'  <cmd id="{cid}" cmd_text="GetAllZoneSource">'
+                f'  <cmd id="{cmd_id}" cmd_text="GetAllZoneSource">'
                 f"<zone1><source>{input_src}</source></zone1></cmd>"
             )
-        elif ct == "GetSurroundModeStatus":
+        elif command_text == "GetSurroundModeStatus":
             cmd_responses.append(
-                f'  <cmd id="{cid}" cmd_text="GetSurroundModeStatus">'
+                f'  <cmd id="{cmd_id}" cmd_text="GetSurroundModeStatus">'
                 f"<surround>{sound_mode}</surround></cmd>"
             )
-        elif ct == "GetAutoStandby":
+        elif command_text == "GetAutoStandby":
             cmd_responses.append(
-                f'  <cmd id="{cid}" cmd_text="GetAutoStandby">'
+                f'  <cmd id="{cmd_id}" cmd_text="GetAutoStandby">'
                 '<list><listvalue><zone>Main</zone><value>OFF</value>'
                 "</listvalue></list></cmd>"
             )
-        elif ct == "GetDimmer":
+        elif command_text == "GetDimmer":
             cmd_responses.append(
-                f'  <cmd id="{cid}" cmd_text="GetDimmer">'
+                f'  <cmd id="{cmd_id}" cmd_text="GetDimmer">'
                 '<value>Bright</value></cmd>'
             )
-        elif ct == "GetECO":
+        elif command_text == "GetECO":
             cmd_responses.append(
-                f'  <cmd id="{cid}" cmd_text="GetECO">'
+                f'  <cmd id="{cmd_id}" cmd_text="GetECO">'
                 "<mode>Off</mode></cmd>"
             )
-        elif ct == "GetToneControl":
+        elif command_text == "GetToneControl":
             # denonavr uses convert_string_int_bool for status/adjust: expects "0" or "1", not "Off"/"On"
             cmd_responses.append(
-                f'  <cmd id="{cid}" cmd_text="GetToneControl">'
+                f'  <cmd id="{cmd_id}" cmd_text="GetToneControl">'
                 '<status>0</status><adjust>0</adjust>'
                 '<basslevel>0</basslevel><bassvalue>50</bassvalue>'
                 '<treblelevel>0</treblelevel><treblevalue>50</treblevalue></cmd>'
             )
-        elif ct == "GetRenameSource":
+        elif command_text == "GetRenameSource":
             cmd_responses.append(
-                f'  <cmd id="{cid}" cmd_text="GetRenameSource">'
+                f'  <cmd id="{cmd_id}" cmd_text="GetRenameSource">'
                 "<list></list></cmd>"
             )
-        elif ct == "GetDeletedSource":
+        elif command_text == "GetDeletedSource":
             cmd_responses.append(
-                f'  <cmd id="{cid}" cmd_text="GetDeletedSource">'
+                f'  <cmd id="{cmd_id}" cmd_text="GetDeletedSource">'
                 "<list></list></cmd>"
             )
         else:
-            cmd_responses.append(f'  <cmd id="{cid}" cmd_text="{ct}"></cmd>')
+            cmd_responses.append(f'  <cmd id="{cmd_id}" cmd_text="{command_text}"></cmd>')
 
     xml_str = (
         '<?xml version="1.0" encoding="utf-8"?>\n<rx>\n'
@@ -346,10 +346,10 @@ def mainzone_xml(state: Any, config: Optional[dict] = None) -> bytes:
     input_src = (getattr(state, "input_source", None) if state else None) or "CD"
     sound_mode = (getattr(state, "sound_mode", None) if state else None) or "STEREO"
     sources = get_sources(config)
-    func_names = [fn for fn, _ in sources]
-    display_names = [dn for _, dn in sources]
-    input_func_list = "\n".join(f"    <Value>{fn}</Value>" for fn in func_names)
-    rename_source = "\n".join(f"    <Value>{dn}</Value>" for dn in display_names)
+    func_names = [func_name for func_name, _ in sources]
+    display_names = [display_name for _, display_name in sources]
+    input_func_list = "\n".join(f"    <Value>{func_name}</Value>" for func_name in func_names)
+    rename_source = "\n".join(f"    <Value>{display_name}</Value>" for display_name in display_names)
     source_delete = "\n".join("    <Value>USE</Value>" for _ in func_names)
     return f"""<?xml version="1.0" encoding="utf-8"?>
 <item>
@@ -418,7 +418,7 @@ def _rewrite_avr_description(
     return xml_str
 
 
-def device_description_xml(config: dict, advertise_ip: str) -> str:
+def description_xml(config: dict, advertise_ip: str) -> str:
     """Minimal UPnP device description XML matching what Home Assistant expects.
     Uses physical AVR manufacturer/model from _avr_info when available (e.g. after
     HTTP sync) so UC Remote and other clients can detect Denon vs Marantz correctly."""
@@ -444,8 +444,8 @@ def device_description_xml(config: dict, advertise_ip: str) -> str:
 </root>"""
 
 
-def parse_msearch_st(msg: str) -> Optional[str]:
-    """Extract ST (Search Target) from M-SEARCH request."""
+def parse_ssdp_search_target(msg: str) -> Optional[str]:
+    """Extract ST (Search Target) from SSDP M-SEARCH request."""
     for line in msg.split("\r\n"):
         if line.upper().startswith("ST:"):
             return line[3:].strip()
@@ -500,7 +500,7 @@ class SSDPProtocol(asyncio.DatagramProtocol):
             msg = data.decode("utf-8", errors="ignore")
             if "M-SEARCH" not in msg:
                 return
-            st = parse_msearch_st(msg)
+            st = parse_ssdp_search_target(msg)
             if not st or not any(m in st for m in self.MATCH_ST):
                 return
             self.logger.debug("SSDP M-SEARCH from %s (ST=%s)", addr, st[:50])
@@ -673,7 +673,7 @@ async def run_discovery_servers(
             desc_xml_str = _rewrite_avr_description(raw, avr_host, advertise_ip, logger)
             logger.info("Using AVR description.xml from %s (friendlyName + Proxy)", avr_host)
     if desc_xml_str is None:
-        desc_xml_str = device_description_xml(config, advertise_ip)
+        desc_xml_str = description_xml(config, advertise_ip)
     desc_xml = desc_xml_str.encode("utf-8")
     devinfo_xml = deviceinfo_xml(config).encode("utf-8")
     appcmd_xml = appcommand_friendlyname_xml(config).encode("utf-8")

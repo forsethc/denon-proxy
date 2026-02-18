@@ -42,7 +42,7 @@ from avr_connection import (
 from avr_discovery import get_advertise_ip, run_discovery_servers
 from avr_state import AVRState, volume_to_level
 
-from web_ui import run_json_api
+from web_ui import run_web_ui
 
 # -----------------------------------------------------------------------------
 # Logging setup
@@ -215,7 +215,7 @@ def build_json_state(
         avr_dict["friendly_name"] = avr_info.get("friendly_name")
     sources = config.get("_resolved_sources") or config.get("_device_sources")
     if sources:
-        avr_dict["sources"] = [{"func": f, "display": n} for f, n in sources]
+        avr_dict["sources"] = [{"func": func_name, "display_name": display_name} for func_name, display_name in sources]
     return {
         "avr": avr_dict,
         "clients": client_ips,
@@ -224,9 +224,9 @@ def build_json_state(
     }
 
 
-def _parse_client_data(buffer: bytes, data: bytes) -> tuple[list[str], bytes]:
+def parse_telnet_lines(buffer: bytes, data: bytes) -> tuple[list[str], bytes]:
     """
-    Decode incoming client bytes into complete telnet command lines.
+    Decode incoming bytes into complete telnet command lines (split on \\r/\\n).
 
     Returns (list_of_commands, remaining_buffer).
     """
@@ -305,7 +305,7 @@ class ClientHandler(asyncio.Protocol):
 
     def data_received(self, data: bytes) -> None:
         """Handle data from client - parse commands and forward to AVR."""
-        commands, self._buffer = _parse_client_data(self._buffer, data)
+        commands, self._buffer = parse_telnet_lines(self._buffer, data)
         for cmd in commands:
             self._handle_command(cmd)
 
@@ -514,7 +514,7 @@ class DenonProxyServer:
             rev = getattr(d.input, "_input_func_map_rev", None)
             if rev and isinstance(rev, dict):
                 self.config["_device_sources"] = [
-                    (func, str(display or func)) for func, display in rev.items()
+                    (func, str(display_name or func)) for func, display_name in rev.items()
                 ]
                 self.logger.info("Fetched %d input sources from AVR", len(self.config["_device_sources"]))
             self.logger.info("Initial state from HTTP: power=%s vol=%s input=%s mute=%s sound_mode=%s",
@@ -586,7 +586,7 @@ class DenonProxyServer:
                     await self.avr.request_state()
             asyncio.create_task(_do())
 
-        result = await run_json_api(
+        result = await run_web_ui(
             self.config, self.logger, _get_json_state,
             set_state=set_state_cb,
             send_command=_send_command_cb,
