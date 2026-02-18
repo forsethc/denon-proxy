@@ -34,15 +34,13 @@ try:
 except ImportError:
     DENONAVR_AVAILABLE = False
 
-from avr_emulator import (
+from avr_connection import (
     AVRConnection,
-    AVRState,
     VirtualAVRConnection,
-    _volume_to_level,
     create_avr_connection,
-    get_advertise_ip,
-    run_emulator_servers,
 )
+from avr_discovery import get_advertise_ip, run_discovery_servers
+from avr_state import AVRState, volume_to_level
 
 from web_ui import run_json_api
 
@@ -523,7 +521,7 @@ class DenonProxyServer:
                 if not k.startswith("_")
             }
             if "volume" in state and state["volume"] is not None:
-                state["volume"] = _volume_to_level(state["volume"])
+                state["volume"] = volume_to_level(state["volume"])
             avr = dict(self.avr.get_details()) if self.avr else {"type": "none"}
             avr["connected"] = self.avr.is_connected() if self.avr else False
             avr_info = self.config.get("_avr_info") or {}
@@ -637,7 +635,7 @@ async def main_async(config: dict) -> None:
     ssdp_transport, http_server = None, None
     if config.get("enable_ssdp"):
         try:
-            ssdp_transport, http_server = await run_emulator_servers(config, logger, proxy.state)
+            ssdp_transport, http_server = await run_discovery_servers(config, logger, proxy.state)
         except Exception as e:
             logger.warning("SSDP failed: %s", e)
 

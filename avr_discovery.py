@@ -1,23 +1,25 @@
 """
-Denon AVR Emulator - HTTP/SSDP layer that emulates a Denon AVR.
+AVR discovery - SSDP and HTTP device description so the proxy is discoverable as a Denon AVR.
 
 Serves device discovery (SSDP), device description XML, Deviceinfo, AppCommand,
 and MainZone status endpoints. Compatible with Home Assistant's denonavr
 integration and UC Remote 3.
 
-Can be used standalone (pure emulation for testing) or wired to a proxy.
+Can be used standalone (discovery + HTTP API for testing) or wired to a proxy.
 
 Usage (standalone):
-    from avr_emulator import AVRState, run_emulator_servers
+    from avr_state import AVRState
+    from avr_discovery import run_discovery_servers
 
     async def main():
         state = AVRState()
         state.power = "ON"
         state.volume = "50"
-        await run_emulator_servers(config, logger, state)
+        await run_discovery_servers(config, logger, state)
 
 Usage (with denon-proxy):
-    from avr_emulator import create_avr_connection, run_emulator_servers
+    from avr_connection import create_avr_connection
+    from avr_discovery import run_discovery_servers
     avr = create_avr_connection(config, state, on_response, on_disconnect, logger)
     # Returns AVRConnection (physical) or VirtualAVRConnection (no avr_host) - opaque to caller
 """
@@ -37,393 +39,12 @@ try:
 except ImportError:
     httpx = None  # type: ignore
 
+from avr_state import AVRState, volume_to_db
+
 SSDP_MCAST_GRP = "239.255.255.250"
 SSDP_MCAST_PORT = 1900
 
 _logger = logging.getLogger(__name__)
-
-# -----------------------------------------------------------------------------
-# AVR State - canonical Denon AVR state model
-# -----------------------------------------------------------------------------
-
-class AVRState:
-    """
-    Tracks Denon AVR state (power, volume, input, mute, sound_mode).
-    Used by the emulator for HTTP/XML responses and by the proxy for telnet.
-    """
-
-    def __init__(self) -> None:
-        # Defaults for demo mode / before AVR responds
-        self.power: Optional[str] = "ON"       # ON, STANDBY, OFF
-        self.volume: Optional[str] = "50"      # e.g. "50" (0-98), "MAX"
-        self.input_source: Optional[str] = "CD"  # e.g. "CD", "TUNER", "DVD"
-        self.mute: Optional[bool] = False      # True = muted
-        self.sound_mode: Optional[str] = "STEREO"  # e.g. STEREO, MULTI CH IN, DOLBY DIGITAL
-
-    def update_from_message(self, message: str) -> None:
-        """Update state from a Denon telnet response (PW, MV, SI, MU, ZM, MS)."""
-        if not message or len(message) < 2:
-            return
-
-        if message.startswith("PW"):
-            if message == "PWON":
-                self.power = "ON"
-            elif message == "PWSTANDBY" or "STANDBY" in message:
-                self.power = "STANDBY"
-            elif message == "PW?":
-                pass
-            elif len(message) > 2:
-                param = message[2:].strip()
-                if param and param != "?":
-                    self.power = param
-
-        elif message.startswith("ZM"):
-            if "ON" in message.upper():
-                self.power = "ON"
-            elif "OFF" in message.upper() or "STANDBY" in message.upper():
-                self.power = "STANDBY"
-
-        elif message.startswith("MV") and len(message) > 2:
-            param = message[2:].strip()
-            # MVMAX / MVMAX xx = max volume setting, not current; skip
-            if param and param != "?" and "MAX" not in param.upper():
-                self.volume = param
-
-        elif message.startswith("MU"):
-            if "ON" in message.upper():
-                self.mute = True
-            elif "OFF" in message.upper():
-                self.mute = False
-
-        elif message.startswith("SI") and len(message) > 2:
-            param = message[2:].strip()
-            if param and param != "?":
-                self.input_source = param
-
-        elif message.startswith("MS") and len(message) > 2:
-            param = message[2:].strip()
-            if param and param != "?":
-                self.sound_mode = param
-
-    def get_status_dump(self) -> str:
-        """Return Denon telnet-format status lines for new clients."""
-        lines = []
-        if self.power:
-            lines.append(f"PW{self.power}")
-            # ZM (Zone Main) so HA denonavr receives power updates via telnet (it ignores PW).
-            # ZMSTANDBY uses parameter "STANDBY" which denonavr accepts; ZMOFF for compatibility.
-            if self.power == "ON":
-                lines.append("ZMON")
-            elif self.power in ("STANDBY", "OFF"):
-                lines.append("ZMSTANDBY")
-                lines.append("ZMOFF")
-        if self.volume:
-            lines.append(f"MV{self.volume}")
-        if self.input_source:
-            lines.append(f"SI{self.input_source}")
-        if self.mute is not None:
-            lines.append("MUON" if self.mute else "MUOFF")
-        if self.sound_mode:
-            lines.append(f"MS{self.sound_mode}")
-        return "\r\n".join(lines) + "\r\n" if lines else ""
-
-    def snapshot(self) -> dict:
-        """Snapshot for optimistic update rollback."""
-        return {
-            "power": self.power,
-            "volume": self.volume,
-            "input_source": self.input_source,
-            "mute": self.mute,
-            "sound_mode": self.sound_mode,
-        }
-
-    def restore(self, snapshot: dict) -> None:
-        """Restore from snapshot after failed send."""
-        self.power = snapshot.get("power")
-        self.volume = snapshot.get("volume")
-        self.input_source = snapshot.get("input_source")
-        self.mute = snapshot.get("mute")
-        self.sound_mode = snapshot.get("sound_mode")
-
-    def apply_command(self, command: str) -> bool:
-        """Optimistically apply a Denon telnet command. Returns True if state changed."""
-        if not command or len(command) < 2:
-            return False
-        cmd = command.strip().upper()
-        applied = False
-        if cmd.startswith("PW"):
-            if cmd == "PWON":
-                self.power = "ON"
-                applied = True
-            elif "STANDBY" in cmd:
-                self.power = "STANDBY"
-                applied = True
-            elif len(cmd) > 2 and cmd[2] not in ("?", ""):
-                self.power = cmd[2:]
-                applied = True
-        elif cmd.startswith("ZM"):
-            if "ON" in cmd:
-                self.power = "ON"
-                applied = True
-            elif "OFF" in cmd or "STANDBY" in cmd:
-                self.power = "STANDBY"
-                applied = True
-        elif cmd.startswith("MV") and len(cmd) > 2:
-            param = cmd[2:].strip()
-            if param and param != "?":
-                self.volume = param
-                applied = True
-        elif cmd.startswith("MU"):
-            if "ON" in cmd:
-                self.mute = True
-                applied = True
-            elif "OFF" in cmd:
-                self.mute = False
-                applied = True
-        elif cmd.startswith("SI") and len(cmd) > 2:
-            param = cmd[2:].strip()
-            if param and param != "?":
-                self.input_source = param
-                applied = True
-        elif cmd.startswith("MS") and len(cmd) > 2:
-            param = cmd[2:].strip()
-            if param and param != "?":
-                self.sound_mode = param
-                applied = True
-        return applied
-
-
-# -----------------------------------------------------------------------------
-# AVR Connection - telnet connection to physical AVR
-# -----------------------------------------------------------------------------
-
-class AVRConnection:
-    """
-    Maintains a single Telnet connection to a physical Denon AVR.
-    Receives responses and forwards them via on_response for broadcasting.
-    """
-
-    def __init__(
-        self,
-        host: str,
-        port: int,
-        on_response: Callable[[str], None],
-        on_disconnect: Callable[[], None],
-        state: AVRState,
-        logger: logging.Logger,
-    ) -> None:
-        self.host = host
-        self.port = port
-        self.on_response = on_response
-        self.on_disconnect = on_disconnect
-        self.state = state
-        self.logger = logger
-        self.reader: Optional[asyncio.StreamReader] = None
-        self.writer: Optional[asyncio.StreamWriter] = None
-        self._buffer = b""
-
-    def is_connected(self) -> bool:
-        """Return True if connected to the AVR."""
-        return self.writer is not None and not self.writer.is_closing()
-
-    def get_details(self) -> dict[str, Any]:
-        """Return details about this AVR connection (physical)."""
-        return {"type": "physical", "host": self.host, "port": self.port}
-
-    async def connect(self) -> bool:
-        """Establish connection to the AVR."""
-        try:
-            self.reader, self.writer = await asyncio.wait_for(
-                asyncio.open_connection(self.host, self.port),
-                timeout=5.0,
-            )
-            self.logger.info("Connected to AVR at %s:%d", self.host, self.port)
-            asyncio.create_task(self._read_loop())
-            return True
-        except (asyncio.TimeoutError, ConnectionRefusedError, OSError) as e:
-            self.logger.error("Failed to connect to AVR: %s", e)
-            return False
-
-    async def _read_loop(self) -> None:
-        """Read data from AVR and forward to callback."""
-        try:
-            while self.reader and not self.reader.at_eof():
-                data = await self.reader.read(1024)
-                if not data:
-                    break
-                self._buffer += data
-                while b"\r" in self._buffer or b"\n" in self._buffer:
-                    for sep in (b"\r", b"\n"):
-                        if sep in self._buffer:
-                            line, _, self._buffer = self._buffer.partition(sep)
-                            break
-                    else:
-                        break
-                    try:
-                        msg = line.decode("utf-8").strip()
-                    except UnicodeDecodeError:
-                        continue
-                    if msg:
-                        self.state.update_from_message(msg)
-                        self.on_response(msg)
-        except asyncio.CancelledError:
-            pass
-        except Exception as e:
-            self.logger.warning("AVR read error: %s", e)
-        finally:
-            self._handle_disconnect()
-
-    def _handle_disconnect(self) -> None:
-        """Handle AVR disconnect and schedule reconnect."""
-        if self.writer:
-            try:
-                self.writer.close()
-                asyncio.create_task(self.writer.wait_closed())
-            except Exception:
-                pass
-            self.reader = None
-            self.writer = None
-        self.logger.warning("Disconnected from AVR")
-        self.on_disconnect()
-
-    async def send_command(self, command: str) -> bool:
-        """Send a telnet command to the AVR."""
-        if not self.is_connected():
-            self.logger.warning("Cannot send command, AVR not connected: %s", command)
-            return False
-        try:
-            data = (command.strip() + "\r").encode("utf-8")
-            self.writer.write(data)
-            await self.writer.drain()
-            self.logger.debug("Sent to AVR: %s", command.strip())
-            return True
-        except Exception as e:
-            self.logger.warning("Failed to send command to AVR: %s - %s", command, e)
-            return False
-
-    async def request_state(self) -> None:
-        """Request current state from AVR (power, volume, input, mute)."""
-        for cmd in ("PW?", "MV?", "SI?", "MU?", "ZM?"):
-            await self.send_command(cmd)
-            await asyncio.sleep(0.05)
-
-    def close(self) -> None:
-        """Close the AVR connection."""
-        if self.writer:
-            self.writer.close()
-            self.reader = None
-            self.writer = None
-
-
-# -----------------------------------------------------------------------------
-# Virtual AVR - in-process AVR that processes commands and emits responses
-# -----------------------------------------------------------------------------
-
-class VirtualAVRConnection:
-    """
-    Simulates a Denon AVR in-process. Accepts telnet commands, updates state,
-    and emits responses via on_response - so the proxy treats it like a real AVR.
-    """
-
-    def __init__(
-        self,
-        state: AVRState,
-        on_response: Callable[[str], None],
-        on_disconnect: Callable[[], None],
-        logger: logging.Logger,
-    ) -> None:
-        self.state = state
-        self.on_response = on_response
-        self.on_disconnect = on_disconnect
-        self.logger = logger
-        self._connected = False
-
-    def is_connected(self) -> bool:
-        return self._connected
-
-    def get_details(self) -> dict[str, Any]:
-        """Return details about this AVR connection (virtual)."""
-        return {"type": "virtual"}
-
-    async def connect(self) -> bool:
-        self._connected = True
-        self.logger.info("Virtual AVR ready (demo mode)")
-        return True
-
-    async def send_command(self, command: str) -> bool:
-        if not self._connected:
-            return False
-        cmd = (command or "").strip()
-        if not cmd or len(cmd) < 2:
-            return True
-        self.logger.debug("Virtual AVR received: %s", cmd)
-        self.state.apply_command(cmd)
-        # Emit the response(s) a real AVR would send for this command
-        dump = self.state.get_status_dump().strip()
-        prefix = cmd[:2].upper()
-        for line in dump.splitlines():
-            line = line.strip()
-            if not line or len(line) < 2:
-                continue
-            line_prefix = line[:2].upper()
-            if line_prefix == prefix or (
-                prefix in ("PW", "ZM") and line_prefix in ("PW", "ZM")
-            ):
-                self.state.update_from_message(line)
-                self.on_response(line)
-        return True
-
-    async def request_state(self) -> None:
-        if not self._connected:
-            return
-        for line in self.state.get_status_dump().strip().splitlines():
-            if line.strip():
-                self.on_response(line.strip())
-
-    def close(self) -> None:
-        self._connected = False
-        self.logger.info("Virtual AVR closed")
-        try:
-            self.on_disconnect()
-        except Exception:
-            # Keep shutdown robust; mirror AVRConnection behaviour without failing hard
-            self.logger.debug("Virtual AVR on_disconnect callback raised", exc_info=True)
-
-
-# -----------------------------------------------------------------------------
-# Factory - returns the appropriate AVR connection based on config
-# -----------------------------------------------------------------------------
-
-def create_avr_connection(
-    config: dict,
-    state: AVRState,
-    on_response: Callable[[str], None],
-    on_disconnect: Callable[[], None],
-    logger: logging.Logger,
-) -> AVRConnection | VirtualAVRConnection:
-    """
-    Create an AVR connection based on config. Returns AVRConnection for a
-    physical AVR (when avr_host is set), or VirtualAVRConnection otherwise.
-    The caller uses the same interface either way - opaque to the proxy.
-    """
-    host = (config.get("avr_host") or "").strip()
-    port = int(config.get("avr_port", 23))
-    if host:
-        return AVRConnection(
-            host=host,
-            port=port,
-            on_response=on_response,
-            on_disconnect=on_disconnect,
-            state=state,
-            logger=logger,
-        )
-    return VirtualAVRConnection(
-        state=state,
-        on_response=on_response,
-        on_disconnect=on_disconnect,
-        logger=logger,
-    )
-
 
 # -----------------------------------------------------------------------------
 # Demo sources - matches typical Denon AVR-X inputs for HA integration
@@ -621,7 +242,7 @@ def appcommand_response_xml(
     """
     power = (getattr(state, "power", None) if state else None) or "ON"
     vol_raw = (getattr(state, "volume", None) if state else None) or "50"
-    volume = _volume_to_db(vol_raw)
+    volume = volume_to_db(vol_raw)
     mute_val = "on" if (state and getattr(state, "mute", None)) else "off"
     input_src = (getattr(state, "input_source", None) if state else None) or "CD"
     friendly_name = config.get("ssdp_friendly_name", "Denon AVR Proxy")
@@ -714,35 +335,13 @@ def appcommand_response_xml(
     return xml_str.encode("utf-8")
 
 
-def _volume_to_level(vol_str: Optional[str]) -> float:
-    """Extract numeric level 0-98 from Denon volume. Handles half steps (e.g. 535=53.5)."""
-    if not vol_str or not str(vol_str).strip():
-        return 80.0
-    s = str(vol_str).strip().upper()
-    if "MAX" in s:
-        parts = s.split()
-        return min(98.0, float(parts[-1]) if len(parts) > 1 and parts[-1].isdigit() else 98.0)
-    if s.isdigit():
-        # 3 digits = XX.X (e.g. 535 = 53.5), 2 digits = XX (e.g. 50 = 50)
-        val = float(s) / 10.0 if len(s) == 3 else float(s)
-        return max(0.0, min(98.0, val))
-    return 80.0
-
-
-def _volume_to_db(vol_str: Optional[str]) -> str:
-    """Convert Denon telnet volume (0-98, half steps, MAX, etc.) to dB for status XML."""
-    vol = _volume_to_level(vol_str)
-    db = (vol - 80) * 0.5
-    return f"{db:.1f}"
-
-
 def mainzone_xml(state: Any, config: Optional[dict] = None) -> bytes:
     """Build MainZone XML for denonavr status polling."""
     config = config or {}
     friendly_name = config.get("ssdp_friendly_name", "Denon AVR Proxy")
     power = (getattr(state, "power", None) if state else None) or "ON"
     vol_raw = (getattr(state, "volume", None) if state else None) or "50"
-    volume = _volume_to_db(vol_raw)
+    volume = volume_to_db(vol_raw)
     mute_val = "on" if (state and getattr(state, "mute", None)) else "off"
     input_src = (getattr(state, "input_source", None) if state else None) or "CD"
     sound_mode = (getattr(state, "sound_mode", None) if state else None) or "STEREO"
@@ -1028,7 +627,7 @@ class DeviceDescriptionHandler(asyncio.Protocol):
 # Public API
 # -----------------------------------------------------------------------------
 
-async def run_emulator_servers(
+async def run_discovery_servers(
     config: dict,
     logger: logging.Logger,
     state: Any = None,

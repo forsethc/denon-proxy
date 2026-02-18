@@ -14,7 +14,9 @@ Denon AVR receivers only support **one active Telnet connection** at a time. If 
 ## Project Structure
 
 - **`denon_proxy.py`** – Main proxy: Telnet multiplexer, client handling, AVR connection
-- **`avr_emulator.py`** – Denon AVR emulation: `AVRState` (canonical state model), HTTP/SSDP (device discovery, Deviceinfo, AppCommand, MainZone XML). Used by the proxy when SSDP is enabled; can also be used standalone for testing
+- **`avr_state.py`** – Canonical Denon state model (`AVRState`) and volume presentation helpers; used by proxy, connection, and discovery
+- **`avr_connection.py`** – AVR I/O: physical Telnet connection or in-process virtual AVR (same interface for the proxy)
+- **`avr_discovery.py`** – AVR discovery: HTTP/SSDP (device discovery, Deviceinfo, AppCommand, MainZone XML). Used by the proxy when SSDP is enabled; can also be used standalone for testing
 
 ## Requirements
 
