@@ -60,6 +60,13 @@ optimistic_state: true
 # confirmation; avoids broadcasting change then immediately reverting on send failure.
 optimistic_broadcast_delay: 0.1
 
+# Volume step for MVUP/MVDOWN optimistic update (when optimistic_state is true, or virtual AVR). 0.5 = half-step;
+# some Denon/Marantz AVRs use 1.0. With a physical AVR, the real level is always set from its response (e.g. MV?).
+# volume_step: 0.5
+
+# Seconds to wait after MVUP/MVDOWN before sending MV? so the AVR has time to apply the change.
+# volume_query_delay: 0.15
+
 # Web UI: monitoring dashboard and JSON API (disabled by default)
 # When enabled: GET / = HTML dashboard, GET /events = SSE (live state push),
 # GET /status = JSON, POST /api/command, POST /api/refresh

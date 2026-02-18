@@ -76,6 +76,8 @@ _DEFAULT_CONFIG = {
     "ssdp_advertise_ip": "",
     "optimistic_state": True,
     "optimistic_broadcast_delay": 0.1,
+    "volume_step": 0.5,  # step for MVUP/MVDOWN when optimistic_state true / virtual AVR (0.5 = half-step; some AVRs use 1.0)
+    "volume_query_delay": 0.15,  # seconds to wait after MVUP/MVDOWN before sending MV? (give AVR time to apply)
     "enable_web_ui": False,
     "web_ui_port": 8081,
     "log_command_groups_info": [],  # e.g. ["power", "volume"] - these groups logged at INFO
@@ -315,6 +317,13 @@ class ClientHandler(asyncio.Protocol):
                 self._broadcast_state()
             self.config.get("_notify_web_state", lambda: None)()
 
+        # After relative volume commands, query AVR so we update internal state from its response
+        cmd_upper = command.strip().upper()
+        if success and cmd_upper in ("MVUP", "MVDOWN"):
+            delay = max(0.0, float(self.config.get("volume_query_delay", 0.15)))
+            await asyncio.sleep(delay)
+            await self.avr.send_command("MV?")
+
     def broadcast(self, message: str) -> None:
         """Send a message to this client."""
         if self.transport and not self.transport.is_closing():
@@ -352,7 +361,7 @@ class DenonProxyServer:
     ) -> None:
         self.config = config
         self.logger = logger
-        self.state = AVRState()
+        self.state = AVRState(volume_step=float(config.get("volume_step", 0.5)))
         self.clients: Set[ClientHandler] = set()
         self.avr: Optional[Union[AVRConnection, VirtualAVRConnection]] = None
         self._server: Optional[asyncio.Server] = None
@@ -521,7 +530,9 @@ class DenonProxyServer:
                 if not k.startswith("_")
             }
             if "volume" in state and state["volume"] is not None:
-                state["volume"] = volume_to_level(state["volume"])
+                state["volume"] = volume_to_level(
+                    state["volume"], state.get("volume_max", 98.0)
+                )
             avr = dict(self.avr.get_details()) if self.avr else {"type": "none"}
             avr["connected"] = self.avr.is_connected() if self.avr else False
             avr_info = self.config.get("_avr_info") or {}
