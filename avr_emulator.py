@@ -383,6 +383,11 @@ class VirtualAVRConnection:
     def close(self) -> None:
         self._connected = False
         self.logger.info("Virtual AVR closed")
+        try:
+            self.on_disconnect()
+        except Exception:
+            # Keep shutdown robust; mirror AVRConnection behaviour without failing hard
+            self.logger.debug("Virtual AVR on_disconnect callback raised", exc_info=True)
 
 
 # -----------------------------------------------------------------------------
