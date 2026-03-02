@@ -110,6 +110,27 @@ DASHBOARD_HTML = """<!DOCTYPE html>
       max-height: 200px;
       overflow: auto;
     }
+    .xml-link-pills { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.35rem; }
+    .xml-link-pills a {
+      display: inline-block;
+      padding: 0.25rem 0.6rem;
+      border-radius: 4px;
+      font-size: 0.8rem;
+      font-weight: 500;
+      text-decoration: none;
+    }
+    .xml-link-pills a.proxy-link {
+      background: var(--accent);
+      color: var(--bg);
+      border: 1px solid var(--accent);
+    }
+    .xml-link-pills a.proxy-link:hover { filter: brightness(1.1); }
+    .xml-link-pills a.physical-link {
+      background: var(--surface-hover);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+    .xml-link-pills a.physical-link:hover { background: var(--border); }
   </style>
 </head>
 <body>
@@ -223,14 +244,21 @@ DASHBOARD_HTML = """<!DOCTYPE html>
       const discovery = d.discovery;
       const xmlCard = document.getElementById('xml-card');
       const xmlList = document.getElementById('xml-links');
+      const xmlEndpoints = [
+        ['description.xml', '/description.xml', 'UPnP device description for SSDP discovery'],
+        ['goform/deviceinfo.xml', '/goform/deviceinfo.xml', 'Device info and input sources (e.g. for Home Assistant setup)'],
+        ['MainZone XML status', '/goform/formMainZone_MainZoneXmlStatus.xml', 'Current power, volume, input, mute (status polling)']
+      ];
       if (discovery && discovery.http_port) {
-        const base = window.location.protocol + '//' + window.location.hostname + ':' + discovery.http_port;
-        const links = [
-          ['description.xml', base + '/description.xml', 'UPnP device description for SSDP discovery'],
-          ['goform/deviceinfo.xml', base + '/goform/deviceinfo.xml', 'Device info and input sources (e.g. for Home Assistant setup)'],
-          ['MainZone XML status', base + '/goform/formMainZone_MainZoneXmlStatus.xml', 'Current power, volume, input, mute (status polling)']
-        ];
-        xmlList.innerHTML = links.map(([label, url, desc]) => '<li><a href="' + escapeHtml(url) + '" target="_blank" rel="noopener">' + escapeHtml(label) + '</a><br><span class="muted">' + escapeHtml(desc) + '</span></li>').join('');
+        const proxyBase = window.location.protocol + '//' + window.location.hostname + ':' + discovery.http_port;
+        const hasPhysical = avrType === 'physical' && avr.host;
+        const physicalBase = hasPhysical ? ('http://' + avr.host + ':8080') : '';
+        xmlList.innerHTML = xmlEndpoints.map(([label, path, desc]) => {
+          const proxyLink = '<a class="proxy-link" href="' + escapeHtml(proxyBase + path) + '" target="_blank" rel="noopener">Proxy</a>';
+          const physicalLink = hasPhysical ? '<a class="physical-link" href="' + escapeHtml(physicalBase + path) + '" target="_blank" rel="noopener">Physical</a>' : '';
+          const pills = '<span class="xml-link-pills">' + proxyLink + (hasPhysical ? physicalLink : '') + '</span>';
+          return '<li>' + escapeHtml(label) + '<br><span class="muted">' + escapeHtml(desc) + '</span><br>' + pills + '</li>';
+        }).join('');
         xmlCard.style.display = 'block';
       } else {
         xmlCard.style.display = 'none';
