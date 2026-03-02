@@ -120,8 +120,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
   <div class="grid">
     <div class="card">
       <h2>AVR Connection</h2>
-      <div id="avr-status">Loading...</div>
-      <table class="state-table" id="avr-details" style="margin-top: 0.5rem;"></table>
+      <table class="state-table" id="avr-details"></table>
     </div>
     <div class="card">
       <h2>Connected Clients</h2>
@@ -172,33 +171,34 @@ DASHBOARD_HTML = """<!DOCTYPE html>
       return fetch(path, { ...opts, headers: { 'Content-Type': 'application/json', ...opts?.headers } });
     }
     function loadFromData(d) {
-      try { render(d); } catch (e) { document.getElementById('avr-status').innerHTML = '<span class="muted">Render error</span>'; }
+      try { render(d); } catch (e) { document.getElementById('avr-details').innerHTML = '<tr><td colspan="2" class="muted">Render error</td></tr>'; document.getElementById('avr-details').style.display = ''; }
     }
     function render(d) {
       const avr = d.avr || {};
       const clients = d.clients || [];
       const state = d.state || {};
       const avrType = avr.type || 'none';
-      const connected = avrType === 'physical' && avr.connected;
-      const statusEl = document.getElementById('avr-status');
-      statusEl.innerHTML = '<span class="status-dot ' + (avrType === 'virtual' ? 'virtual' : (connected ? 'connected' : 'disconnected')) + '"></span> ' +
-        (avrType === 'physical' ? (connected ? 'Connected to ' + (avr.host || '?') + ':' + (avr.port || 23) : 'Disconnected') :
-         avrType === 'virtual' ? 'Virtual AVR (demo mode)' : 'No AVR configured');
       const avrDetailsEl = document.getElementById('avr-details');
       if (avrType === 'virtual') {
         avrDetailsEl.style.display = 'none';
       } else {
         avrDetailsEl.style.display = '';
-        const avrHost = (avrType === 'physical' && avr.host) ? (avr.host + (avr.port ? ':' + avr.port : '')) : null;
         const detailRows = [
-          ['AVR IP', avrHost],
+          ['Host', avrType === 'physical' ? avr.host : null],
+          ['Port', avrType === 'physical' ? avr.port : null],
           ['Brand', avr.manufacturer],
           ['Model', avr.model_name],
           ['Friendly Name', avr.friendly_name],
           ['Serial', avr.serial_number]
         ];
         avrDetailsEl.innerHTML = detailRows
-          .map(([label, val]) => '<tr><td>' + escapeHtml(label) + '</td><td>' + escapeHtml(val ? String(val) : '—') + '</td></tr>')
+          .map(([label, val]) => {
+            const text = val != null && val !== '' ? String(val) : '—';
+            const content = (label === 'Host' && val)
+              ? '<a href="http://' + escapeHtml(val) + '" target="_blank" rel="noopener">' + escapeHtml(text) + '</a>'
+              : escapeHtml(text);
+            return '<tr><td>' + escapeHtml(label) + '</td><td>' + content + '</td></tr>';
+          })
           .join('');
       }
       const headerProxyIp = document.getElementById('header-proxy-ip');
