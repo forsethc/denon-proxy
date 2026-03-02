@@ -121,7 +121,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
     <div class="card">
       <h2>AVR Connection</h2>
       <div id="avr-status">Loading...</div>
-      <div id="avr-details" class="muted"></div>
+      <table class="state-table" id="avr-details" style="margin-top: 0.5rem;"></table>
     </div>
     <div class="card">
       <h2>Connected Clients</h2>
@@ -184,11 +184,15 @@ DASHBOARD_HTML = """<!DOCTYPE html>
       statusEl.innerHTML = '<span class="status-dot ' + (avrType === 'virtual' ? 'virtual' : (connected ? 'connected' : 'disconnected')) + '"></span> ' +
         (avrType === 'physical' ? (connected ? 'Connected to ' + (avr.host || '?') + ':' + (avr.port || 23) : 'Disconnected') :
          avrType === 'virtual' ? 'Virtual AVR (demo mode)' : 'No AVR configured');
-      let details = [];
-      if (avr.manufacturer) details.push(avr.manufacturer);
-      if (avr.model_name) details.push(avr.model_name);
-      if (avr.friendly_name) details.push(avr.friendly_name);
-      document.getElementById('avr-details').textContent = details.length ? details.join(' · ') : '';
+      const detailRows = [
+        ['Brand', avr.manufacturer],
+        ['Model', avr.model_name],
+        ['Friendly Name', avr.friendly_name],
+        ['Serial', avr.serial_number]
+      ];
+      document.getElementById('avr-details').innerHTML = detailRows
+        .map(([label, val]) => '<tr><td>' + escapeHtml(label) + '</td><td>' + escapeHtml(val ? String(val) : '—') + '</td></tr>')
+        .join('');
       const headerProxyIp = document.getElementById('header-proxy-ip');
       headerProxyIp.textContent = (d.discovery && d.discovery.proxy_ip) ? ('Proxy IP: ' + d.discovery.proxy_ip) : '';
       document.getElementById('clients').innerHTML = clients.length
