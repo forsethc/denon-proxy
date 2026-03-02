@@ -169,11 +169,15 @@ def get_proxy_friendly_name(config: dict) -> str:
     """Proxy's advertised friendly name: config if set, else physical device name + ' Proxy'."""
     configured = (config.get("ssdp_friendly_name") or "").strip()
     if configured:
+        _logger.debug("Friendly name from config: %r", configured)
         return configured
     avr_info = config.get("_avr_info") or {}
     physical_name = (avr_info.get("friendly_name") or "").strip()
     if physical_name:
-        return f"{physical_name} Proxy"
+        result = f"{physical_name} Proxy"
+        _logger.debug("Friendly name from physical AVR %r: %r", physical_name, result)
+        return result
+    _logger.debug("Friendly name: default Denon AVR Proxy (no config, no physical name)")
     return "Denon AVR Proxy"
 
 
