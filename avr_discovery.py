@@ -165,6 +165,18 @@ def get_advertise_ip(config: dict) -> Optional[str]:
 # XML builders
 # -----------------------------------------------------------------------------
 
+def get_proxy_friendly_name(config: dict) -> str:
+    """Proxy's advertised friendly name: config if set, else physical device name + ' Proxy'."""
+    configured = (config.get("ssdp_friendly_name") or "").strip()
+    if configured:
+        return configured
+    avr_info = config.get("_avr_info") or {}
+    physical_name = (avr_info.get("friendly_name") or "").strip()
+    if physical_name:
+        return f"{physical_name} Proxy"
+    return "Denon AVR Proxy"
+
+
 def deviceinfo_xml(config: dict) -> str:
     """Deviceinfo.xml - identify as pre-2016 AVR so denonavr uses port 8080/description.xml
     (avoids port 60006 aios_device.xml which can cause HA config flow issues)."""
@@ -191,7 +203,7 @@ def deviceinfo_xml(config: dict) -> str:
 
 def appcommand_friendlyname_xml(config: dict) -> str:
     """AppCommand.xml response for GetFriendlyName (denonavr setup)."""
-    name = config.get("ssdp_friendly_name", "Denon AVR Proxy")
+    name = get_proxy_friendly_name(config)
     return f"""<?xml version="1.0" encoding="utf-8"?>
 <rx>
   <cmd id="1">
@@ -245,7 +257,7 @@ def appcommand_response_xml(
     volume = volume_to_db(vol_raw)
     mute_val = "on" if (state and getattr(state, "mute", None)) else "off"
     input_src = (getattr(state, "input_source", None) if state else None) or "CD"
-    friendly_name = config.get("ssdp_friendly_name", "Denon AVR Proxy")
+    friendly_name = get_proxy_friendly_name(config)
     sound_mode = (getattr(state, "sound_mode", None) if state else None) or "STEREO"
 
     cmds_requested = parse_appcommand_request(body_bytes)
@@ -338,7 +350,7 @@ def appcommand_response_xml(
 def mainzone_xml(state: Any, config: Optional[dict] = None) -> bytes:
     """Build MainZone XML for denonavr status polling."""
     config = config or {}
-    friendly_name = config.get("ssdp_friendly_name", "Denon AVR Proxy")
+    friendly_name = get_proxy_friendly_name(config)
     power = (getattr(state, "power", None) if state else None) or "ON"
     vol_raw = (getattr(state, "volume", None) if state else None) or "50"
     volume = volume_to_db(vol_raw)
@@ -422,7 +434,7 @@ def description_xml(config: dict, advertise_ip: str) -> str:
     """Minimal UPnP device description XML matching what Home Assistant expects.
     Uses physical AVR manufacturer/model from _avr_info when available (e.g. after
     HTTP sync) so UC Remote and other clients can detect Denon vs Marantz correctly."""
-    friendly_name = config.get("ssdp_friendly_name", "Denon AVR Proxy")
+    friendly_name = get_proxy_friendly_name(config)
     http_port = config.get("ssdp_http_port", 8080)
     serial = f"proxy-{advertise_ip.replace('.', '-')}"
     avr_info = config.get("_avr_info") or {}
@@ -645,7 +657,7 @@ async def run_discovery_servers(
         logger.warning("SSDP: Could not determine IP to advertise. Set ssdp_advertise_ip in config.")
         return None, None
 
-    logger.info("SSDP advertising as '%s' at %s", config.get("ssdp_friendly_name"), advertise_ip)
+    logger.info("SSDP advertising as '%s' at %s", get_proxy_friendly_name(config), advertise_ip)
 
     ssdp_transport = None
     try:

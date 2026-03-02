@@ -135,7 +135,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
 </head>
 <body>
   <div style="display: flex; align-items: baseline; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.5rem;">
-    <h1 style="margin: 0;">Denon AVR Proxy</h1>
+    <h1 style="margin: 0;" id="page-title">Denon AVR Proxy</h1>
     <span id="header-proxy-ip" class="muted"></span>
   </div>
   <div class="grid">
@@ -222,6 +222,9 @@ DASHBOARD_HTML = """<!DOCTYPE html>
           })
           .join('');
       }
+      const title = d.friendly_name || 'Denon AVR Proxy';
+      document.getElementById('page-title').textContent = title;
+      document.title = title;
       const headerProxyIp = document.getElementById('header-proxy-ip');
       headerProxyIp.textContent = (d.discovery && d.discovery.proxy_ip) ? ('Proxy IP: ' + d.discovery.proxy_ip) : '';
       document.getElementById('clients').innerHTML = clients.length

@@ -39,7 +39,7 @@ from avr_connection import (
     VirtualAVRConnection,
     create_avr_connection,
 )
-from avr_discovery import get_advertise_ip, run_discovery_servers
+from avr_discovery import get_advertise_ip, get_proxy_friendly_name, run_discovery_servers
 from avr_state import AVRState, volume_to_level
 
 from web_ui import run_web_ui
@@ -222,6 +222,7 @@ def build_json_state(
         "proxy_ip": get_advertise_ip(config) or None,
     }
     return {
+        "friendly_name": get_proxy_friendly_name(config),
         "avr": avr_dict,
         "clients": client_ips,
         "client_count": len(client_ips),

@@ -40,7 +40,9 @@ log_level: "INFO"
 # SSDP discovery (e.g. for Home Assistant auto-discovery)
 enable_ssdp: true
 
-# When SSDP is enabled: friendly name shown in Home Assistant
+# When SSDP is enabled: friendly name shown in discovery and Home Assistant.
+# If set, this value is used. If empty or omitted, the proxy uses the physical
+# AVR's friendly name + " Proxy" (once known), or "Denon AVR Proxy" as fallback.
 ssdp_friendly_name: "Denon AVR Proxy"
 
 # When SSDP is enabled: port for serving device description XML (HA fetches this)
