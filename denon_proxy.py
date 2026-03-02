@@ -216,11 +216,17 @@ def build_json_state(
     sources = config.get("_resolved_sources") or config.get("_device_sources")
     if sources:
         avr_dict["sources"] = [{"func": func_name, "display_name": display_name} for func_name, display_name in sources]
+    discovery = {
+        "http_port": int(config.get("ssdp_http_port", 8080)),
+        "enabled": bool(config.get("enable_ssdp", False)),
+        "proxy_ip": get_advertise_ip(config) or None,
+    }
     return {
         "avr": avr_dict,
         "clients": client_ips,
         "client_count": len(client_ips),
         "state": state_dict,
+        "discovery": discovery,
     }
 
 

@@ -113,7 +113,10 @@ DASHBOARD_HTML = """<!DOCTYPE html>
   </style>
 </head>
 <body>
-  <h1>Denon AVR Proxy</h1>
+  <div style="display: flex; align-items: baseline; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.5rem;">
+    <h1 style="margin: 0;">Denon AVR Proxy</h1>
+    <span id="header-proxy-ip" class="muted"></span>
+  </div>
   <div class="grid">
     <div class="card">
       <h2>AVR Connection</h2>
@@ -159,6 +162,10 @@ DASHBOARD_HTML = """<!DOCTYPE html>
       <pre class="json-block" id="json-state">{}</pre>
       <div class="last-update"><span id="update-status">Connecting...</span></div>
     </div>
+    <div class="card" id="xml-card" style="display: none;">
+      <h2>Proxy XML Endpoints</h2>
+      <ul class="client-list" id="xml-links"></ul>
+    </div>
   </div>
   <script>
     function api(path, opts) {
@@ -182,6 +189,8 @@ DASHBOARD_HTML = """<!DOCTYPE html>
       if (avr.model_name) details.push(avr.model_name);
       if (avr.friendly_name) details.push(avr.friendly_name);
       document.getElementById('avr-details').textContent = details.length ? details.join(' · ') : '';
+      const headerProxyIp = document.getElementById('header-proxy-ip');
+      headerProxyIp.textContent = (d.discovery && d.discovery.proxy_ip) ? ('Proxy IP: ' + d.discovery.proxy_ip) : '';
       document.getElementById('clients').innerHTML = clients.length
         ? '<ul class="client-list">' + clients.map(c => '<li>' + escapeHtml(c) + '</li>').join('') + '</ul>'
         : '<span class="muted">No clients connected</span>';
@@ -199,6 +208,21 @@ DASHBOARD_HTML = """<!DOCTYPE html>
         ['Sound mode', state.sound_mode || '—']
       ];
       document.getElementById('state-table').innerHTML = rows.map(([k,v]) => '<tr><td>' + escapeHtml(k) + '</td><td>' + escapeHtml(String(v)) + '</td></tr>').join('');
+      const discovery = d.discovery;
+      const xmlCard = document.getElementById('xml-card');
+      const xmlList = document.getElementById('xml-links');
+      if (discovery && discovery.http_port) {
+        const base = window.location.protocol + '//' + window.location.hostname + ':' + discovery.http_port;
+        const links = [
+          ['description.xml', base + '/description.xml', 'UPnP device description for SSDP discovery'],
+          ['goform/deviceinfo.xml', base + '/goform/deviceinfo.xml', 'Device info and input sources (e.g. for Home Assistant setup)'],
+          ['MainZone XML status', base + '/goform/formMainZone_MainZoneXmlStatus.xml', 'Current power, volume, input, mute (status polling)']
+        ];
+        xmlList.innerHTML = links.map(([label, url, desc]) => '<li><a href="' + escapeHtml(url) + '" target="_blank" rel="noopener">' + escapeHtml(label) + '</a><br><span class="muted">' + escapeHtml(desc) + '</span></li>').join('');
+        xmlCard.style.display = 'block';
+      } else {
+        xmlCard.style.display = 'none';
+      }
       document.getElementById('json-state').textContent = JSON.stringify(d, null, 2);
     }
     function escapeHtml(s) { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
