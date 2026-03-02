@@ -184,15 +184,23 @@ DASHBOARD_HTML = """<!DOCTYPE html>
       statusEl.innerHTML = '<span class="status-dot ' + (avrType === 'virtual' ? 'virtual' : (connected ? 'connected' : 'disconnected')) + '"></span> ' +
         (avrType === 'physical' ? (connected ? 'Connected to ' + (avr.host || '?') + ':' + (avr.port || 23) : 'Disconnected') :
          avrType === 'virtual' ? 'Virtual AVR (demo mode)' : 'No AVR configured');
-      const detailRows = [
-        ['Brand', avr.manufacturer],
-        ['Model', avr.model_name],
-        ['Friendly Name', avr.friendly_name],
-        ['Serial', avr.serial_number]
-      ];
-      document.getElementById('avr-details').innerHTML = detailRows
-        .map(([label, val]) => '<tr><td>' + escapeHtml(label) + '</td><td>' + escapeHtml(val ? String(val) : '—') + '</td></tr>')
-        .join('');
+      const avrDetailsEl = document.getElementById('avr-details');
+      if (avrType === 'virtual') {
+        avrDetailsEl.style.display = 'none';
+      } else {
+        avrDetailsEl.style.display = '';
+        const avrHost = (avrType === 'physical' && avr.host) ? (avr.host + (avr.port ? ':' + avr.port : '')) : null;
+        const detailRows = [
+          ['AVR IP', avrHost],
+          ['Brand', avr.manufacturer],
+          ['Model', avr.model_name],
+          ['Friendly Name', avr.friendly_name],
+          ['Serial', avr.serial_number]
+        ];
+        avrDetailsEl.innerHTML = detailRows
+          .map(([label, val]) => '<tr><td>' + escapeHtml(label) + '</td><td>' + escapeHtml(val ? String(val) : '—') + '</td></tr>')
+          .join('');
+      }
       const headerProxyIp = document.getElementById('header-proxy-ip');
       headerProxyIp.textContent = (d.discovery && d.discovery.proxy_ip) ? ('Proxy IP: ' + d.discovery.proxy_ip) : '';
       document.getElementById('clients').innerHTML = clients.length
