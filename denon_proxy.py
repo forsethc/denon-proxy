@@ -71,7 +71,7 @@ _DEFAULT_CONFIG = {
     "proxy_port": 23,
     "log_level": "INFO",
     "enable_ssdp": True,
-    "ssdp_friendly_name": "Denon AVR Proxy",
+    # ssdp_friendly_name: omit from defaults so get_proxy_friendly_name can use physical name + " Proxy" when unset
     "ssdp_http_port": 8080,
     "ssdp_advertise_ip": "",
     "optimistic_state": True,
