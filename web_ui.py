@@ -144,15 +144,15 @@ DASHBOARD_HTML = """<!DOCTYPE html>
       <table class="state-table" id="avr-details"></table>
     </div>
     <div class="card">
-      <h2>Connected Clients</h2>
-      <div id="clients">Loading...</div>
-    </div>
-    <div class="card">
       <h2>AVR State</h2>
       <table class="state-table" id="state-table"></table>
       <div class="btn-group">
         <button class="btn btn-primary" onclick="refreshState()">Refresh from AVR</button>
       </div>
+    </div>
+    <div class="card">
+      <h2>Connected Clients</h2>
+      <div id="clients">Loading...</div>
     </div>
     <div class="card">
       <h2>Send Commands</h2>
@@ -183,7 +183,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
       <div class="last-update"><span id="update-status">Connecting...</span></div>
     </div>
     <div class="card" id="xml-card" style="display: none;">
-      <h2>Proxy XML Endpoints</h2>
+      <h2>XML Endpoints</h2>
       <ul class="client-list" id="xml-links"></ul>
     </div>
   </div>
