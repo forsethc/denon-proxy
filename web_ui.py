@@ -256,9 +256,10 @@ DASHBOARD_HTML = """<!DOCTYPE html>
       if (discovery && discovery.http_port) {
         const proxyBase = window.location.protocol + '//' + window.location.hostname + ':' + discovery.http_port;
         const hasPhysical = avrType === 'physical' && avr.host;
-        const physicalBase = hasPhysical ? ('http://' + avr.host + ':8080') : '';
         xmlList.innerHTML = xmlEndpoints.map(([label, path, desc]) => {
           const proxyLink = '<a class="proxy-link" href="' + escapeHtml(proxyBase + path) + '" target="_blank" rel="noopener">Proxy</a>';
+          const physicalPort = path.indexOf('/goform/') !== -1 ? 80 : 8080;
+          const physicalBase = hasPhysical ? ('http://' + avr.host + ':' + physicalPort) : '';
           const physicalLink = hasPhysical ? '<a class="physical-link" href="' + escapeHtml(physicalBase + path) + '" target="_blank" rel="noopener">Physical</a>' : '';
           const pills = '<span class="xml-link-pills">' + proxyLink + (hasPhysical ? physicalLink : '') + '</span>';
           return '<li>' + escapeHtml(label) + '<br><span class="muted">' + escapeHtml(desc) + '</span><br>' + pills + '</li>';
