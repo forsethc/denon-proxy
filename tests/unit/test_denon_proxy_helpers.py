@@ -3,6 +3,7 @@ from denon_proxy import (
     _command_group,
     _should_log_command_info,
     AVRState,
+    apply_payload_to_state,
     build_json_state,
 )
 
@@ -88,4 +89,59 @@ def test_build_json_state_structure_and_volume_conversion():
     # Volume should have been converted to numeric level
     assert isinstance(state_dict["volume"], (int, float))
     assert state_dict["power"] == "ON"
+
+
+def test_apply_payload_to_state_updates_present_fields():
+    state = AVRState()
+    state.power = "STANDBY"
+    state.volume = "40"
+    apply_payload_to_state(state, {"power": "ON", "volume": "55"})
+    assert state.power == "ON"
+    assert state.volume == "55"
+    assert state.input_source == "CD"  # unchanged default
+
+
+def test_apply_payload_to_state_power_uppercased():
+    state = AVRState()
+    apply_payload_to_state(state, {"power": "on"})
+    assert state.power == "ON"
+    apply_payload_to_state(state, {"power": "standby"})
+    assert state.power == "STANDBY"
+
+
+def test_apply_payload_to_state_falsy_values():
+    state = AVRState()
+    state.power = "ON"
+    apply_payload_to_state(state, {"power": None})
+    assert state.power is None
+    apply_payload_to_state(state, {"volume": ""})
+    assert state.volume == ""
+
+
+def test_apply_payload_to_state_mute_and_sources():
+    state = AVRState()
+    apply_payload_to_state(state, {"mute": True, "input_source": "HDMI1", "sound_mode": "DOLBY"})
+    assert state.mute is True
+    assert state.input_source == "HDMI1"
+    assert state.sound_mode == "DOLBY"
+
+
+def test_apply_payload_to_state_smart_select_normalized():
+    state = AVRState()
+    apply_payload_to_state(state, {"smart_select": "smart1"})
+    assert state.smart_select == "SMART1"
+    apply_payload_to_state(state, {"smart_select": "2"})
+    assert state.smart_select == "SMART2"
+    apply_payload_to_state(state, {"smart_select": None})
+    assert state.smart_select is None
+
+
+def test_apply_payload_to_state_partial_leaves_others_unchanged():
+    state = AVRState()
+    state.input_source = "TUNER"
+    state.sound_mode = "STEREO"
+    apply_payload_to_state(state, {"volume": "60"})
+    assert state.volume == "60"
+    assert state.input_source == "TUNER"
+    assert state.sound_mode == "STEREO"
 

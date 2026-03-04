@@ -245,6 +245,30 @@ def build_json_state(
     }
 
 
+def apply_payload_to_state(state: AVRState, payload: dict) -> None:
+    """
+    Apply a JSON payload to AVRState (e.g. from POST /state).
+    Only updates fields present in payload. Uses _normalize_smart_select for smart_select.
+    """
+    if "power" in payload:
+        v = payload["power"]
+        state.power = str(v).upper() if v else None
+    if "volume" in payload:
+        v = payload["volume"]
+        state.volume = str(v) if v is not None else None
+    if "input_source" in payload:
+        v = payload["input_source"]
+        state.input_source = str(v) if v is not None else None
+    if "mute" in payload:
+        state.mute = bool(payload["mute"])
+    if "sound_mode" in payload:
+        v = payload["sound_mode"]
+        state.sound_mode = str(v) if v is not None else None
+    if "smart_select" in payload:
+        v = payload["smart_select"]
+        state.smart_select = _normalize_smart_select(str(v) if v is not None else None)
+
+
 def parse_telnet_lines(buffer: bytes, data: bytes) -> tuple[list[str], bytes]:
     """
     Decode incoming bytes into complete telnet command lines (split on \\r or \\n).
@@ -451,25 +475,8 @@ class DenonProxyServer:
 
     def _set_state_and_broadcast(self, payload: dict) -> None:
         """Set state from payload (e.g. from JSON API) and broadcast to clients."""
-        s = self.state
-        if "power" in payload:
-            v = payload["power"]
-            s.power = str(v).upper() if v else None
-        if "volume" in payload:
-            v = payload["volume"]
-            s.volume = str(v) if v is not None else None
-        if "input_source" in payload:
-            v = payload["input_source"]
-            s.input_source = str(v) if v is not None else None
-        if "mute" in payload:
-            s.mute = bool(payload["mute"])
-        if "sound_mode" in payload:
-            v = payload["sound_mode"]
-            s.sound_mode = str(v) if v is not None else None
-        if "smart_select" in payload:
-            v = payload["smart_select"]
-            s.smart_select = _normalize_smart_select(str(v) if v is not None else None)
-        status = s.get_status_dump()
+        apply_payload_to_state(self.state, payload)
+        status = self.state.get_status_dump()
         if status:
             for line in status.strip().splitlines():
                 if line.strip():
