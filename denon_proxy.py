@@ -270,6 +270,56 @@ def apply_payload_to_state(state: AVRState, payload: dict) -> None:
         state.smart_select = _normalize_smart_select(str(v) if v is not None else None)
 
 
+def state_and_config_updates_from_denonavr(d: Any) -> tuple[dict[str, Any], dict[str, Any], list[tuple[str, str]]]:
+    """
+    Extract state updates, _avr_info, and _device_sources from a denonavr instance.
+    Returns (state_updates, avr_info, device_sources). Caller applies to state and config.
+    """
+    state_updates: dict[str, Any] = {}
+
+    # --- Power, volume, input, mute (direct mapping) ---
+    if getattr(d, "power", None):
+        state_updates["power"] = d.power
+    vol = getattr(d, "vol", None)
+    if vol is not None and getattr(vol, "volume", None) is not None:
+        # denonavr gives volume in dB (e.g. -36.5); Denon telnet uses 0-98. Approximate: 80 = 0 dB.
+        vol_db = vol.volume
+        vol_int = max(0, min(98, int(80 + vol_db * 2)))
+        state_updates["volume"] = str(vol_int)
+    if getattr(d, "input_func", None):
+        state_updates["input_source"] = d.input_func
+    if getattr(d, "muted", None) is not None:
+        state_updates["mute"] = d.muted
+
+    # --- Sound mode vs Smart Select: HTTP sometimes returns "SMART0" as sound_mode ---
+    raw_sound_mode = getattr(d, "sound_mode", None)
+    if raw_sound_mode:
+        raw = str(raw_sound_mode).strip().upper()
+        if raw.startswith("SMART") and len(raw) > 5 and raw[5:].isdigit():
+            state_updates["smart_select"] = _normalize_smart_select(raw_sound_mode)
+            state_updates["sound_mode"] = None  # leave for telnet MS? to fill real mode
+        else:
+            state_updates["sound_mode"] = raw_sound_mode
+    if getattr(d, "smart_select", None) is not None:
+        state_updates["smart_select"] = _normalize_smart_select(str(d.smart_select))
+
+    # --- Device metadata for JSON API and discovery (manufacturer, model, etc.) ---
+    avr_info = {
+        "manufacturer": getattr(d, "manufacturer", None),
+        "model_name": getattr(d, "model_name", None),
+        "serial_number": getattr(d, "serial_number", None),
+        "friendly_name": getattr(d, "name", None),
+    }
+
+    # --- Input source list from denonavr's reversed map (func -> display name) ---
+    rev = getattr(getattr(d, "input", None), "_input_func_map_rev", None)
+    device_sources: list[tuple[str, str]] = []
+    if rev and isinstance(rev, dict):
+        device_sources = [(func, str(display_name or func)) for func, display_name in rev.items()]
+
+    return state_updates, avr_info, device_sources
+
+
 def avr_response_broadcast_lines(message: str) -> list[str]:
     """
     Return the list of lines to broadcast for an AVR response.
@@ -520,42 +570,13 @@ class DenonProxyServer:
                 d.async_update(),
                 timeout=10.0,
             )
-            if d.power:
-                self.state.power = d.power
-            if d.vol and d.vol.volume is not None:
-                # denonavr uses dB like -36.5; Denon telnet uses 0-98
-                vol_db = d.vol.volume
-                # Approximate conversion: 80 = 0dB, scale varies by model
-                vol_int = max(0, min(98, int(80 + vol_db * 2)))
-                self.state.volume = str(vol_int)
-            if d.input_func:
-                self.state.input_source = d.input_func
-            if d.muted is not None:
-                self.state.mute = d.muted
-            # HTTP/denonavr sometimes returns Smart Select as sound_mode (e.g. "SMART0"); route to smart_select
-            raw_sound_mode = getattr(d, "sound_mode", None)
-            if raw_sound_mode:
-                raw = str(raw_sound_mode).strip().upper()
-                if raw.startswith("SMART") and len(raw) > 5 and raw[5:].isdigit():
-                    self.state.smart_select = _normalize_smart_select(raw_sound_mode)
-                    self.state.sound_mode = None  # leave for telnet MS? to fill real mode
-                else:
-                    self.state.sound_mode = raw_sound_mode
-            if getattr(d, "smart_select", None) is not None:
-                self.state.smart_select = _normalize_smart_select(str(d.smart_select))
-            # Fetch device info and sources for JSON API and source resolution
-            self.config["_avr_info"] = {
-                "manufacturer": getattr(d, "manufacturer", None),
-                "model_name": getattr(d, "model_name", None),
-                "serial_number": getattr(d, "serial_number", None),
-                "friendly_name": getattr(d, "name", None),
-            }
-            rev = getattr(d.input, "_input_func_map_rev", None)
-            if rev and isinstance(rev, dict):
-                self.config["_device_sources"] = [
-                    (func, str(display_name or func)) for func, display_name in rev.items()
-                ]
-                self.logger.info("Fetched %d input sources from AVR", len(self.config["_device_sources"]))
+            state_updates, avr_info, device_sources = state_and_config_updates_from_denonavr(d)
+            for key, value in state_updates.items():
+                setattr(self.state, key, value)
+            self.config["_avr_info"] = avr_info
+            if device_sources:
+                self.config["_device_sources"] = device_sources
+                self.logger.info("Fetched %d input sources from AVR", len(device_sources))
             self.logger.info("Initial state from HTTP: power=%s vol=%s input=%s mute=%s sound_mode=%s smart_select=%s",
                              self.state.power, self.state.volume,
                              self.state.input_source, self.state.mute, self.state.sound_mode, self.state.smart_select)
