@@ -109,11 +109,9 @@ class AVRConnection:
                             parsed = _parse_mvmax(payload.strip())
                             if parsed is not None:
                                 self.volume_max = parsed
-                        # AVR responses that still contain "?" in the payload are
-                        # treated as non-state-bearing (e.g. buggy echoes like "MSQUICK ?").
-                        if payload and "?" in payload:
-                            self.on_response(msg)
-                        else:
+                        # AVR responses that contain "?" in the payload are invalid
+                        # (e.g. buggy echoes like "MSQUICK ?"); don't update state or echo to clients.
+                        if not (payload and "?" in payload):
                             self.state.update_from_message(msg)
                             self.on_response(msg)
         except asyncio.CancelledError:
