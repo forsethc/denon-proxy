@@ -104,12 +104,18 @@ class AVRConnection:
                     except UnicodeDecodeError:
                         continue
                     if msg:
-                        if msg.startswith("MV") and len(msg) > 2 and "MAX" in msg[2:].upper():
-                            parsed = _parse_mvmax(msg[2:].strip())
+                        payload = msg[2:] if len(msg) > 2 else ""
+                        if msg.startswith("MV") and len(msg) > 2 and "MAX" in payload.upper():
+                            parsed = _parse_mvmax(payload.strip())
                             if parsed is not None:
                                 self.volume_max = parsed
-                        self.state.update_from_message(msg)
-                        self.on_response(msg)
+                        # AVR responses that still contain "?" in the payload are
+                        # treated as non-state-bearing (e.g. buggy echoes like "MSQUICK ?").
+                        if payload and "?" in payload:
+                            self.on_response(msg)
+                        else:
+                            self.state.update_from_message(msg)
+                            self.on_response(msg)
         except asyncio.CancelledError:
             pass
         except Exception as e:
