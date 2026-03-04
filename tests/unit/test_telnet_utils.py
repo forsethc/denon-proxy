@@ -1,6 +1,6 @@
-"""Unit tests for denon_proxy parse_telnet_lines."""
+"""Unit tests for telnet_utils.parse_telnet_lines."""
 
-from denon_proxy import parse_telnet_lines
+from telnet_utils import parse_telnet_lines
 
 
 def test_parse_telnet_lines_incomplete_line_remains_in_buffer():

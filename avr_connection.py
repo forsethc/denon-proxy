@@ -14,6 +14,7 @@ import re
 from typing import Any, Callable, Optional
 
 from avr_state import AVRState
+from telnet_utils import parse_telnet_lines
 
 # Default max volume when AVR has not sent MVMAX; many Denon/Marantz use 98.
 DEFAULT_MAX_VOLUME = 98.0
@@ -95,29 +96,18 @@ class AVRConnection:
                 data = await self.reader.read(1024)
                 if not data:
                     break
-                self._buffer += data
-                while b"\r" in self._buffer or b"\n" in self._buffer:
-                    for sep in (b"\r", b"\n"):
-                        if sep in self._buffer:
-                            line, _, self._buffer = self._buffer.partition(sep)
-                            break
-                    else:
-                        break
-                    try:
-                        msg = line.decode("utf-8").strip()
-                    except UnicodeDecodeError:
-                        continue
-                    if msg:
-                        payload = msg[2:] if len(msg) > 2 else ""
-                        if msg.startswith("MV") and len(msg) > 2 and "MAX" in payload.upper():
-                            parsed = _parse_mvmax(payload.strip())
-                            if parsed is not None:
-                                self.volume_max = parsed
-                        # AVR responses that contain "?" in the payload are invalid
-                        # (e.g. buggy echoes like "MSQUICK ?"); don't update state or echo to clients.
-                        if not (payload and "?" in payload):
-                            self.state.update_from_message(msg)
-                            self.on_response(msg)
+                messages, self._buffer = parse_telnet_lines(self._buffer, data)
+                for msg in messages:
+                    payload = msg[2:] if len(msg) > 2 else ""
+                    if msg.startswith("MV") and len(msg) > 2 and "MAX" in payload.upper():
+                        parsed = _parse_mvmax(payload.strip())
+                        if parsed is not None:
+                            self.volume_max = parsed
+                    # AVR responses that contain "?" in the payload are invalid
+                    # (e.g. buggy echoes like "MSQUICK ?"); don't update state or echo to clients.
+                    if not (payload and "?" in payload):
+                        self.state.update_from_message(msg)
+                        self.on_response(msg)
         except asyncio.CancelledError:
             pass
         except Exception as e:
