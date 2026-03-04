@@ -497,6 +497,8 @@ class DenonProxyServer:
 
     def _on_avr_disconnect(self) -> None:
         """Called when AVR disconnects or send attempted while disconnected - schedule reconnect (idempotent)."""
+        # Push updated connection status to Web UI / SSE
+        self._notify_web_state()
         if self._reconnect_task is not None and not self._reconnect_task.done():
             return
         async def reconnect() -> None:

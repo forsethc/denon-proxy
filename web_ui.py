@@ -84,9 +84,11 @@ DASHBOARD_HTML = """<!DOCTYPE html>
       cursor: pointer;
       font-size: 0.875rem;
     }
-    .btn:hover { background: var(--border); }
+    .btn:not(.btn-primary):not(.btn-danger):hover { background: var(--border); }
     .btn-primary { background: var(--accent); border-color: var(--accent); color: var(--bg); }
     .btn-primary:hover { filter: brightness(1.1); }
+    .btn-danger { background: var(--error); border-color: var(--error); color: var(--bg); }
+    .btn-danger:hover { background: #da3633; border-color: #da3633; }
     .btn-group { display: flex; flex-wrap: wrap; gap: 0.25rem; margin-top: 0.5rem; }
     .cmd-input { display: flex; gap: 0.5rem; margin-top: 0.5rem; }
     .cmd-input input {
@@ -141,7 +143,14 @@ DASHBOARD_HTML = """<!DOCTYPE html>
   <div class="grid">
     <div class="card">
       <h2>AVR Connection</h2>
+      <div class="status-row" id="avr-connection-status">
+        <span class="status-dot disconnected" id="avr-status-dot"></span>
+        <span id="avr-status-text" class="muted">Loading...</span>
+      </div>
       <table class="state-table" id="avr-details"></table>
+      <div class="btn-group" id="avr-reconnect-row" style="display: none;">
+        <button class="btn btn-danger" onclick="reconnectAvr(this)">Reconnect</button>
+      </div>
     </div>
     <div class="card">
       <h2>AVR State</h2>
@@ -188,6 +197,8 @@ DASHBOARD_HTML = """<!DOCTYPE html>
     </div>
   </div>
   <script>
+    // Global UI state for reconnect button
+    window._avrReconnectInProgress = false;
     function api(path, opts) {
       return fetch(path, { ...opts, headers: { 'Content-Type': 'application/json', ...opts?.headers } });
     }
@@ -199,6 +210,37 @@ DASHBOARD_HTML = """<!DOCTYPE html>
       const clients = d.clients || [];
       const state = d.state || {};
       const avrType = avr.type || 'none';
+      const connected = !!avr.connected;
+
+      // AVR connection status pill
+      (function updateConnectionStatus() {
+        const dot = document.getElementById('avr-status-dot');
+        const textEl = document.getElementById('avr-status-text');
+        if (!dot || !textEl) return;
+        let cls = 'status-dot disconnected';
+        let text = 'No AVR configured';
+        if (avrType === 'virtual') {
+          cls = 'status-dot virtual';
+          text = 'Virtual AVR (demo mode)';
+        } else if (avrType === 'physical') {
+          if (connected) {
+            cls = 'status-dot connected';
+            text = 'Connected to physical AVR';
+          } else {
+            cls = 'status-dot disconnected';
+            text = 'Disconnected from physical AVR';
+          }
+        }
+        dot.className = cls;
+        textEl.textContent = text;
+      })();
+      // Reconnect button only makes sense for a physical AVR.
+      // For virtual or no AVR, always hide/reset it.
+      if (avrType === 'physical') {
+        updateReconnectButtonState(connected);
+      } else {
+        updateReconnectButtonState(true);
+      }
       const avrDetailsEl = document.getElementById('avr-details');
       if (avrType === 'virtual') {
         avrDetailsEl.style.display = 'none';
@@ -270,8 +312,47 @@ DASHBOARD_HTML = """<!DOCTYPE html>
       }
       document.getElementById('json-state').textContent = JSON.stringify(d, null, 2);
     }
+    function updateReconnectButtonState(connected) {
+      const reconnectRow = document.getElementById('avr-reconnect-row');
+      const reconnectBtn = reconnectRow ? reconnectRow.querySelector('button') : null;
+      if (!reconnectRow || !reconnectBtn) return;
+      const shouldShowReconnect = !connected;
+      reconnectRow.style.display = shouldShowReconnect ? '' : 'none';
+      if (!shouldShowReconnect) {
+        // Clear any in-progress state when we hide the row (connected again or no physical AVR)
+        window._avrReconnectInProgress = false;
+        reconnectBtn.disabled = false;
+        reconnectBtn.textContent = 'Reconnect';
+      } else if (window._avrReconnectInProgress) {
+        reconnectBtn.disabled = true;
+        reconnectBtn.textContent = 'Reconnecting...';
+      } else {
+        reconnectBtn.disabled = false;
+        reconnectBtn.textContent = 'Reconnect';
+      }
+    }
     function escapeHtml(s) { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
     async function sendCmd(cmd) { await api('/api/command', { method: 'POST', body: JSON.stringify({ command: cmd }) }); }
+    async function reconnectAvr(btn) {
+      if (!btn || btn.disabled) return;
+      btn.disabled = true;
+      btn.textContent = 'Reconnecting...';
+      window._avrReconnectInProgress = true;
+      const timeoutMs = 5000;
+      try {
+        await sendCmd('PW?');
+      } catch (e) {
+        // ignore; UI will be driven by SSE / JSON state
+      }
+      // If SSE / JSON never tells us we reconnected (row stays visible), fall back after timeout.
+      setTimeout(() => {
+        if (!window._avrReconnectInProgress) return;
+        window._avrReconnectInProgress = false;
+        // Use the same logic as render() to reset button state.
+        // In the timeout/failure case we're still disconnected.
+        updateReconnectButtonState(false);
+      }, timeoutMs);
+    }
     function sendCustomCmd() { const v = document.getElementById('custom-cmd').value.trim(); if (v) { sendCmd(v); document.getElementById('custom-cmd').value = ''; } }
     async function refreshState() { await api('/api/refresh', { method: 'POST' }); }
     const es = new EventSource('/events');
