@@ -50,11 +50,13 @@ class AVRConnection:
         on_disconnect: Callable[[], None],
         state: AVRState,
         logger: logging.Logger,
+        on_send_while_disconnected: Optional[Callable[[], None]] = None,
     ) -> None:
         self.host = host
         self.port = port
         self.on_response = on_response
         self.on_disconnect = on_disconnect
+        self.on_send_while_disconnected = on_send_while_disconnected
         self.state = state
         self.logger = logger
         self.reader: Optional[asyncio.StreamReader] = None
@@ -71,7 +73,9 @@ class AVRConnection:
         return {"type": "physical", "host": self.host, "port": self.port}
 
     async def connect(self) -> bool:
-        """Establish connection to the AVR."""
+        """Establish connection to the AVR. Idempotent if already connected."""
+        if self.is_connected():
+            return True
         try:
             self.reader, self.writer = await asyncio.wait_for(
                 asyncio.open_connection(self.host, self.port),
@@ -137,6 +141,8 @@ class AVRConnection:
     async def send_command(self, command: str) -> bool:
         """Send a telnet command to the AVR."""
         if not self.is_connected():
+            if self.on_send_while_disconnected:
+                self.on_send_while_disconnected()
             self.logger.warning("Cannot send command, AVR not connected: %s", command)
             return False
         try:
@@ -253,6 +259,7 @@ def create_avr_connection(
     on_response: Callable[[str], None],
     on_disconnect: Callable[[], None],
     logger: logging.Logger,
+    on_send_while_disconnected: Optional[Callable[[], None]] = None,
 ) -> AVRConnection | VirtualAVRConnection:
     """
     Create an AVR connection based on config. Returns AVRConnection for a
@@ -269,6 +276,7 @@ def create_avr_connection(
             on_disconnect=on_disconnect,
             state=state,
             logger=logger,
+            on_send_while_disconnected=on_send_while_disconnected,
         )
     return VirtualAVRConnection(
         state=state,

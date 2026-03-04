@@ -418,7 +418,14 @@ class DenonProxyServer:
         config: dict,
         logger: logging.Logger,
         avr_factory: Callable[
-            [dict, AVRState, Callable[[str], None], Callable[[], None], logging.Logger],
+            [
+                dict,
+                AVRState,
+                Callable[[str], None],
+                Callable[[], None],
+                logging.Logger,
+                Optional[Callable[[], None]],
+            ],
             Union[AVRConnection, VirtualAVRConnection],
         ],
     ) -> None:
@@ -431,6 +438,7 @@ class DenonProxyServer:
         self._json_api_server: Optional[asyncio.Server] = None
         self._notify_web_state: Callable[[], None] = lambda: None
         self._avr_factory = avr_factory
+        self._reconnect_task: Optional[asyncio.Task[Any]] = None
 
     def _set_state_and_broadcast(self, payload: dict) -> None:
         """Set state from payload (e.g. from JSON API) and broadcast to clients."""
@@ -488,15 +496,20 @@ class DenonProxyServer:
         self._notify_web_state()
 
     def _on_avr_disconnect(self) -> None:
-        """Called when AVR disconnects - schedule reconnect."""
-        async def reconnect():
-            await asyncio.sleep(2)
-            if self.avr:
-                await self.avr.connect()
-                if self.avr.is_connected():
-                    await self.avr.request_state()
-
-        asyncio.create_task(reconnect())
+        """Called when AVR disconnects or send attempted while disconnected - schedule reconnect (idempotent)."""
+        if self._reconnect_task is not None and not self._reconnect_task.done():
+            return
+        async def reconnect() -> None:
+            try:
+                await asyncio.sleep(2)
+                if self.avr:
+                    await self.avr.connect()
+                    if self.avr.is_connected():
+                        await self.avr.request_state()
+                        self.logger.info("Reconnected to AVR")
+            finally:
+                self._reconnect_task = None
+        self._reconnect_task = asyncio.create_task(reconnect())
 
     async def _sync_initial_state(self) -> None:
         """Use denonavr HTTP API to fetch initial state and device sources (if available)."""
@@ -565,6 +578,7 @@ class DenonProxyServer:
             self._on_avr_response,
             self._on_avr_disconnect,
             self.logger,
+            self._on_avr_disconnect,  # on_send_while_disconnected: trigger same reconnect
         )
         connected = await self.avr.connect()
         if connected:
