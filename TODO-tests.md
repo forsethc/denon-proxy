@@ -104,9 +104,9 @@ Each item below is a pure or easily mockable function; add pytest unit tests and
   **Prompt:** Add pytest unit tests for `parse_http_request` in `web_ui`. Test: buffer without "\\r\\n\\r\\n" returns None; buffer "GET / HTTP/1.1\\r\\nHost: x\\r\\n\\r\\n" returns method GET, path /; buffer with body "\\r\\n\\r\\nbody" returns correct body_bytes; path with query string returns path without query.
 - [x] **avr_connection._parse_mvmax** – "MAX 60", "MAX60", "MAX" (no number), invalid; returns float or None.  
   **Prompt:** Add pytest unit tests for `_parse_mvmax` in `avr_connection`. Test: "MAX 60" → 60.0, "MAX60" → 60.0, "MAX" or "MAX " → None, "X" → None; assert return is in [None, float] and value >= 0.
-- [ ] **avr_discovery.get_advertise_ip** – when ssdp_advertise_ip is set in config, returns that value.  
+- [x] **avr_discovery.get_advertise_ip** – when ssdp_advertise_ip is set in config, returns that value.  
   **Prompt:** Add pytest unit tests for `get_advertise_ip` in `avr_discovery`. Test: config {"ssdp_advertise_ip": "192.168.1.1"} returns "192.168.1.1"; empty string or missing key can be tested without socket (mock or skip the socket path and only test the config path).
-- [ ] **avr_discovery.parse_appcommand_request** – parse <tx><cmd id="1">GetFriendlyName</cmd></tx> into list of (id, text).  
+- [x] **avr_discovery.parse_appcommand_request** – parse <tx><cmd id="1">GetFriendlyName</cmd></tx> into list of (id, text).  
   **Prompt:** Add pytest unit tests for `parse_appcommand_request` in `avr_discovery`. Test: single <tx> with one cmd returns [(id, "GetFriendlyName")]; multiple <tx> chunks; malformed XML or empty body returns empty list or skips invalid parts.
 - [ ] **avr_discovery._escape_xml_text** – &, <, >, " escaped for XML.  
   **Prompt:** Add pytest unit tests for `_escape_xml_text` in `avr_discovery`. Test: "a & b" → "a &amp; b", "<x>" → "&lt;x&gt;", '"' → "&quot;", no special chars unchanged.
@@ -114,7 +114,7 @@ Each item below is a pure or easily mockable function; add pytest unit tests and
   **Prompt:** Add pytest unit tests for `build_json_state` in `denon_proxy`. Pass a minimal AVRState, optional avr (or None), empty clients list, and config with _resolved_sources or _device_sources. Assert returned dict has top-level keys "avr", "clients", "state"; assert avr.sources items have "func" and "display_name"; assert state has power, volume, etc. from AVRState.
 - [ ] **avr_discovery.get_sources** – config mapping and list forms resolved to (func_name, display_name).  
   **Prompt:** Add pytest unit tests for `get_sources` in `avr_discovery`: cover config where `input_sources` is a dict of func→display_name, a list of tuples, and a list of dicts with `name`/`display_name`. Assert the returned list of (func_name, display_name) is normalized as expected and that filtering against `_device_sources` (when present) drops unknown functions.
-- [ ] **avr_discovery.deviceinfo_xml / description_xml** – XML content uses get_sources and config.  
+- [x] **avr_discovery.deviceinfo_xml / description_xml** – XML content uses get_sources and config.  
   **Prompt:** Add pytest unit tests for `deviceinfo_xml` and `description_xml` in `avr_discovery`: build a minimal config with `_resolved_sources` and `_avr_info`/friendly name, call each function, and assert that the returned XML string contains the expected model/category fields, FriendlyName, and a `<Source>` entry or UPnP device description for each input source.
-- [ ] **avr_discovery.mainzone_xml** – XML content matches AVRState and get_sources.  
+- [x] **avr_discovery.mainzone_xml** – XML content matches AVRState and get_sources.  
   **Prompt:** Add pytest unit tests for `mainzone_xml` in `avr_discovery`: with a fake state object exposing power, volume, mute, input_source, sound_mode and a config with known sources, call mainzone_xml and assert the XML has consistent Power/ZonePower, MasterVolume in dB, InputFuncSelect, SurrMode, InputFuncList, RenameSource, and SourceDelete entries matching the provided state and sources.
