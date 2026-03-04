@@ -1,4 +1,4 @@
-from avr_state import AVRState, VOLUME_DEFAULT_LEVEL
+from avr_state import AVRState, VOLUME_DEFAULT_LEVEL, _normalize_smart_select
 
 
 def test_update_from_message_updates_all_fields():
@@ -59,4 +59,16 @@ def test_apply_command_and_get_status_dump_and_snapshot_restore():
     state.restore(snap)
     assert state.power == snap["power"]
     assert state.volume == snap["volume"]
+
+
+def test_normalize_smart_select():
+    assert _normalize_smart_select("SMART0") == "SMART0"
+    assert _normalize_smart_select("smart1") == "SMART1"
+    assert _normalize_smart_select("2") == "SMART2"
+    assert _normalize_smart_select("  SMART3  ") == "SMART3"
+    assert _normalize_smart_select(None) is None
+    assert _normalize_smart_select("") is None
+    assert _normalize_smart_select("  ") is None
+    assert _normalize_smart_select("SMART") is None
+    assert _normalize_smart_select("SMARTx") is None
 

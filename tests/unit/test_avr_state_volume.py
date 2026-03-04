@@ -1,6 +1,4 @@
-import math
-
-from avr_state import volume_to_level, volume_to_db
+from avr_state import volume_to_level, volume_to_db, _format_volume
 
 
 def test_volume_to_level_basic_and_half_steps():
@@ -28,3 +26,12 @@ def test_volume_to_db_roundtrip_shape():
     high_db = float(volume_to_db("90"))
     assert low_db < 0.0
     assert high_db > 0.0
+
+
+def test_format_volume():
+    assert _format_volume(50.0) == "50"
+    assert _format_volume(53.5, 98.0) == "535"
+    assert _format_volume(0.0) == "0"
+    assert _format_volume(98.0, 98.0) == "98"
+    assert _format_volume(99.0, 98.0) == "98"
+    assert _format_volume(-1.0, 98.0) == "0"

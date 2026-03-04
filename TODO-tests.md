@@ -118,3 +118,8 @@ Each item below is a pure or easily mockable function; add pytest unit tests and
   **Prompt:** Add pytest unit tests for `deviceinfo_xml` and `description_xml` in `avr_discovery`: build a minimal config with `_resolved_sources` and `_avr_info`/friendly name, call each function, and assert that the returned XML string contains the expected model/category fields, FriendlyName, and a `<Source>` entry or UPnP device description for each input source.
 - [x] **avr_discovery.mainzone_xml** – XML content matches AVRState and get_sources.
   **Prompt:** Add pytest unit tests for `mainzone_xml` in `avr_discovery`: with a fake state object exposing power, volume, mute, input_source, sound_mode and a config with known sources, call mainzone_xml and assert the XML has consistent Power/ZonePower, MasterVolume in dB, InputFuncSelect, SurrMode, InputFuncList, RenameSource, and SourceDelete entries matching the provided state and sources.
+- [x] **avr_state._normalize_smart_select** – SMART0, smart1, digit 2 → SMART2; empty/None/ invalid → None.
+- [x] **avr_state._format_volume** – level to Denon string (50 → "50", 53.5 → "535"); clamp to max.
+- [x] **avr_discovery.description_xml** – UPnP device XML: friendlyName, presentationURL, _avr_info manufacturer/model.
+- [x] **avr_discovery.appcommand_response_xml** – GetFriendlyName, zone power/volume from state; empty body → GetFriendlyName default.
+- [x] **avr_discovery._rewrite_avr_description** – replace avr_host with advertise_ip; append " Proxy" to friendlyName (skip if present).

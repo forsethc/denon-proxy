@@ -7,7 +7,10 @@ from avr_discovery import (
     appcommand_friendlyname_xml,
     parse_appcommand_request,
     mainzone_xml,
+    description_xml,
+    appcommand_response_xml,
     _escape_xml_text,
+    _rewrite_avr_description,
 )
 
 
@@ -52,6 +55,69 @@ def test_appcommand_friendlyname_xml_uses_proxy_name():
     cfg = {"ssdp_friendly_name": "Proxy Name"}
     xml = appcommand_friendlyname_xml(cfg)
     assert "<friendlyname>Proxy Name</friendlyname>" in xml
+
+
+def test_description_xml_structure_and_sources():
+    cfg = {
+        "ssdp_friendly_name": "My Proxy",
+        "ssdp_http_port": 9000,
+        "_resolved_sources": [("CD", "CD Player")],
+    }
+    xml = description_xml(cfg, "192.168.1.1")
+    assert 'xmlns="urn:schemas-upnp-org:device-1-0"' in xml
+    assert "<friendlyName>My Proxy</friendlyName>" in xml
+    assert "http://192.168.1.1:9000/description.xml" in xml
+    assert "<serialNumber>proxy-192-168-1-1</serialNumber>" in xml
+    assert "urn:schemas-upnp-org:device:MediaRenderer:1" in xml
+    cfg_with_avr = {**cfg, "_avr_info": {"manufacturer": "Denon", "model_name": "AVR-X1600H"}}
+    xml2 = description_xml(cfg_with_avr, "10.0.0.5")
+    assert "AVR-X1600H Proxy" in xml2
+    assert "Denon" in xml2
+
+
+def test_appcommand_response_xml_get_friendly_name():
+    cfg = {"ssdp_friendly_name": "Test AVR"}
+    state = _FakeState()
+    body = b'<tx><cmd id="1">GetFriendlyName</cmd></tx>'
+    out = appcommand_response_xml(cfg, state, body)
+    text = out.decode("utf-8")
+    assert "<rx>" in text
+    assert 'cmd_text="GetFriendlyName"' in text
+    assert "<friendlyname>Test AVR</friendlyname>" in text
+
+
+def test_appcommand_response_xml_zone_power_and_volume():
+    cfg = {}
+    state = _FakeState()
+    state.power = "STANDBY"
+    state.volume = "45"
+    body = b'<tx><cmd id="1">GetAllZonePowerStatus</cmd></tx><tx><cmd id="2">GetAllZoneVolume</cmd></tx>'
+    out = appcommand_response_xml(cfg, state, body)
+    text = out.decode("utf-8")
+    assert "<zone1>STANDBY</zone1>" in text
+    assert "<volume>" in text
+
+
+def test_appcommand_response_xml_empty_body_defaults_to_get_friendly_name():
+    out = appcommand_response_xml({}, None, b"")
+    text = out.decode("utf-8")
+    assert "GetFriendlyName" in text
+    assert "<friendlyname>" in text
+
+
+def test_rewrite_avr_description_replaces_host_and_appends_proxy():
+    raw = "<root><friendlyName>Living Room AVR</friendlyName><url>http://192.168.1.100:80/</url></root>"
+    result = _rewrite_avr_description(raw, "192.168.1.100", "10.0.0.1", None)
+    assert "10.0.0.1" in result
+    assert "192.168.1.100" not in result
+    assert "Living Room AVR Proxy" in result
+
+
+def test_rewrite_avr_description_skips_proxy_suffix_if_present():
+    raw = "<root><friendlyName>Living Room Proxy</friendlyName></root>"
+    result = _rewrite_avr_description(raw, "192.168.1.100", "10.0.0.1", None)
+    assert "Living Room Proxy</friendlyName>" in result
+    assert "Proxy Proxy" not in result
 
 
 def test_parse_appcommand_request_multiple_tx_chunks():
