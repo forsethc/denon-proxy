@@ -133,6 +133,22 @@ DASHBOARD_HTML = """<!DOCTYPE html>
       border: 1px solid var(--border);
     }
     .xml-link-pills a.physical-link:hover { background: var(--border); }
+    .proxy-ip-note {
+      display: block;
+      margin-top: 0.35rem;
+      margin-bottom: 1.25rem;
+      font-size: 0.95rem;
+      color: var(--warning);
+    }
+    .proxy-ip-note code {
+      font-family: ui-monospace, "Cascadia Code", "Source Code Pro", Menlo, monospace;
+      font-size: 0.9em;
+      background: var(--surface-hover);
+      padding: 0.15em 0.4em;
+      border-radius: 4px;
+      border: 1px solid var(--border);
+    }
+    .proxy-ip-note .suggest-line { margin-top: 0.25rem; }
   </style>
 </head>
 <body>
@@ -140,6 +156,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
     <h1 style="margin: 0;" id="page-title">Denon AVR Proxy</h1>
     <span id="header-proxy-ip" class="muted"></span>
   </div>
+  <div id="proxy-ip-note" class="proxy-ip-note" style="display: none;"><span id="proxy-ip-note-msg"></span><div id="proxy-ip-note-suggest" class="suggest-line"></div></div>
   <div class="grid">
     <div class="card">
       <h2>AVR Connection</h2>
@@ -269,6 +286,22 @@ DASHBOARD_HTML = """<!DOCTYPE html>
       document.title = title;
       const headerProxyIp = document.getElementById('header-proxy-ip');
       headerProxyIp.textContent = (d.discovery && d.discovery.proxy_ip) ? ('Proxy IP: ' + d.discovery.proxy_ip) : '';
+      const proxyIpNote = document.getElementById('proxy-ip-note');
+      const proxyIpNoteMsg = document.getElementById('proxy-ip-note-msg');
+      const proxyIpNoteSuggest = document.getElementById('proxy-ip-note-suggest');
+      if (proxyIpNote && proxyIpNoteMsg && proxyIpNoteSuggest) {
+        if (d.discovery && d.discovery.proxy_ip_is_internal) {
+          proxyIpNoteMsg.innerHTML = "This looks like a Docker/internal IP. Set <code>ssdp_advertise_ip</code> in config to your host's LAN IP so clients (e.g. Home Assistant) can reach the proxy.";
+          const hostname = window.location.hostname;
+          const isLocal = hostname === '127.0.0.1' || hostname.toLowerCase() === 'localhost';
+          proxyIpNoteSuggest.innerHTML = isLocal ? '' : "Suggested: <code>" + escapeHtml(hostname) + "</code> (this page's address).";
+          proxyIpNote.style.display = 'block';
+        } else {
+          proxyIpNoteMsg.textContent = '';
+          proxyIpNoteSuggest.innerHTML = '';
+          proxyIpNote.style.display = 'none';
+        }
+      }
       document.getElementById('clients').innerHTML = clients.length
         ? '<ul class="client-list">' + clients.map(c => '<li>' + escapeHtml(c) + '</li>').join('') + '</ul>'
         : '<span class="muted">No clients connected</span>';

@@ -145,6 +145,23 @@ def get_sources(config: dict) -> list[tuple[str, str]]:
 # Helpers
 # -----------------------------------------------------------------------------
 
+def is_docker_internal_ip(ip: Optional[str]) -> bool:
+    """True if ip is in the 172.16.0.0/12 range (typical Docker bridge)."""
+    if not ip or not isinstance(ip, str):
+        return False
+    parts = ip.strip().split(".")
+    if len(parts) != 4:
+        return False
+    try:
+        a, b, c, d = (int(p) for p in parts)
+        if 0 <= a <= 255 and 0 <= b <= 255 and 0 <= c <= 255 and 0 <= d <= 255:
+            # 172.16.0.0/12 = 172.16.x.x - 172.31.x.x
+            return a == 172 and 16 <= b <= 31
+    except ValueError:
+        pass
+    return False
+
+
 def get_advertise_ip(config: dict) -> Optional[str]:
     """Get the IP to advertise in SSDP LOCATION."""
     ip = config.get("ssdp_advertise_ip", "").strip()
@@ -668,6 +685,14 @@ async def run_discovery_servers(
     if not advertise_ip:
         logger.warning("SSDP: Could not determine IP to advertise. Set ssdp_advertise_ip in config.")
         return None, None
+
+    if is_docker_internal_ip(advertise_ip):
+        logger.warning(
+            "Proxy IP %s looks like a Docker/internal address. "
+            "Clients on other hosts (e.g. Home Assistant) may not reach it. "
+            "Set ssdp_advertise_ip in config to your host's LAN IP.",
+            advertise_ip,
+        )
 
     logger.info("SSDP advertising as '%s' at %s", get_proxy_friendly_name(config), advertise_ip)
 

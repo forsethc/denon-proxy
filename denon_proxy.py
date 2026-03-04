@@ -39,7 +39,7 @@ from avr_connection import (
     VirtualAVRConnection,
     create_avr_connection,
 )
-from avr_discovery import get_advertise_ip, get_proxy_friendly_name, run_discovery_servers
+from avr_discovery import get_advertise_ip, is_docker_internal_ip, get_proxy_friendly_name, run_discovery_servers
 from avr_state import AVRState, volume_to_level, _normalize_smart_select
 
 from web_ui import run_web_ui
@@ -228,10 +228,12 @@ def build_json_state(
     sources = config.get("_resolved_sources") or config.get("_device_sources")
     if sources:
         avr_dict["sources"] = [{"func": func_name, "display_name": display_name} for func_name, display_name in sources]
+    proxy_ip = get_advertise_ip(config) or None
     discovery = {
         "http_port": int(config.get("ssdp_http_port", 8080)),
         "enabled": bool(config.get("enable_ssdp", False)),
-        "proxy_ip": get_advertise_ip(config) or None,
+        "proxy_ip": proxy_ip,
+        "proxy_ip_is_internal": is_docker_internal_ip(proxy_ip),
     }
     return {
         "friendly_name": get_proxy_friendly_name(config),
