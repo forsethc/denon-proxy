@@ -20,6 +20,9 @@ proxy_port: 23
 # Logging verbosity: DEBUG, INFO, WARNING, ERROR
 log_level: "INFO"
 
+# denonavr library log level (used for initial HTTP state sync). Independent of log_level.
+denonavr_log_level: "INFO"
+
 # Command groups to log at INFO (others stay DEBUG when log_level is DEBUG)
 # Groups: power (PW, ZM), volume (MV), input (SI), mute (MU), sound_mode (MS)
 # log_command_groups_info: [power, volume]

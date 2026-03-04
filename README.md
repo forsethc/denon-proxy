@@ -59,7 +59,8 @@ proxy_port: 23               # Port for clients (HA requires 23)
 | `avr_port` | 23        | Telnet port on the AVR                         |
 | `proxy_host` | 0.0.0.0 | Bind address (0.0.0.0 = all interfaces)       |
 | `proxy_port` | 23      | Port clients connect to (HA requires 23)       |
-| `log_level` | INFO     | DEBUG, INFO, WARNING, or ERROR                  |
+| `log_level` | INFO     | DEBUG, INFO, WARNING, or ERROR (proxy logging)   |
+| `denonavr_log_level` | INFO | Log level for the denonavr library (initial HTTP state sync); independent of `log_level` |
 | `log_command_groups_info` | [] | Command groups to log at INFO: power, volume, input, mute, sound_mode |
 | `enable_ssdp` | false  | SSDP discovery for Home Assistant              |
 | `ssdp_friendly_name` | Denon AVR Proxy | Name shown in Home Assistant           |

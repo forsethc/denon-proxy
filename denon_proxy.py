@@ -48,8 +48,8 @@ from web_ui import run_web_ui
 # Logging setup
 # -----------------------------------------------------------------------------
 
-def setup_logging(level: str = "INFO") -> None:
-    """Configure logging format and level."""
+def setup_logging(level: str = "INFO", denonavr_log_level: Optional[str] = None) -> None:
+    """Configure logging format and level. denonavr_log_level sets the denonavr library logger separately."""
     logging.basicConfig(
         level=getattr(logging, level.upper(), logging.INFO),
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
@@ -58,6 +58,10 @@ def setup_logging(level: str = "INFO") -> None:
     # Reduce noise from libraries
     logging.getLogger("httpx").setLevel(logging.WARNING)
     logging.getLogger("httpcore").setLevel(logging.WARNING)
+    if denonavr_log_level is not None:
+        logging.getLogger("denonavr").setLevel(
+            getattr(logging, denonavr_log_level.upper(), logging.INFO)
+        )
 
 
 # -----------------------------------------------------------------------------
@@ -70,6 +74,7 @@ _DEFAULT_CONFIG = {
     "proxy_host": "0.0.0.0",
     "proxy_port": 23,
     "log_level": "INFO",
+    "denonavr_log_level": "INFO",  # denonavr library logger (independent of log_level)
     "enable_ssdp": True,
     # ssdp_friendly_name: omit from defaults so get_proxy_friendly_name can use physical name + " Proxy" when unset
     "ssdp_http_port": 8080,
@@ -134,6 +139,10 @@ def _apply_env_overrides(config: dict) -> None:
     log_level = os.getenv("LOG_LEVEL")
     if log_level is not None:
         config["log_level"] = log_level
+
+    denonavr_log_level = os.getenv("DENONAVR_LOG_LEVEL")
+    if denonavr_log_level is not None:
+        config["denonavr_log_level"] = denonavr_log_level
 
 
 def load_config_from_dict(raw: dict) -> dict:
@@ -712,7 +721,7 @@ def main() -> int:
     except FileNotFoundError as e:
         print(str(e), file=sys.stderr)
         return 1
-    setup_logging(config["log_level"])
+    setup_logging(config["log_level"], config.get("denonavr_log_level"))
 
     try:
         asyncio.run(main_async(config))
