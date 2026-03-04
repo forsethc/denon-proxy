@@ -78,9 +78,9 @@ Record of approach for adding unit and integration tests. Treat as a task list. 
 
 Each item below is a pure or easily mockable function; add pytest unit tests and a **Prompt** to implement.
 
-- [ ] **avr_state.volume_to_level** – string to numeric level; half-steps (e.g. 535 → 53.5), MAX, empty, clamp to max_volume.  
+- [x] **avr_state.volume_to_level** – string to numeric level; half-steps (e.g. 535 → 53.5), MAX, empty, clamp to max_volume.  
   **Prompt:** Add pytest unit tests for `volume_to_level` in `avr_state`. Test: normal integer (e.g. "50" → 50), 3-digit half-step ("535" → 53.5), empty/None returns default, "MAX 60" or similar returns clamped value, values above max_volume clamp to max_volume.
-- [ ] **avr_state.volume_to_db** – level to dB string (e.g. 80 → "0.0", 50 → negative).  
+- [x] **avr_state.volume_to_db** – level to dB string (e.g. 80 → "0.0", 50 → negative).  
   **Prompt:** Add pytest unit tests for `volume_to_db` in `avr_state`. Test: volume string that maps to 80 gives "0.0", lower level gives negative dB, higher gives positive; check format is one decimal.
 - [ ] **avr_state.AVRState.update_from_message** – PW, MV, SI, MU, MS, ZM messages update state.  
   **Prompt:** Add pytest unit tests for `AVRState.update_from_message` in `avr_state`. Create an AVRState, call update_from_message with "PWON", "PWSTANDBY", "MV50", "SIHDMI1", "MUON", "MUOFF", "MSSTEREO", "ZMON", "ZMSTANDBY"; assert the corresponding state attributes (power, volume, input_source, mute, sound_mode) are updated correctly.

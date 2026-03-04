@@ -127,6 +127,29 @@ docker run -d --name denon-proxy \
   denon-proxy
 ```
 
+## Tests
+
+This project uses **pytest** (and `pytest-asyncio` for async tests).
+
+- **Install test dependencies** (after installing runtime deps from `requirements.txt`):
+
+```bash
+pip install -r tests/requirements.txt
+```
+
+- **Run all tests** from the project root:
+
+```bash
+pytest
+```
+
+- **Run a specific test file or directory**:
+
+```bash
+pytest tests/unit/test_avr_state_volume.py      # single file
+pytest tests/unit                               # all unit tests
+```
+
 **SSDP discovery:** For Home Assistant auto-discovery, SSDP multicast (UDP 1900) often needs host networking. In docker-compose, set `network_mode: host` and remove the `ports` section. Set `ssdp_advertise_ip` to your host's IP in config.
 
 ## Connecting Clients
