@@ -60,7 +60,7 @@ Record of approach for adding unit and integration tests. Treat as a task list. 
   **Prompt:** Add an optional end-to-end test: start the full proxy (VirtualAVR, SSDP HTTP, Telnet, Web UI) on dynamic ports. Simulate discovery by GETting description.xml and deviceinfo.xml. Open a Telnet connection to the proxy and send a command (e.g. PWON). Assert state (e.g. via GET /api/state) shows the change.
 - [ ] **Optimistic state revert**  
   **Prompt:** Add an integration test for optimistic state revert: use a mock AVR connection that implements the same interface as AVRConnection but send_command() returns False. Start the proxy with this mock, send a command from a client (e.g. PWON). Assert that after the failed send, state is reverted (e.g. power still off) and clients do not receive a bogus success broadcast.
-- [ ] **Parsing / boundaries (unit)** – `parse_telnet_lines()`  
+- [x] **Parsing / boundaries (unit)** – `parse_telnet_lines()`  
   **Prompt:** Add pytest unit tests for parse_telnet_lines in denon_proxy: test incomplete line (no trailing \\r\\n) leaves remainder in buffer; \\r\\n split across two data chunks; multiple commands in one chunk; empty data; mixed \\r and \\r\\n. Assert returned command list and remaining buffer.
 - [ ] **Virtual AVR request_state** – request_state pushes full status dump via on_response.  
   **Prompt:** Add an integration-style test for `VirtualAVRConnection.request_state` in `avr_connection`: create a VirtualAVRConnection with a test AVRState and an on_response mock that records lines; set some state fields, call request_state(), and assert that on_response is called with the expected telnet lines (PW, MV, SI, MU, MS/ZM) matching AVRState.get_status_dump().
@@ -96,9 +96,9 @@ Each item below is a pure or easily mockable function; add pytest unit tests and
   **Prompt:** Add pytest unit tests for `_command_group` in `denon_proxy`. Test: PWON, ZMON → "power"; MV50, MVUP → "volume"; SIHDMI1 → "input"; MUON → "mute"; MSSTEREO → "sound_mode"; MVMAX 60 → "other"; unknown prefix → "other".
 - [x] **denon_proxy._should_log_command_info** – True when command’s group is in config log_command_groups_info.  
   **Prompt:** Add pytest unit tests for `_should_log_command_info` in `denon_proxy`. Test: config with log_command_groups_info ["power"] and "PWON" → True, "MV50" → False; empty or missing list → False.
-- [ ] **denon_proxy.load_config_from_dict** – merge raw dict with defaults; no I/O.  
+- [x] **denon_proxy.load_config_from_dict** – merge raw dict with defaults; no I/O.  
   **Prompt:** Add pytest unit tests for `load_config_from_dict` in `denon_proxy`. Test: empty dict returns defaults; partial dict (e.g. avr_host only) merges with defaults; overwrite existing keys.
-- [ ] **denon_proxy._apply_env_overrides** – in-place override from AVR_HOST, PROXY_PORT, etc. (use mock env).  
+- [x] **denon_proxy._apply_env_overrides** – in-place override from AVR_HOST, PROXY_PORT, etc. (use mock env).  
   **Prompt:** Add pytest unit tests for `_apply_env_overrides` in `denon_proxy`. Use unittest.mock.patch.dict(os.environ, {...}) to set AVR_HOST, AVR_PORT, PROXY_HOST, PROXY_PORT, LOG_LEVEL; call _apply_env_overrides(config) and assert config values match env. Test with env unset leaves config unchanged.
 - [x] **web_ui.parse_http_request** – incomplete buffer returns None; complete buffer returns (method, path, header_bytes, body_bytes).  
   **Prompt:** Add pytest unit tests for `parse_http_request` in `web_ui`. Test: buffer without "\\r\\n\\r\\n" returns None; buffer "GET / HTTP/1.1\\r\\nHost: x\\r\\n\\r\\n" returns method GET, path /; buffer with body "\\r\\n\\r\\nbody" returns correct body_bytes; path with query string returns path without query.
@@ -108,11 +108,11 @@ Each item below is a pure or easily mockable function; add pytest unit tests and
   **Prompt:** Add pytest unit tests for `get_advertise_ip` in `avr_discovery`. Test: config {"ssdp_advertise_ip": "192.168.1.1"} returns "192.168.1.1"; empty string or missing key can be tested without socket (mock or skip the socket path and only test the config path).
 - [x] **avr_discovery.parse_appcommand_request** – parse <tx><cmd id="1">GetFriendlyName</cmd></tx> into list of (id, text).  
   **Prompt:** Add pytest unit tests for `parse_appcommand_request` in `avr_discovery`. Test: single <tx> with one cmd returns [(id, "GetFriendlyName")]; multiple <tx> chunks; malformed XML or empty body returns empty list or skips invalid parts.
-- [ ] **avr_discovery._escape_xml_text** – &, <, >, " escaped for XML.  
+- [x] **avr_discovery._escape_xml_text** – &, <, >, " escaped for XML.  
   **Prompt:** Add pytest unit tests for `_escape_xml_text` in `avr_discovery`. Test: "a & b" → "a &amp; b", "<x>" → "&lt;x&gt;", '"' → "&quot;", no special chars unchanged.
 - [x] **denon_proxy.build_json_state** – given state, avr (or None), clients list, config; assert keys avr, clients, state and structure (sources with func/display_name if present).  
   **Prompt:** Add pytest unit tests for `build_json_state` in `denon_proxy`. Pass a minimal AVRState, optional avr (or None), empty clients list, and config with _resolved_sources or _device_sources. Assert returned dict has top-level keys "avr", "clients", "state"; assert avr.sources items have "func" and "display_name"; assert state has power, volume, etc. from AVRState.
-- [ ] **avr_discovery.get_sources** – config mapping and list forms resolved to (func_name, display_name).  
+- [x] **avr_discovery.get_sources** – config mapping and list forms resolved to (func_name, display_name).  
   **Prompt:** Add pytest unit tests for `get_sources` in `avr_discovery`: cover config where `input_sources` is a dict of func→display_name, a list of tuples, and a list of dicts with `name`/`display_name`. Assert the returned list of (func_name, display_name) is normalized as expected and that filtering against `_device_sources` (when present) drops unknown functions.
 - [x] **avr_discovery.deviceinfo_xml / description_xml** – XML content uses get_sources and config.  
   **Prompt:** Add pytest unit tests for `deviceinfo_xml` and `description_xml` in `avr_discovery`: build a minimal config with `_resolved_sources` and `_avr_info`/friendly name, call each function, and assert that the returned XML string contains the expected model/category fields, FriendlyName, and a `<Source>` entry or UPnP device description for each input source.

@@ -1,11 +1,13 @@
 from avr_discovery import (
     get_advertise_ip,
+    get_sources,
     is_docker_internal_ip,
     get_proxy_friendly_name,
     deviceinfo_xml,
     appcommand_friendlyname_xml,
     parse_appcommand_request,
     mainzone_xml,
+    _escape_xml_text,
 )
 
 
@@ -91,4 +93,47 @@ def test_mainzone_xml_matches_state_and_sources():
     assert "<InputFuncList>" in xml
     assert "<RenameSource>" in xml
     assert "<SourceDelete>" in xml
+
+
+def test_escape_xml_text():
+    assert _escape_xml_text("a & b") == "a &amp; b"
+    assert _escape_xml_text("<x>") == "&lt;x&gt;"
+    assert _escape_xml_text('"') == "&quot;"
+    assert _escape_xml_text("no special chars") == "no special chars"
+    assert _escape_xml_text("a & b <c> \"d\"") == "a &amp; b &lt;c&gt; &quot;d&quot;"
+
+
+def test_get_sources_from_dict():
+    config = {"sources": {"CD": "CD Player", "HDMI1": "Game"}}
+    result = get_sources(config)
+    assert result == [("CD", "CD Player"), ("HDMI1", "Game")]
+    assert config["_resolved_sources"] == result
+
+
+def test_get_sources_from_list_of_tuples():
+    config = {"sources": [("CD", "CD Player"), ("HDMI1", "Game")]}
+    result = get_sources(config)
+    assert result == [("CD", "CD Player"), ("HDMI1", "Game")]
+
+
+def test_get_sources_from_list_of_dicts():
+    config = {"sources": [{"func": "CD", "display_name": "CD Player"}, {"func": "HDMI1", "name": "Game"}]}
+    result = get_sources(config)
+    assert result == [("CD", "CD Player"), ("HDMI1", "Game")]
+
+
+def test_get_sources_filters_against_device_sources():
+    config = {
+        "sources": {"CD": "CD Player", "HDMI1": "Game", "UNKNOWN": "Other"},
+        "_device_sources": [("CD", "CD"), ("HDMI1", "HDMI1")],
+    }
+    result = get_sources(config)
+    assert result == [("CD", "CD Player"), ("HDMI1", "Game")]
+    assert ("UNKNOWN", "Other") not in result
+
+
+def test_get_sources_uses_device_sources_when_no_user_sources():
+    config = {"_device_sources": [("CD", "CD"), ("HDMI1", "Game Console")]}
+    result = get_sources(config)
+    assert result == [("CD", "CD"), ("HDMI1", "Game Console")]
 
