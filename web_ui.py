@@ -250,7 +250,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
       const xmlList = document.getElementById('xml-links');
       const xmlEndpoints = [
         ['description.xml', '/description.xml', 'UPnP device description for SSDP discovery'],
-        ['goform/deviceinfo.xml', '/goform/deviceinfo.xml', 'Device info and input sources (e.g. for Home Assistant setup)'],
+        ['goform/Deviceinfo.xml', '/goform/Deviceinfo.xml', 'Device info and input sources (e.g. for Home Assistant setup)'],
         ['MainZone XML status', '/goform/formMainZone_MainZoneXmlStatus.xml', 'Current power, volume, input, mute (status polling)']
       ];
       if (discovery && discovery.http_port) {
