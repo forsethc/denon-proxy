@@ -6,10 +6,10 @@ Record of approach for adding unit and integration tests. Treat as a task list. 
 
 ## 1. SSDP discovery
 
-- [ ] **Unit tests (pure helpers)**
-  - [ ] `parse_ssdp_search_target()` – various M-SEARCH payloads, assert returned ST
+- [x] **Unit tests (pure helpers)**
+  - [x] `parse_ssdp_search_target()` – various M-SEARCH payloads, assert returned ST
     **Prompt:** Add pytest unit tests in this repo for `parse_ssdp_search_target` from `avr_discovery`. Test with several M-SEARCH-style request strings (different ST: values, with/without other headers). Assert the returned search target string is correct.
-  - [ ] `ssdp_response()` – given config + advertise_ip + st, assert response bytes (HTTP 200, LOCATION with description.xml, USN)
+  - [x] `ssdp_response()` – given config + advertise_ip + st, assert response bytes (HTTP 200, LOCATION with description.xml, USN)
     **Prompt:** Add pytest unit tests for `ssdp_response` in `avr_discovery`. Call it with sample config (e.g. ssdp_http_port 8080), an advertise_ip, and an ST value. Assert the returned bytes are HTTP 200, contain LOCATION with /description.xml, and contain the expected USN.
 - [ ] **Integration: SSDP protocol**
   - [ ] Use in-memory/mock transport or bind to 127.0.0.1 (avoid real multicast in CI), send M-SEARCH, assert response.
