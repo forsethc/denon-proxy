@@ -152,10 +152,10 @@ pytest tests/unit/test_avr_state_volume.py      # single file
 pytest tests/unit                               # all unit tests
 ```
 
-- **Run tests with coverage** (uses `.coveragerc` to include source files and omit `tests/`):
+- **Run tests with coverage**
 
 ```bash
-pytest --cov                                 # text summary using .coveragerc
+pytest --cov                                 # text summary + missing lines
 # or override the report format, e.g. HTML:
 pytest --cov --cov-report=html               # then open htmlcov/index.html
 ```
