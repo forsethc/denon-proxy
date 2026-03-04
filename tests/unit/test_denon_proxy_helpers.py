@@ -4,6 +4,7 @@ from denon_proxy import (
     _should_log_command_info,
     AVRState,
     apply_payload_to_state,
+    avr_response_broadcast_lines,
     build_json_state,
 )
 
@@ -89,6 +90,22 @@ def test_build_json_state_structure_and_volume_conversion():
     # Volume should have been converted to numeric level
     assert isinstance(state_dict["volume"], (int, float))
     assert state_dict["power"] == "ON"
+
+
+def test_avr_response_broadcast_lines_pwon():
+    assert avr_response_broadcast_lines("PWON") == ["PWON", "ZMON"]
+
+
+def test_avr_response_broadcast_lines_standby():
+    assert avr_response_broadcast_lines("PWSTANDBY") == ["PWSTANDBY", "ZMSTANDBY", "ZMOFF"]
+    assert avr_response_broadcast_lines("PWSTANDBY ") == ["PWSTANDBY ", "ZMSTANDBY", "ZMOFF"]
+    assert avr_response_broadcast_lines("PWstandby") == ["PWstandby", "ZMSTANDBY", "ZMOFF"]
+
+
+def test_avr_response_broadcast_lines_other():
+    assert avr_response_broadcast_lines("MV50") == ["MV50"]
+    assert avr_response_broadcast_lines("SIHDMI1") == ["SIHDMI1"]
+    assert avr_response_broadcast_lines("MUON") == ["MUON"]
 
 
 def test_apply_payload_to_state_updates_present_fields():

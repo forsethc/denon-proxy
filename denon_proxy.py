@@ -269,6 +269,20 @@ def apply_payload_to_state(state: AVRState, payload: dict) -> None:
         state.smart_select = _normalize_smart_select(str(v) if v is not None else None)
 
 
+def avr_response_broadcast_lines(message: str) -> list[str]:
+    """
+    Return the list of lines to broadcast for an AVR response.
+    HA denonavr only processes ZM (not PW) for telnet updates; we add ZM equivalents
+    for power so the UI updates without needing an integration reload.
+    """
+    lines = [message]
+    if message == "PWON":
+        lines.append("ZMON")
+    elif message in ("PWSTANDBY", "PWSTANDBY ") or "STANDBY" in message.upper():
+        lines.extend(["ZMSTANDBY", "ZMOFF"])
+    return lines
+
+
 def parse_telnet_lines(buffer: bytes, data: bytes) -> tuple[list[str], bytes]:
     """
     Decode incoming bytes into complete telnet command lines (split on \\r or \\n).
@@ -500,15 +514,8 @@ class DenonProxyServer:
             self.logger.info("AVR response: %s", message)
         elif self.logger.isEnabledFor(logging.DEBUG):
             self.logger.debug("AVR response: %s", message)
-        self._broadcast(message)
-        # HA denonavr only processes ZM (not PW) for telnet updates; broadcast ZM equivalent for power
-        # so the UI updates without needing an integration reload. ZMSTANDBY uses parameter "STANDBY"
-        # which denonavr's _power_callback accepts; ZMOFF may use "OFF" which some versions reject.
-        if message == "PWON":
-            self._broadcast("ZMON")
-        elif message in ("PWSTANDBY", "PWSTANDBY ") or "STANDBY" in message.upper():
-            self._broadcast("ZMSTANDBY")
-            self._broadcast("ZMOFF")  # Some receivers/denonavr expect ZMOFF
+        for line in avr_response_broadcast_lines(message):
+            self._broadcast(line)
         self._notify_web_state()
 
     def _on_avr_disconnect(self) -> None:
