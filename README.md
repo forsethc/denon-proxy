@@ -160,8 +160,6 @@ pytest --cov                                 # text summary + missing lines
 pytest --cov --cov-report=html               # then open htmlcov/index.html
 ```
 
-**SSDP discovery:** For Home Assistant auto-discovery, SSDP multicast (UDP 1900) often needs host networking. In docker-compose, set `network_mode: host` and remove the `ports` section. Set `ssdp_advertise_ip` to your host's IP in config.
-
 ## Connecting Clients
 
 ### Home Assistant
