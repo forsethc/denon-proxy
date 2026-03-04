@@ -50,7 +50,6 @@ pip install -r requirements.txt
 
 ```yaml
 avr_host: "192.168.1.100"   # Your Denon AVR's IP
-proxy_port: 23               # Port for clients (HA requires 23)
 ```
 
 ### Configuration Options
@@ -60,12 +59,12 @@ proxy_port: 23               # Port for clients (HA requires 23)
 | `avr_host` | "" (demo) | IP or hostname of the physical AVR. Empty = demo mode (no AVR) |
 | `avr_port` | 23        | Telnet port on the AVR                         |
 | `proxy_host` | 0.0.0.0 | Bind address (0.0.0.0 = all interfaces)       |
-| `proxy_port` | 23      | Port clients connect to (HA requires 23)       |
+| `proxy_port` | 23      | Port clients connect to (Home Assistant requires 23)       |
 | `log_level` | INFO     | DEBUG, INFO, WARNING, or ERROR (proxy logging)   |
 | `denonavr_log_level` | INFO | Log level for the denonavr library (initial HTTP state sync); independent of `log_level` |
 | `log_command_groups_info` | [] | Command groups to log at INFO: power, volume, input, mute, sound_mode |
-| `enable_ssdp` | false  | SSDP discovery for Home Assistant              |
-| `ssdp_friendly_name` | Denon AVR Proxy | Name shown in Home Assistant           |
+| `enable_ssdp` | true   | SSDP discovery for Home Assistant (HTTP discovery server and SSDP responder) |
+| `ssdp_friendly_name` | (optional) | Name shown in Home Assistant. If omitted: uses the physical AVR’s friendly name + " Proxy" (after HTTP sync), or "Denon AVR Proxy" if unknown. |
 | `ssdp_http_port` | 8080 | Port for device description XML                |
 | `ssdp_advertise_ip` | "" | IP to advertise (empty = auto-detect)      |
 | `sources` | (from AVR or default) | Custom input sources: dict of `func_code: "Display Name"`. Omit to use actual device sources (including custom renames) when a physical AVR is connected |
@@ -103,29 +102,37 @@ python denon_proxy.py --config config.yaml
 
 ### Running on Port 23
 
-The HA Denon integration only connects to port 23. On Linux/macOS, binding to port 23 typically requires root or `cap_net_bind_service` (Docker adds this automatically):
+The Home Assistant Denon integration only connects to port 23.
 
-```bash
-sudo python denon_proxy.py
-```
+On some systems (especially many Linux distros), binding to low ports (<1024) may require elevated privileges or special capabilities. If you see a “permission denied” error when starting the proxy on port 23, re-run it with `sudo`, grant `cap_net_bind_service`, or use Docker with `--cap-add=NET_BIND_SERVICE`. If it starts fine without any of that (e.g. your environment already allows binding to 23), you can just run `python denon_proxy.py` as shown above.
 
 ### Docker
 
+Create a `config.yaml` from `config.sample.yaml` (recommended), then edit it with your AVR host and other settings.
+You can still override individual values with environment variables by:
+
+- Updating the `environment:` section in `docker-compose.yml`, or
+- Adding `-e` flags to the `docker run` command.
+
 ```bash
-# Create config from sample (required for docker-compose)
 cp config.sample.yaml config.yaml
-# Edit config.yaml with your AVR host, etc.
+```
 
-# Build and run with docker-compose
-docker compose up -d
+**Option 1 – `docker compose` (recommended):**
 
-# Or with Docker directly (config optional; env vars override)
+```bash
+docker compose up -d --build   # --build rebuilds the image (omit for a faster start if nothing changed)
+```
+
+**Option 2 – `docker` directly:**
+
+```bash
 docker build -t denon-proxy .
+
 docker run -d --name denon-proxy \
   --cap-add=NET_BIND_SERVICE \
   -p 23:23 -p 8080:8080 -p 8081:8081 \
   -v $(pwd)/config.yaml:/app/config.yaml:ro \
-  -e AVR_HOST=192.168.1.100 \
   denon-proxy
 ```
 
@@ -166,17 +173,17 @@ pytest --cov --cov-report=html               # then open htmlcov/index.html
 
 **With SSDP discovery** (recommended):
 
-1. Set `enable_ssdp: true` in config
-2. Run with `sudo` (or Docker with `cap_net_bind_service`) since port 23 requires it
+1. Ensure `enable_ssdp` is true in config (it defaults to true)
+2. Ensure the proxy is reachable on port 23 from Home Assistant. If your OS refuses to bind to port 23 with a “permission denied” error, run the proxy with `sudo` or via Docker with `--cap-add=NET_BIND_SERVICE`.
 3. Set `ssdp_advertise_ip` to your proxy's IP if auto-detect fails
 4. Add the **Denon AVR Network Receivers** integration — the proxy should appear as "Discovered"
 
 **Manual configuration:**
 
-1. Set `enable_ssdp: true` in config (the HTTP server is needed for denonavr setup)
+1. Ensure `enable_ssdp` is true in config (the HTTP server is needed for denonavr setup; it defaults to true)
 2. Add the **Denon AVR Network Receivers** integration
 3. Enter the proxy's IP address when prompted
-4. The HA integration does not support custom ports — the proxy must run on port 23.
+4. The Home Assistant integration does not support custom ports — the proxy must run on port 23.
 
 ### UC Remote 3
 
@@ -221,17 +228,17 @@ See Denon's protocol documentation for the full command set.
 
 Home Assistant discovers Denon AVRs via SSDP/UPnP:
 
-1. HA sends **M-SEARCH** (UDP multicast to 239.255.255.250:1900)
+1. Home Assistant sends **M-SEARCH** (UDP multicast to 239.255.255.250:1900)
 2. Devices respond with an HTTP-like reply containing a **LOCATION** URL
-3. HA fetches that URL to get the device description XML (manufacturer, modelName, serialNumber, friendlyName)
-4. HA uses the host from the LOCATION URL to connect (telnet port 23)
+3. Home Assistant fetches that URL to get the device description XML (manufacturer, modelName, serialNumber, friendlyName)
+4. Home Assistant uses the host from the LOCATION URL to connect (telnet port 23)
 
-With `enable_ssdp: true`, the proxy emulates this by:
+With `enable_ssdp` true, the proxy emulates this by:
 
 - Responding to M-SEARCH on UDP 1900 (requires root on Linux)
 - Serving a minimal UPnP device description at `http://<proxy_ip>:8080/description.xml`
 
-The advertised name is configurable via `ssdp_friendly_name`. Home Assistant will show the proxy as a discovered Denon AVR.
+The advertised name is taken from `ssdp_friendly_name` when set; otherwise the proxy uses the physical AVR’s friendly name + " Proxy" (once known from HTTP sync), or "Denon AVR Proxy" as a fallback. Home Assistant will show the proxy under that name when discovered.
 
 ## Architecture
 
@@ -264,25 +271,25 @@ The advertised name is configurable via `ssdp_friendly_name`. Home Assistant wil
 ### Power state not updating in Home Assistant (2026.x)
 
 - The denonavr integration has **Use telnet** off by default. With telnet disabled, power updates come from HTTP polling (~10 seconds).
-- For **instant** power updates: Integration → Configure → enable **Use telnet**. The proxy broadcasts ZM/ZMSTANDBY so HA receives power changes via telnet.
+- For **instant** power updates: Integration → Configure → enable **Use telnet**. The proxy broadcasts ZM/ZMSTANDBY so Home Assistant receives power changes via telnet.
 
-### Port 23 requires root
+### Port 23 binding issues
 
-- Run the proxy with `sudo` (or Docker with `cap_net_bind_service`) for port 23
+- If you see a “permission denied” error when binding to port 23, run the proxy with `sudo` (or Docker with `cap_net_bind_service`), or choose a different port and use manual Home Assistant configuration if supported by your setup.
 
 ### Manual add fails instantly
 
 - Set `log_level: "DEBUG"` in config and check logs for `HTTP: GET /goform/Deviceinfo.xml` — if you don't see it, Home Assistant isn't reaching the proxy
 - Verify the HTTP server: `curl http://<proxy_ip>:8080/goform/Deviceinfo.xml` — should return XML
 - Ports 80 and 60006: denonavr needs these for AVR-X 2016. The proxy binds 80, 8080, and 60006 when possible. Run with `sudo` if 80 or 60006 fail to bind
-- Ensure `enable_ssdp: true` (the HTTP server only runs when SSDP is enabled)
+- Ensure `enable_ssdp` is true (the HTTP server only runs when SSDP is enabled; it defaults to true)
 
 ### SSDP discovery not working
 
-- UDP 1900 requires root on Linux: run with `sudo`
+- UDP 1900 often requires root on Linux: if binding fails with a permission error, run with `sudo` or adjust capabilities
 - Set `ssdp_advertise_ip` to your proxy's LAN IP if auto-detect fails
 - Ensure port 8080 is free for the device description HTTP server (or set `ssdp_http_port`)
-- Home Assistant requires port 23 — use `sudo` or Docker for binding
+- Home Assistant requires port 23 — make sure the proxy is listening on 23 and reachable from Home Assistant. If your OS refuses to bind to port 23 with a “permission denied” error, run the proxy with `sudo` or via Docker with `--cap-add=NET_BIND_SERVICE`.
 
 ## License
 

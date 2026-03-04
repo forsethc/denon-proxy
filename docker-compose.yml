@@ -13,7 +13,3 @@ services:
     volumes:
       # Mount your config (create from config.sample.yaml). Omit for demo mode with env vars.
       - ./config.yaml:/app/config.yaml:ro
-    environment:
-      - AVR_HOST=${AVR_HOST:-}
-      - AVR_PORT=${AVR_PORT:-23}
-      - PROXY_PORT=${PROXY_PORT:-23}
