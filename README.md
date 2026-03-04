@@ -1,5 +1,7 @@
 # Denon AVR Proxy
 
+[![CI - Tests](https://github.com/cory/denon-proxy/actions/workflows/tests.yml/badge.svg)](https://github.com/cory/denon-proxy/actions/workflows/tests.yml)
+
 A virtual Denon AVR that allows **multiple clients** (Home Assistant, UC Remote 3, etc.) to connect simultaneously, while maintaining a **single Telnet connection** to the physical AVR.
 
 ## Why?
