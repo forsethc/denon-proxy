@@ -182,6 +182,7 @@ The proxy forwards **all** Denon Telnet commands transparently. Common commands:
 | MU         | Mute               | MUON, MUOFF, MU? |
 | ZM         | Main zone power    | ZMON, ZMOFF, ZM? |
 | MS         | Surround mode      | MSSTEREO, MS? |
+| MSSMART    | Smart Select slot  | MSSMART ?, MSSMART0, MSSMART1 |
 
 See Denon's protocol documentation for the full command set.
 

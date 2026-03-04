@@ -150,8 +150,8 @@ class AVRConnection:
             return False
 
     async def request_state(self) -> None:
-        """Request current state from AVR (power, volume, max volume, input, mute, zone, sound mode)."""
-        for cmd in ("PW?", "MV?", "MVMAX?", "SI?", "MU?", "ZM?", "MS?"):
+        """Request current state from AVR (power, volume, max volume, input, mute, zone, sound mode, smart select)."""
+        for cmd in ("PW?", "MV?", "MVMAX?", "SI?", "MU?", "ZM?", "MS?", "MSSMART ?"):
             await self.send_command(cmd)
             await asyncio.sleep(0.05)
 

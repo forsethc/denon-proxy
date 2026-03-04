@@ -16,6 +16,21 @@ VOLUME_REFERENCE_LEVEL = 80.0
 VOLUME_DEFAULT_LEVEL = 50
 
 
+def _normalize_smart_select(value: Optional[str]) -> Optional[str]:
+    """Normalize to SMART{n} (e.g. SMART0, SMART1). Accepts numeral, smart0, or SMART0."""
+    if not value or not str(value).strip():
+        return None
+    s = str(value).strip().upper()
+    if s.startswith("SMART"):
+        rest = s[5:].lstrip()
+        if rest.isdigit():
+            return f"SMART{rest}"
+        return None
+    if s.isdigit():
+        return f"SMART{s}"
+    return None
+
+
 # -----------------------------------------------------------------------------
 # AVR State
 # -----------------------------------------------------------------------------
@@ -23,7 +38,7 @@ VOLUME_DEFAULT_LEVEL = 50
 
 class AVRState:
     """
-    Tracks Denon AVR state (power, volume, input, mute, sound_mode).
+    Tracks Denon AVR state (power, volume, input, mute, sound_mode, smart_select).
     Used by the connection layer for telnet and by discovery for HTTP/XML.
     """
 
@@ -34,9 +49,10 @@ class AVRState:
         self.input_source: Optional[str] = "CD"  # e.g. "CD", "TUNER", "DVD"
         self.mute: Optional[bool] = False      # True = muted
         self.sound_mode: Optional[str] = "STEREO"  # e.g. STEREO, MULTI CH IN, DOLBY DIGITAL
+        self.smart_select: Optional[str] = None   # Smart Select slot, always "SMART{n}" (e.g. SMART0, SMART1)
 
     def update_from_message(self, message: str) -> None:
-        """Update state from a Denon telnet response (PW, MV, SI, MU, ZM, MS)."""
+        """Update state from a Denon telnet response (PW, MV, SI, MU, ZM, MS, MSSMART)."""
         if not message or len(message) < 2:
             return
 
@@ -79,6 +95,12 @@ class AVRState:
             if param and param != "?":
                 self.input_source = param
 
+        elif message.upper().startswith("MSSMART") and len(message) > 7:
+            # MSSMART ? response gives Smart Select slot (e.g. smart0, 0), not sound mode
+            param = message[7:].strip()
+            if param and param != "?":
+                self.smart_select = _normalize_smart_select(param)
+
         elif message.startswith("MS") and len(message) > 2:
             param = message[2:].strip()
             if param and param != "?":
@@ -104,6 +126,10 @@ class AVRState:
             lines.append("MUON" if self.mute else "MUOFF")
         if self.sound_mode:
             lines.append(f"MS{self.sound_mode}")
+        if self.smart_select is not None:
+            # Telnet uses numeral only (MSSMART0); we store SMART0
+            numeral = self.smart_select[5:] if self.smart_select.upper().startswith("SMART") else self.smart_select
+            lines.append(f"MSSMART{numeral}")
         return "\r\n".join(lines) + "\r\n" if lines else ""
 
     def snapshot(self) -> dict:
@@ -114,6 +140,7 @@ class AVRState:
             "input_source": self.input_source,
             "mute": self.mute,
             "sound_mode": self.sound_mode,
+            "smart_select": self.smart_select,
         }
 
     def restore(self, snapshot: dict) -> None:
@@ -123,6 +150,7 @@ class AVRState:
         self.input_source = snapshot.get("input_source")
         self.mute = snapshot.get("mute")
         self.sound_mode = snapshot.get("sound_mode")
+        self.smart_select = snapshot.get("smart_select")
 
     def apply_command(
         self,
@@ -183,6 +211,11 @@ class AVRState:
             param = cmd[2:].strip()
             if param and param != "?":
                 self.input_source = param
+                applied = True
+        elif cmd.upper().startswith("MSSMART") and len(cmd) > 7:
+            param = cmd[7:].strip()
+            if param and param != "?":
+                self.smart_select = _normalize_smart_select(param)
                 applied = True
         elif cmd.startswith("MS") and len(cmd) > 2:
             param = cmd[2:].strip()

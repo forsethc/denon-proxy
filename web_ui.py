@@ -241,7 +241,8 @@ DASHBOARD_HTML = """<!DOCTYPE html>
         ['Volume', state.volume != null ? state.volume + (typeof state.volume === 'number' ? ' (0–' + (avr.volume_max != null ? avr.volume_max : 98) + ')' : '') : '—'],
         ['Input', inputLabel],
         ['Mute', state.mute != null ? (state.mute ? 'On' : 'Off') : '—'],
-        ['Sound mode', state.sound_mode || '—']
+        ['Sound mode', state.sound_mode || '—'],
+        ['Smart Select', state.smart_select || '—']
       ];
       document.getElementById('state-table').innerHTML = rows.map(([k,v]) => '<tr><td>' + escapeHtml(k) + '</td><td>' + escapeHtml(String(v)) + '</td></tr>').join('');
       const discovery = d.discovery;

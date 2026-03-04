@@ -40,7 +40,7 @@ from avr_connection import (
     create_avr_connection,
 )
 from avr_discovery import get_advertise_ip, get_proxy_friendly_name, run_discovery_servers
-from avr_state import AVRState, volume_to_level
+from avr_state import AVRState, volume_to_level, _normalize_smart_select
 
 from web_ui import run_web_ui
 
@@ -179,6 +179,9 @@ def _command_group(cmd: str) -> str:
     """Return the group name for a Denon telnet command (e.g. PWON -> power)."""
     if not cmd or len(cmd) < 2:
         return "other"
+    # MSSMART is Smart Select slot, not sound mode; must check before MS
+    if cmd.upper().startswith("MSSMART"):
+        return "smart_select"
     prefix = cmd[:2].upper()
     if prefix == "MV" and len(cmd) > 2 and "MAX" in cmd.upper():
         return "other"  # MVMAX is config, not state
@@ -446,6 +449,9 @@ class DenonProxyServer:
         if "sound_mode" in payload:
             v = payload["sound_mode"]
             s.sound_mode = str(v) if v is not None else None
+        if "smart_select" in payload:
+            v = payload["smart_select"]
+            s.smart_select = _normalize_smart_select(str(v) if v is not None else None)
         status = s.get_status_dump()
         if status:
             for line in status.strip().splitlines():
@@ -518,8 +524,17 @@ class DenonProxyServer:
                 self.state.input_source = d.input_func
             if d.muted is not None:
                 self.state.mute = d.muted
-            if getattr(d, "sound_mode", None):
-                self.state.sound_mode = d.sound_mode
+            # HTTP/denonavr sometimes returns Smart Select as sound_mode (e.g. "SMART0"); route to smart_select
+            raw_sound_mode = getattr(d, "sound_mode", None)
+            if raw_sound_mode:
+                raw = str(raw_sound_mode).strip().upper()
+                if raw.startswith("SMART") and len(raw) > 5 and raw[5:].isdigit():
+                    self.state.smart_select = _normalize_smart_select(raw_sound_mode)
+                    self.state.sound_mode = None  # leave for telnet MS? to fill real mode
+                else:
+                    self.state.sound_mode = raw_sound_mode
+            if getattr(d, "smart_select", None) is not None:
+                self.state.smart_select = _normalize_smart_select(str(d.smart_select))
             # Fetch device info and sources for JSON API and source resolution
             self.config["_avr_info"] = {
                 "manufacturer": getattr(d, "manufacturer", None),
@@ -533,9 +548,9 @@ class DenonProxyServer:
                     (func, str(display_name or func)) for func, display_name in rev.items()
                 ]
                 self.logger.info("Fetched %d input sources from AVR", len(self.config["_device_sources"]))
-            self.logger.info("Initial state from HTTP: power=%s vol=%s input=%s mute=%s sound_mode=%s",
+            self.logger.info("Initial state from HTTP: power=%s vol=%s input=%s mute=%s sound_mode=%s smart_select=%s",
                              self.state.power, self.state.volume,
-                             self.state.input_source, self.state.mute, self.state.sound_mode)
+                             self.state.input_source, self.state.mute, self.state.sound_mode, self.state.smart_select)
         except Exception as e:
             self.logger.debug("Could not sync initial state via HTTP: %s", e)
 
