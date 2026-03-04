@@ -152,12 +152,12 @@ pytest tests/unit/test_avr_state_volume.py      # single file
 pytest tests/unit                               # all unit tests
 ```
 
-- **Run tests with coverage**:
+- **Run tests with coverage** (uses `.coveragerc` to include source files and omit `tests/`):
 
 ```bash
-pytest --cov=. --cov-report=term-missing        # summary + missing lines
-# or:
-pytest --cov=. --cov-report=html               # then open htmlcov/index.html
+pytest --cov                                 # text summary using .coveragerc
+# or override the report format, e.g. HTML:
+pytest --cov --cov-report=html               # then open htmlcov/index.html
 ```
 
 **SSDP discovery:** For Home Assistant auto-discovery, SSDP multicast (UDP 1900) often needs host networking. In docker-compose, set `network_mode: host` and remove the `ports` section. Set `ssdp_advertise_ip` to your host's IP in config.
