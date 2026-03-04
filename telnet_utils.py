@@ -1,6 +1,11 @@
 """
-Shared telnet line parsing for proxy client input and AVR response stream.
+Shared telnet line parsing and formatting for proxy client input and AVR stream.
 """
+
+
+def telnet_line_to_bytes(line: str) -> bytes:
+    """Format a single telnet line for sending (Denon uses \\r as line terminator)."""
+    return (line.strip() + "\r").encode("utf-8")
 
 
 def parse_telnet_lines(buffer: bytes, data: bytes) -> tuple[list[str], bytes]:

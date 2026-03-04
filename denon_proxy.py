@@ -41,7 +41,7 @@ from avr_connection import (
 )
 from avr_discovery import get_advertise_ip, is_docker_internal_ip, get_proxy_friendly_name, run_discovery_servers
 from avr_state import AVRState, volume_to_level, _normalize_smart_select
-from telnet_utils import parse_telnet_lines
+from telnet_utils import parse_telnet_lines, telnet_line_to_bytes
 
 from web_ui import run_web_ui
 
@@ -408,7 +408,7 @@ class ClientHandler(asyncio.Protocol):
         """Send a message to this client."""
         if self.transport and not self.transport.is_closing():
             try:
-                self.transport.write((message + "\r").encode("utf-8"))
+                self.transport.write(telnet_line_to_bytes(message))
             except Exception as e:
                 self.logger.debug("Broadcast to client failed: %s", e)
 

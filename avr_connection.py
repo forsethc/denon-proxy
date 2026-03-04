@@ -14,7 +14,7 @@ import re
 from typing import Any, Callable, Optional
 
 from avr_state import AVRState
-from telnet_utils import parse_telnet_lines
+from telnet_utils import parse_telnet_lines, telnet_line_to_bytes
 
 # Default max volume when AVR has not sent MVMAX; many Denon/Marantz use 98.
 DEFAULT_MAX_VOLUME = 98.0
@@ -136,7 +136,7 @@ class AVRConnection:
             self.logger.warning("Cannot send command, AVR not connected: %s", command)
             return False
         try:
-            data = (command.strip() + "\r").encode("utf-8")
+            data = telnet_line_to_bytes(command)
             self.writer.write(data)
             await self.writer.drain()
             self.logger.debug("Sent to AVR: %s", command.strip())

@@ -1,6 +1,11 @@
-"""Unit tests for telnet_utils.parse_telnet_lines."""
+"""Unit tests for telnet_utils."""
 
-from telnet_utils import parse_telnet_lines
+from telnet_utils import parse_telnet_lines, telnet_line_to_bytes
+
+
+def test_telnet_line_to_bytes():
+    assert telnet_line_to_bytes("PWON") == b"PWON\r"
+    assert telnet_line_to_bytes("  MV50  ") == b"MV50\r"
 
 
 def test_parse_telnet_lines_incomplete_line_remains_in_buffer():
