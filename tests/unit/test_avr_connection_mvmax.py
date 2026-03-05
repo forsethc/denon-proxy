@@ -7,6 +7,7 @@ def test_parse_mvmax_valid_and_invalid_inputs():
     assert _parse_mvmax("MAX60") == 60.0
     # No number after MAX -> None
     assert _parse_mvmax("MAX") is None
+    assert _parse_mvmax("MAX ") is None
     # Not starting with MAX -> None
     assert _parse_mvmax("XYZ") is None
     # Lower bound should never be negative
