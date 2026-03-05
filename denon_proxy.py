@@ -13,6 +13,8 @@ Usage:
     AVR_HOST=192.168.1.100 PROXY_PORT=2323 python denon_proxy.py
 """
 
+from __future__ import annotations
+
 import argparse
 import asyncio
 import logging
@@ -212,6 +214,12 @@ def _should_log_command_info(config: dict, cmd: str) -> bool:
     return _command_group(cmd) in groups
 
 
+def _client_ip_for_display(client: Any) -> str:
+    """Return the client's IP string for status display, or '?' if unknown."""
+    peername = getattr(client, "_peername", None)
+    return peername[0] if peername else "?"
+
+
 def build_json_state(
     state: AVRState,
     avr: Optional[Union[AVRConnection, VirtualAVRConnection]],
@@ -223,7 +231,7 @@ def build_json_state(
 
     Pure function for testability. Caller passes state, avr, clients, config.
     """
-    client_ips = [c._peername[0] if getattr(c, "_peername", None) else "?" for c in list(clients)]
+    client_ips = [_client_ip_for_display(c) for c in list(clients)]
     state_dict = {
         k: v
         for k, v in vars(state).items()
@@ -522,16 +530,6 @@ class DenonProxyServer:
         self._notify_web_state: Callable[[], None] = lambda: None
         self._avr_factory = avr_factory
         self._reconnect_task: Optional[asyncio.Task[Any]] = None
-
-    def _set_state_and_broadcast(self, payload: dict) -> None:
-        """Set state from payload (e.g. from JSON API) and broadcast to clients."""
-        apply_payload_to_state(self.state, payload)
-        status = self.state.get_status_dump()
-        if status:
-            for line in status.strip().splitlines():
-                if line.strip():
-                    self._broadcast(line.strip())
-        self._notify_web_state()
 
     def _broadcast(self, message: str) -> None:
         """Broadcast an AVR response to all connected clients."""

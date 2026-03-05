@@ -1,6 +1,7 @@
 from denon_proxy import (
-    _is_valid_client_command,
+    _client_ip_for_display,
     _command_group,
+    _is_valid_client_command,
     _should_log_command_info,
     load_config_from_dict,
     AVRState,
@@ -9,6 +10,16 @@ from denon_proxy import (
     build_json_state,
     state_and_config_updates_from_denonavr,
 )
+
+
+def test_client_ip_for_display_returns_ip_or_question_mark():
+    """_client_ip_for_display returns peername[0] when set, else '?'."""
+    client_with_peername = type("C", (), {"_peername": ("192.168.1.1", 12345)})()
+    assert _client_ip_for_display(client_with_peername) == "192.168.1.1"
+    client_peername_none = type("C", (), {"_peername": None})()
+    assert _client_ip_for_display(client_peername_none) == "?"
+    client_no_peername = type("C", (), {})()
+    assert _client_ip_for_display(client_no_peername) == "?"
 
 
 def test_is_valid_client_command_filters_short_and_control_bytes():

@@ -96,6 +96,7 @@ class HttpServerHandler(asyncio.Protocol):
         if not parsed:
             return
         method, path, _headers, body_bytes = parsed
+        self._buffer = b""  # Clear so next request on same connection starts clean (e.g. keep-alive)
 
         if method == "GET" and path == "/":
             self._handle_root()
