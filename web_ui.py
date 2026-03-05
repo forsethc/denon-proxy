@@ -192,13 +192,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
         <button class="btn" onclick="sendCmd('MVDOWN')">Vol Down</button>
       </div>
       <div class="muted" style="margin-top: 0.5rem;">Input:</div>
-      <div class="btn-group">
-        <button class="btn" onclick="sendCmd('SIHDMI1')">HDMI1</button>
-        <button class="btn" onclick="sendCmd('SIHDMI2')">HDMI2</button>
-        <button class="btn" onclick="sendCmd('SINET')">NET</button>
-        <button class="btn" onclick="sendCmd('SIBD')">BD</button>
-        <button class="btn" onclick="sendCmd('SICD')">CD</button>
-      </div>
+      <div class="btn-group" id="input-buttons"></div>
       <div class="cmd-input">
         <input type="text" id="custom-cmd" placeholder="e.g. SIHDMI1" onkeydown="if(event.key==='Enter')sendCustomCmd()">
         <button class="btn" onclick="sendCustomCmd()">Send</button>
@@ -323,6 +317,34 @@ DASHBOARD_HTML = """<!DOCTYPE html>
         ['Smart Select', state.smart_select || '—']
       ];
       document.getElementById('state-table').innerHTML = rows.map(([k,v]) => '<tr><td>' + escapeHtml(k) + '</td><td>' + escapeHtml(String(v)) + '</td></tr>').join('');
+      // Dynamic input buttons: only show sources we actually expose via avr.sources.
+      const inputButtonsEl = document.getElementById('input-buttons');
+      if (inputButtonsEl) {
+        const sources = Array.isArray(avr.sources) ? avr.sources.filter(s => s && s.func) : [];
+        if (sources.length) {
+          inputButtonsEl.innerHTML = sources
+            .map(s => {
+              const label = s.display_name || s.func;
+              const cmd = 'SI' + s.func;
+              // Use a data attribute and a delegated click handler to avoid complex quoting.
+              return '<button class="btn" data-cmd="' + escapeHtml(cmd) + '">' + escapeHtml(label) + '</button>';
+            })
+            .join('');
+          if (!inputButtonsEl._handlerAttached) {
+            inputButtonsEl.addEventListener('click', (event) => {
+              const target = event.target.closest('button[data-cmd]');
+              if (!target) return;
+              const cmd = target.getAttribute('data-cmd');
+              if (cmd) {
+                sendCmd(cmd);
+              }
+            });
+            inputButtonsEl._handlerAttached = true;
+          }
+        } else {
+          inputButtonsEl.innerHTML = '<span class="muted">No known inputs for this AVR</span>';
+        }
+      }
       const discovery = d.discovery;
       const xmlCard = document.getElementById('xml-card');
       const xmlList = document.getElementById('xml-links');
