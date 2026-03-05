@@ -280,3 +280,70 @@ async def test_http_events_sse_streams_updates_on_command(http_integration_confi
             await writer_sse.wait_closed()
     finally:
         await server.stop()
+
+
+@pytest.mark.asyncio
+async def test_http_refresh_request_state_broadcasts_to_telnet_clients(
+    http_integration_config, http_integration_logger
+):
+    """
+    POST /api/refresh triggers request_state() on the AVR; VirtualAVR pushes
+    get_status_dump() lines via on_response; proxy broadcasts to Telnet clients.
+    Assert two connected Telnet clients both receive the status dump after refresh.
+    """
+    server = DenonProxyServer(http_integration_config, http_integration_logger, create_avr_connection)
+    await server.start()
+    proxy_port = server.config["proxy_port"]
+    http_port = server.config["http_port"]
+    assert proxy_port != 0
+    assert http_port != 0
+    try:
+        # Connect two Telnet clients and drain initial status dumps
+        reader_a, writer_a = await asyncio.wait_for(
+            asyncio.open_connection("127.0.0.1", proxy_port),
+            timeout=2.0,
+        )
+        reader_b, writer_b = await asyncio.wait_for(
+            asyncio.open_connection("127.0.0.1", proxy_port),
+            timeout=2.0,
+        )
+        try:
+            await asyncio.wait_for(reader_a.read(4096), timeout=1.0)
+            await asyncio.wait_for(reader_b.read(4096), timeout=1.0)
+
+            # Trigger request_state via HTTP (proxy calls avr.request_state())
+            reader_http, writer_http = await _open_http_connection(http_port)
+            try:
+                request = (
+                    "POST /api/refresh HTTP/1.1\r\n"
+                    "Host: 127.0.0.1\r\n"
+                    "Connection: close\r\n"
+                    "\r\n"
+                ).encode("ascii")
+                writer_http.write(request)
+                await writer_http.drain()
+                response = await asyncio.wait_for(reader_http.read(4096), timeout=2.0)
+                status_line, _ = _parse_http_response(response)
+                assert b"200" in status_line
+            finally:
+                writer_http.close()
+                await writer_http.wait_closed()
+
+            # Both Telnet clients should receive the broadcast (status dump lines from VirtualAVR)
+            burst_a = await asyncio.wait_for(reader_a.read(4096), timeout=2.0)
+            burst_b = await asyncio.wait_for(reader_b.read(4096), timeout=2.0)
+            text_a = burst_a.decode("utf-8", errors="replace")
+            text_b = burst_b.decode("utf-8", errors="replace")
+            # request_state pushes PW, ZM, MV, SI, MU, MS (and optionally MSSMART)
+            for label, text in (("A", text_a), ("B", text_b)):
+                assert "PW" in text or "ZM" in text, f"[{label}] Expected power lines in broadcast, got: {text!r}"
+                assert "MV" in text, f"[{label}] Expected volume line in broadcast, got: {text!r}"
+                assert "SI" in text, f"[{label}] Expected input line in broadcast, got: {text!r}"
+                assert "MU" in text, f"[{label}] Expected mute line in broadcast, got: {text!r}"
+        finally:
+            writer_a.close()
+            writer_b.close()
+            await writer_a.wait_closed()
+            await writer_b.wait_closed()
+    finally:
+        await server.stop()
