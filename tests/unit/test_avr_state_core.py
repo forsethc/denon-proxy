@@ -40,6 +40,36 @@ def test_apply_command_pw_with_param():
     assert state.power == "OTHER"
 
 
+def test_apply_command_zm_sets_power():
+    """ZM (zone main) commands set power: ZMON -> ON, ZMOFF/ZMSTANDBY -> STANDBY."""
+    state = AVRState()
+    state.power = "STANDBY"
+    changed = state.apply_command("ZMON", volume_step=0.5, volume_max=80.0)
+    assert changed and state.power == "ON"
+    changed = state.apply_command("ZMSTANDBY", volume_step=0.5, volume_max=80.0)
+    assert changed and state.power == "STANDBY"
+    state.power = "ON"
+    changed = state.apply_command("ZMOFF", volume_step=0.5, volume_max=80.0)
+    assert changed and state.power == "STANDBY"
+
+
+def test_apply_command_ms_sets_sound_mode():
+    """MS (sound mode) command sets sound_mode; distinct from MSSMART (smart select)."""
+    state = AVRState()
+    changed = state.apply_command("MSDOLBY", volume_step=0.5, volume_max=80.0)
+    assert changed and state.sound_mode == "DOLBY"
+    changed = state.apply_command("MSNEO6", volume_step=0.5, volume_max=80.0)
+    assert changed and state.sound_mode == "NEO6"
+
+
+def test_apply_command_mv_query_does_not_change_volume():
+    """MV? is a query; apply_command does not change volume and returns False."""
+    state = AVRState()
+    state.volume = "50"
+    changed = state.apply_command("MV?", volume_step=0.5, volume_max=80.0)
+    assert changed is False and state.volume == "50"
+
+
 def test_update_from_message_query_does_not_change_state():
     """PW? and MV? are queries; state is unchanged (pass branches)."""
     state = AVRState()
