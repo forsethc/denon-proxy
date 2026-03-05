@@ -224,6 +224,67 @@ async def test_http_post_command_calls_send_command():
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "body,expected_error_substring",
+    [
+        (b"not json", "Invalid JSON"),
+        (b"{}", "Body must be JSON object with 'command' string"),
+        (b'{"command": 123}', "Body must be JSON object with 'command' string"),
+        (b'{"command": null}', "Body must be JSON object with 'command' string"),
+        (b'{"command": ""}', "Body must be JSON object with 'command' string"),
+        (b'{"command": "P"}', "Command too short"),
+    ],
+)
+async def test_http_post_command_bad_body_returns_400(body, expected_error_substring):
+    """POST /api/command returns 400 with error JSON for invalid or missing command body."""
+    config = load_config_from_dict(
+        {
+            "enable_http": True,
+            "http_port": 0,
+        }
+    )
+    logger = logging.getLogger("test.http.command.badbody")
+
+    def get_state() -> dict:
+        return {}
+
+    def send_command(cmd: str) -> None:
+        pass
+
+    result = await run_http_server(config, logger, get_state, send_command=send_command)
+    assert result is not None
+    server, _ = result
+
+    try:
+        port = server.sockets[0].getsockname()[1]
+        reader, writer = await _open_connection(port)
+        try:
+            request = (
+                "POST /api/command HTTP/1.1\r\n"
+                "Host: 127.0.0.1\r\n"
+                "Content-Type: application/json\r\n"
+                f"Content-Length: {len(body)}\r\n"
+                "Connection: close\r\n"
+                "\r\n"
+            ).encode("ascii") + body
+            writer.write(request)
+            await writer.drain()
+
+            response = await asyncio.wait_for(reader.read(65536), timeout=2.0)
+            status_line, body_bytes = _parse_http_response(response)
+            assert b"400" in status_line
+            data = json.loads(body_bytes.decode("utf-8"))
+            assert "error" in data
+            assert expected_error_substring in data["error"]
+        finally:
+            writer.close()
+            await writer.wait_closed()
+    finally:
+        server.close()
+        await server.wait_closed()
+
+
+@pytest.mark.asyncio
 async def test_http_post_refresh_requires_request_state():
     """POST /api/refresh returns 501 when request_state is not configured."""
     config = load_config_from_dict(
