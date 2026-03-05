@@ -1,7 +1,7 @@
 """
 Web UI for denon-proxy.
 
-Serves a monitoring dashboard at GET / and a JSON API at GET /api/status, POST /state,
+Serves a monitoring dashboard at GET / and a JSON API at GET /api/status,
 POST /api/command, POST /api/refresh. GET /events streams state updates via SSE.
 """
 
@@ -452,12 +452,10 @@ class WebUIHandler(asyncio.Protocol):
         get_state: Callable[[], dict[str, Any]],
         logger: logging.Logger,
         sse_subscribers: Set[Any],
-        set_state: Optional[Callable[[dict[str, Any]], None]] = None,
         send_command: Optional[Callable[[str], None]] = None,
         request_state: Optional[Callable[[], None]] = None,
     ) -> None:
         self.get_state = get_state
-        self.set_state = set_state
         self.send_command = send_command
         self.request_state = request_state
         self.sse_subscribers = sse_subscribers
@@ -488,8 +486,6 @@ class WebUIHandler(asyncio.Protocol):
             self._handle_sse()
         elif method == "GET" and path == "/api/status":
             self._handle_get_status()
-        elif method == "POST" and path == "/state":
-            self._handle_post_state(body_bytes)
         elif method == "POST" and path == "/api/command":
             self._handle_post_command(body_bytes)
         elif method == "POST" and path == "/api/refresh":
@@ -522,25 +518,6 @@ class WebUIHandler(asyncio.Protocol):
             self._send_json(500, {"error": "Internal Server Error"})
             return
         self._send_body(200, body, content_type="application/json")
-
-    def _handle_post_state(self, body_bytes: bytes) -> None:
-        if not self.set_state:
-            self._send_json(501, {"error": "set_state not configured (only available in virtual AVR mode)"})
-            return
-        try:
-            payload = json.loads(body_bytes.decode("utf-8"))
-        except (json.JSONDecodeError, UnicodeDecodeError) as e:
-            self._send_json(400, {"error": f"Invalid JSON: {e}"})
-            return
-        if not isinstance(payload, dict):
-            self._send_json(400, {"error": "Body must be a JSON object"})
-            return
-        try:
-            self.set_state(payload)
-            self._send_json(200, {"ok": True, "state": self.get_state().get("state", {})})
-        except Exception as e:
-            self.logger.warning("set_state error: %s", e)
-            self._send_json(500, {"error": str(e)})
 
     def _handle_post_command(self, body_bytes: bytes) -> None:
         if not self.send_command:
@@ -611,7 +588,6 @@ async def run_web_ui(
     config: dict,
     logger: logging.Logger,
     get_state: Callable[[], dict[str, Any]],
-    set_state: Optional[Callable[[dict[str, Any]], None]] = None,
     send_command: Optional[Callable[[str], None]] = None,
     request_state: Optional[Callable[[], None]] = None,
 ) -> Optional[tuple[asyncio.Server, Callable[[], None]]]:
@@ -654,8 +630,9 @@ async def run_web_ui(
     try:
         def factory():
             h = WebUIHandler(
-                get_state, logger, sse_subscribers,
-                set_state=set_state,
+                get_state,
+                logger,
+                sse_subscribers,
                 send_command=send_command,
                 request_state=request_state,
             )

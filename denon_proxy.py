@@ -637,9 +637,6 @@ class DenonProxyServer:
         def _get_json_state() -> dict:
             return build_json_state(self.state, self.avr, self.clients, self.config)
 
-        # Only allow set_state when using VirtualAVR (no physical AVR)
-        set_state_cb = self._set_state_and_broadcast if not (self.config.get("avr_host") or "").strip() else None
-
         def _send_command_cb(cmd: str) -> None:
             async def _do() -> None:
                 if self.avr:
@@ -653,8 +650,9 @@ class DenonProxyServer:
             asyncio.create_task(_do())
 
         result = await run_web_ui(
-            self.config, self.logger, _get_json_state,
-            set_state=set_state_cb,
+            self.config,
+            self.logger,
+            _get_json_state,
             send_command=_send_command_cb,
             request_state=_request_state_cb,
         )

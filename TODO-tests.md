@@ -32,7 +32,6 @@ Record of approach for adding unit and integration tests. Treat as a task list. 
 
 ## 4. Web UI / JSON API
 
-- [ ] **GET /api/state** – assert JSON shape (avr, clients, state; sources with func/display_name).
   **Prompt:** Add an integration test: start the Web UI (or full proxy with Web UI) in this repo, then GET /api/state. Assert the JSON has top-level keys avr, clients, state; and that avr.sources (if present) has items with func and display_name, and state has fields like power, volume and smart_select if present. Use aiohttp or urllib.
 - [ ] **GET /api/status** – returns same JSON structure as /api/state.
   **Prompt:** Add integration tests for the Web UI status endpoints: start the Web UI, call GET /api/status, and assert it returns HTTP 200 JSON with the same structure and fields as /api/state (avr, clients, state).
