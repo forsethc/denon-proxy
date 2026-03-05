@@ -1,7 +1,7 @@
 """
 Web UI for denon-proxy.
 
-Serves a monitoring dashboard at GET / and a JSON API at GET /status, POST /state,
+Serves a monitoring dashboard at GET / and a JSON API at GET /api/status, POST /state,
 POST /api/command, POST /api/refresh. GET /events streams state updates via SSE.
 """
 
@@ -417,7 +417,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
     es.onopen = () => { document.getElementById('update-status').textContent = 'Live (SSE)'; };
     es.onerror = () => { document.getElementById('update-status').textContent = 'Reconnecting...'; };
     es.onmessage = (e) => { loadFromData(JSON.parse(e.data)); };
-    fetch('/status').then(r => r.json()).then(loadFromData).catch(() => { document.getElementById('update-status').textContent = 'Initial load failed'; });
+    fetch('/api/status').then(r => r.json()).then(loadFromData).catch(() => { document.getElementById('update-status').textContent = 'Initial load failed'; });
   </script>
 </body>
 </html>
@@ -486,7 +486,7 @@ class WebUIHandler(asyncio.Protocol):
             self._handle_dashboard()
         elif method == "GET" and path == "/events":
             self._handle_sse()
-        elif method == "GET" and path in ("/status", "/api/status"):
+        elif method == "GET" and path == "/api/status":
             self._handle_get_status()
         elif method == "POST" and path == "/state":
             self._handle_post_state(body_bytes)
@@ -620,7 +620,7 @@ async def run_web_ui(
 
     GET / - HTML dashboard (monitoring, state, commands)
     GET /events - Server-Sent Events stream of state updates
-    GET /status - JSON status (avr, clients, state)
+    GET /api/status - JSON status (avr, clients, state)
     POST /state - Set virtual AVR state (virtual mode only)
     POST /api/command - Send telnet command to AVR (JSON body: {"command": "PWON"})
     POST /api/refresh - Request current state from AVR

@@ -7,10 +7,10 @@ def test_parse_http_request_incomplete_returns_none():
 
 
 def test_parse_http_request_basic_get_without_body():
-    buf = b"GET /status HTTP/1.1\r\nHost: example\r\n\r\n"
+    buf = b"GET /api/status HTTP/1.1\r\nHost: example\r\n\r\n"
     method, path, headers, body = parse_http_request(buf)
     assert method == "GET"
-    assert path == "/status"
+    assert path == "/api/status"
     assert b"Host: example" in headers
     assert body == b""
 

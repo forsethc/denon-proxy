@@ -34,8 +34,8 @@ Record of approach for adding unit and integration tests. Treat as a task list. 
 
 - [ ] **GET /api/state** – assert JSON shape (avr, clients, state; sources with func/display_name).
   **Prompt:** Add an integration test: start the Web UI (or full proxy with Web UI) in this repo, then GET /api/state. Assert the JSON has top-level keys avr, clients, state; and that avr.sources (if present) has items with func and display_name, and state has fields like power, volume and smart_select if present. Use aiohttp or urllib.
-- [ ] **GET /status and /api/status** – both return same JSON as /api/state.
-  **Prompt:** Add integration tests for the Web UI status endpoints: start the Web UI, call GET /status and GET /api/status, and assert both return HTTP 200 JSON with the same structure and fields as /api/state (avr, clients, state).
+- [ ] **GET /api/status** – returns same JSON structure as /api/state.
+  **Prompt:** Add integration tests for the Web UI status endpoints: start the Web UI, call GET /api/status, and assert it returns HTTP 200 JSON with the same structure and fields as /api/state (avr, clients, state).
 - [ ] **POST /api/command** – success when send_command is configured; 501 when not; 400 on bad body.
   **Prompt:** Add integration tests for WebUIHandler._handle_post_command: (1) when send_command is None, POST /api/command returns 501 with an error JSON; (2) when send_command is a mock, POST with body {\"command\": \"PWON\"} returns 200 with {\"ok\": true, \"command\": \"PWON\"} and the mock is called; (3) POST with invalid body (non-JSON or missing command) returns 400.
 - [ ] **POST /api/refresh** – success when request_state is configured; 501 when not.
