@@ -39,6 +39,26 @@ def parse_http_request(buffer: bytes) -> Optional[tuple[str, str, bytes, bytes]]
     return method, path, header_bytes, body_bytes
 
 
+def parse_command_request(body_bytes: bytes) -> tuple[Optional[str], Optional[dict]]:
+    """
+    Parse and validate POST /api/command body.
+
+    Returns (command, None) on success, or (None, error_dict) on validation failure.
+    error_dict is suitable for 400 JSON response, e.g. {"error": "..."}.
+    """
+    try:
+        payload = json.loads(body_bytes.decode("utf-8")) if body_bytes.strip() else {}
+    except (json.JSONDecodeError, UnicodeDecodeError) as e:
+        return None, {"error": f"Invalid JSON: {e}"}
+    cmd = payload.get("command") if isinstance(payload, dict) else None
+    if not cmd or not isinstance(cmd, str):
+        return None, {"error": "Body must be JSON object with 'command' string"}
+    cmd = cmd.strip()
+    if len(cmd) < 2:
+        return None, {"error": "Command too short"}
+    return cmd, None
+
+
 class HttpServerHandler(asyncio.Protocol):
     """HTTP handler: JSON API and SSE; optional HTML dashboard at GET /."""
 
@@ -128,22 +148,13 @@ class HttpServerHandler(asyncio.Protocol):
         if not self.send_command:
             self._send_json(501, {"error": "send_command not configured"})
             return
-        try:
-            payload = json.loads(body_bytes.decode("utf-8")) if body_bytes.strip() else {}
-        except (json.JSONDecodeError, UnicodeDecodeError) as e:
-            self._send_json(400, {"error": f"Invalid JSON: {e}"})
-            return
-        cmd = payload.get("command") if isinstance(payload, dict) else None
-        if not cmd or not isinstance(cmd, str):
-            self._send_json(400, {"error": "Body must be JSON object with 'command' string"})
-            return
-        cmd = cmd.strip()
-        if len(cmd) < 2:
-            self._send_json(400, {"error": "Command too short"})
+        command, error = parse_command_request(body_bytes)
+        if error is not None:
+            self._send_json(400, error)
             return
         try:
-            self.send_command(cmd)
-            self._send_json(200, {"ok": True, "command": cmd})
+            self.send_command(command)
+            self._send_json(200, {"ok": True, "command": command})
         except Exception as e:
             self.logger.warning("send_command error: %s", e)
             self._send_json(500, {"error": str(e)})
