@@ -699,6 +699,11 @@ async def run_discovery_servers(
         logger.warning("SSDP requires port 1900 (may need root): %s", e)
 
     http_port = config.get("ssdp_http_port", 8080)
+    if http_port == 0:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.bind(("0.0.0.0", 0))
+            http_port = s.getsockname()[1]
+        config["ssdp_http_port"] = http_port
     avr_host = (config.get("avr_host") or "").strip()
     desc_xml_str = None
     if avr_host:
