@@ -1,6 +1,4 @@
-"""
-Integration tests: proxy with VirtualAVR, Telnet client sends command and receives broadcast.
-"""
+"""Integration tests: proxy + VirtualAVR, Telnet clients send commands and receive broadcasts."""
 
 from __future__ import annotations
 

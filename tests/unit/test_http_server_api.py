@@ -1,5 +1,4 @@
-"""Unit/handler tests for HTTP JSON/SSE API (/api/status, /api/command, /api/refresh, /events)
-using run_http_server with mocked callbacks (no full proxy)."""
+"""Unit tests: HTTP JSON/SSE API handler with mocked callbacks (no full proxy)."""
 
 from __future__ import annotations
 

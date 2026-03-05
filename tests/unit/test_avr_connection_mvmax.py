@@ -1,3 +1,4 @@
+"""Unit tests: _parse_mvmax (avr_connection)."""
 from avr_connection import _parse_mvmax
 
 

@@ -1,39 +1,43 @@
-from __future__ import annotations
+"""
+Pytest configuration: register test class markers (unit, integration, e2e).
+
+Run by class:
+  pytest -m unit
+  pytest -m integration
+  pytest -m e2e
+"""
 
 import sys
 from pathlib import Path
 
+# Ensure project root is on sys.path so root-level modules (avr_connection,
+# denon_proxy, http_server, etc.) import regardless of pytest cwd.
+_root = Path(__file__).resolve().parent.parent
+if str(_root) not in sys.path:
+    sys.path.insert(0, str(_root))
+
 import pytest
 
 
-# Ensure the project root is on sys.path so tests can import modules like `avr_state`.
-ROOT = Path(__file__).resolve().parents[1]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
-
-
 @pytest.fixture(autouse=True)
-def reset_avr_discovery_cached_name():
-    """
-    Reset avr_discovery's cached friendly name before each test.
-
-    get_proxy_friendly_name caches into a module-level _cached_friendly_name;
-    without resetting it, tests that depend on different configs can interfere.
-    """
-    try:
-        import avr_discovery  # type: ignore
-    except ImportError:
-        yield
-        return
-
-    # Reset before the test
-    if hasattr(avr_discovery, "_cached_friendly_name"):
-        avr_discovery._cached_friendly_name = None  # type: ignore[attr-defined]
-
+def _reset_avr_discovery_friendly_name_cache():
+    """Reset cached friendly name before each test so get_proxy_friendly_name() is deterministic."""
+    import avr_discovery
+    avr_discovery._cached_friendly_name = None
     yield
-
-    # Also reset after the test in case something set it during the test
-    if hasattr(avr_discovery, "_cached_friendly_name"):
-        avr_discovery._cached_friendly_name = None  # type: ignore[attr-defined]
+    avr_discovery._cached_friendly_name = None
 
 
+def pytest_configure(config):
+    config.addinivalue_line(
+        "markers",
+        "unit: tests that exercise a single component with mocked or pure dependencies (tests/unit/).",
+    )
+    config.addinivalue_line(
+        "markers",
+        "integration: tests that exercise multiple real components together, not the full app (tests/integration/).",
+    )
+    config.addinivalue_line(
+        "markers",
+        "e2e: end-to-end tests that run the full application stack, production-like (tests/e2e/).",
+    )

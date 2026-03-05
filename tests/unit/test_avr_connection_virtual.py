@@ -1,6 +1,4 @@
-"""
-Unit / integration-style tests for VirtualAVRConnection (avr_connection).
-"""
+"""Unit tests: VirtualAVRConnection (avr_connection) with mock callback."""
 
 from __future__ import annotations
 
