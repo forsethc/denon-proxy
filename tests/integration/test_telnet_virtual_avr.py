@@ -151,6 +151,51 @@ async def test_telnet_mvup_updates_volume(integration_config, integration_logger
         await server.stop()
 
 
+@pytest.mark.asyncio
+async def test_telnet_two_clients_both_receive_broadcast(integration_config, integration_logger):
+    """
+    Connect two Telnet clients; one sends a command. Assert both clients receive
+    the broadcast and proxy state updates (core multi-client guarantee).
+    """
+    server = DenonProxyServer(integration_config, integration_logger, create_avr_connection)
+    await server.start()
+    port = server.config["proxy_port"]
+    try:
+        # Connect both clients and drain initial status dump
+        reader_a, writer_a = await asyncio.wait_for(
+            asyncio.open_connection("127.0.0.1", port),
+            timeout=2.0,
+        )
+        reader_b, writer_b = await asyncio.wait_for(
+            asyncio.open_connection("127.0.0.1", port),
+            timeout=2.0,
+        )
+        try:
+            await asyncio.wait_for(reader_a.read(4096), timeout=1.0)
+            await asyncio.wait_for(reader_b.read(4096), timeout=1.0)
+
+            # Client A sends volume command
+            writer_a.write(b"MV50\r")
+            await writer_a.drain()
+
+            # Both clients should receive the broadcast (MV50)
+            response_a = await asyncio.wait_for(reader_a.read(4096), timeout=2.0)
+            response_b = await asyncio.wait_for(reader_b.read(4096), timeout=2.0)
+            text_a = response_a.decode("utf-8", errors="replace")
+            text_b = response_b.decode("utf-8", errors="replace")
+
+            assert "MV50" in text_a, f"Sender (A) should receive broadcast, got: {text_a!r}"
+            assert "MV50" in text_b, f"Other client (B) should receive broadcast, got: {text_b!r}"
+            assert server.state.volume == "50"
+        finally:
+            writer_a.close()
+            writer_b.close()
+            await writer_a.wait_closed()
+            await writer_b.wait_closed()
+    finally:
+        await server.stop()
+
+
 async def _telnet_send_and_assert(
     server: DenonProxyServer,
     port: int,
