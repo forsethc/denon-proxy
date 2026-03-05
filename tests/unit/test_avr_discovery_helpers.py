@@ -1,7 +1,6 @@
 from avr_discovery import (
     get_advertise_ip,
     get_sources,
-    is_docker_internal_ip,
     get_proxy_friendly_name,
     deviceinfo_xml,
     appcommand_friendlyname_xml,
@@ -17,19 +16,6 @@ from avr_discovery import (
 def test_get_advertise_ip_prefers_config_value():
     cfg = {"ssdp_advertise_ip": "192.168.1.50"}
     assert get_advertise_ip(cfg) == "192.168.1.50"
-
-
-def test_is_docker_internal_ip():
-    assert is_docker_internal_ip("172.17.0.1") is True
-    assert is_docker_internal_ip("172.19.0.2") is True
-    assert is_docker_internal_ip("172.16.0.1") is True
-    assert is_docker_internal_ip("172.31.255.255") is True
-    assert is_docker_internal_ip("192.168.1.1") is False
-    assert is_docker_internal_ip("10.0.0.1") is False
-    assert is_docker_internal_ip("172.15.0.1") is False
-    assert is_docker_internal_ip("172.32.0.1") is False
-    assert is_docker_internal_ip(None) is False
-    assert is_docker_internal_ip("") is False
 
 
 def test_get_proxy_friendly_name_uses_config_then_physical_then_default():

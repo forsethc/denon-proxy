@@ -179,6 +179,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
     <div class="card">
       <h2>Connected Clients</h2>
       <div id="clients">Loading...</div>
+      <p id="docker-clients-note" class="muted" style="margin-top: 0.5rem; font-size: 0.8rem; display: none;">When running in Docker, client IPs may all show as the Docker gateway (e.g. 192.168.65.1). Each connection is still separate; only the displayed address is affected.</p>
     </div>
     <div class="card">
       <h2>Send Commands</h2>
@@ -291,7 +292,7 @@ DASHBOARD_HTML = """<!DOCTYPE html>
       const proxyIpNoteSuggest = document.getElementById('proxy-ip-note-suggest');
       if (proxyIpNote && proxyIpNoteMsg && proxyIpNoteSuggest) {
         if (d.discovery && d.discovery.proxy_ip_is_internal) {
-          proxyIpNoteMsg.innerHTML = "This looks like a Docker/internal IP. Set <code>ssdp_advertise_ip</code> in config to your host's LAN IP so clients (e.g. Home Assistant) can reach the proxy.";
+          proxyIpNoteMsg.innerHTML = "The advertised proxy IP (shown above) looks like a Docker/internal address. Set <code>ssdp_advertise_ip</code> in config to your host's LAN IP so clients (e.g. Home Assistant) can reach the proxy.";
           const hostname = window.location.hostname;
           const isLocal = hostname === '127.0.0.1' || hostname.toLowerCase() === 'localhost';
           proxyIpNoteSuggest.innerHTML = isLocal ? '' : "Suggested: <code>" + escapeHtml(hostname) + "</code> (this page's address).";
@@ -305,6 +306,8 @@ DASHBOARD_HTML = """<!DOCTYPE html>
       document.getElementById('clients').innerHTML = clients.length
         ? '<ul class="client-list">' + clients.map(c => '<li>' + escapeHtml(c) + '</li>').join('') + '</ul>'
         : '<span class="muted">No clients connected</span>';
+      const dockerClientsNote = document.getElementById('docker-clients-note');
+      if (dockerClientsNote) dockerClientsNote.style.display = (d.discovery && d.discovery.is_docker) ? 'block' : 'none';
       const src = state.input_source;
       let inputLabel = src || '—';
       if (src && avr.sources) {

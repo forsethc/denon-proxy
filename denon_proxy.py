@@ -39,7 +39,8 @@ from avr_connection import (
     VirtualAVRConnection,
     create_avr_connection,
 )
-from avr_discovery import get_advertise_ip, is_docker_internal_ip, get_proxy_friendly_name, run_discovery_servers
+from avr_discovery import get_advertise_ip, get_proxy_friendly_name, run_discovery_servers
+from runtime_utils import is_docker_internal_ip, is_running_in_docker
 from avr_state import AVRState, volume_to_level, _normalize_smart_select
 from telnet_utils import parse_telnet_lines, telnet_line_to_bytes
 
@@ -235,6 +236,7 @@ def build_json_state(
         "enabled": bool(config.get("enable_ssdp", False)),
         "proxy_ip": proxy_ip,
         "proxy_ip_is_internal": is_docker_internal_ip(proxy_ip),
+        "is_docker": is_running_in_docker(),
     }
     return {
         "friendly_name": get_proxy_friendly_name(config),

@@ -19,6 +19,7 @@ Denon AVR receivers only support **one active Telnet connection** at a time. If 
 - **`avr_state.py`** – Canonical Denon state model (`AVRState`) and volume presentation helpers; used by proxy, connection, and discovery
 - **`avr_connection.py`** – AVR I/O: physical Telnet connection or in-process virtual AVR (same interface for the proxy)
 - **`avr_discovery.py`** – AVR discovery: HTTP/SSDP (device discovery, Deviceinfo, AppCommand, MainZone XML). Used by the proxy when SSDP is enabled; can also be used standalone for testing
+- **`runtime_utils.py`** – Runtime/environment helpers: container detection (`is_running_in_docker`), internal IP classification (`is_docker_internal_ip`)
 
 ## Requirements
 
@@ -135,6 +136,8 @@ docker run -d --name denon-proxy \
   -v $(pwd)/config.yaml:/app/config.yaml:ro \
   denon-proxy
 ```
+
+**Note:** When running in Docker, all connected clients may appear as the Docker gateway address (e.g. `192.168.65.1` on Docker Desktop). This is expected—each connection is still separate and the proxy handles multiple clients correctly; only the displayed client IP list will show that single gateway address.
 
 ## Tests
 

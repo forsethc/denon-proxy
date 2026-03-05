@@ -34,6 +34,8 @@ import struct
 import xml.etree.ElementTree as ET
 from typing import Any, Callable, Optional
 
+from runtime_utils import is_docker_internal_ip
+
 try:
     import httpx
 except ImportError:
@@ -144,23 +146,6 @@ def get_sources(config: dict) -> list[tuple[str, str]]:
 # -----------------------------------------------------------------------------
 # Helpers
 # -----------------------------------------------------------------------------
-
-def is_docker_internal_ip(ip: Optional[str]) -> bool:
-    """True if ip is in the 172.16.0.0/12 range (typical Docker bridge)."""
-    if not ip or not isinstance(ip, str):
-        return False
-    parts = ip.strip().split(".")
-    if len(parts) != 4:
-        return False
-    try:
-        a, b, c, d = (int(p) for p in parts)
-        if 0 <= a <= 255 and 0 <= b <= 255 and 0 <= c <= 255 and 0 <= d <= 255:
-            # 172.16.0.0/12 = 172.16.x.x - 172.31.x.x
-            return a == 172 and 16 <= b <= 31
-    except ValueError:
-        pass
-    return False
-
 
 def get_advertise_ip(config: dict) -> Optional[str]:
     """Get the IP to advertise in SSDP LOCATION."""
