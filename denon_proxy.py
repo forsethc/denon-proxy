@@ -619,6 +619,9 @@ class DenonProxyServer:
             port,
             reuse_address=True,
         )
+        # port=0 means "let the OS pick a free port"; store the chosen port so callers (e.g. tests) can connect
+        if port == 0 and self._server.sockets:
+            self.config["proxy_port"] = self._server.sockets[0].getsockname()[1]
         connect_host = get_advertise_ip(self.config) or (host if host and host != "0.0.0.0" else "localhost")
         avr_host = (self.config.get("avr_host") or "").strip()
         if avr_host:

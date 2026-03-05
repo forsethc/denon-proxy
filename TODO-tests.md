@@ -14,8 +14,6 @@ Record of approach for adding unit and integration tests. Treat as a task list. 
 
 ## 2. Command forwarding and broadcast to clients
 
-- [ ] Use **VirtualAVRConnection**, start proxy, open Telnet clients, test PWON and broadcast.
-  **Prompt:** Add an async integration test in this repo: start the Denon proxy with no avr_host (VirtualAVR), then open one or two Telnet clients to the proxy port with asyncio.open_connection. Send PWON from a client and assert that the client(s) receive the expected response lines and that proxy state (AVRState) shows power on. Use pytest-asyncio and short timeouts (e.g. asyncio.wait_for) when reading.
 - [ ] **Volume commands** – MVUP/MVDOWN, assert state and broadcast to all clients.
   **Prompt:** Add an integration test: proxy with VirtualAVR, connect two Telnet clients. One client sends MVUP (or MVDOWN). Assert state.volume (or level) updates and that both clients receive the broadcast response. Use asyncio.wait_for with a short timeout when reading from client streams.
 - [ ] Optional: second client sends command; first client sees broadcast.
