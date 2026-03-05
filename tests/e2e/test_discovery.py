@@ -4,64 +4,17 @@ E2E tests: full application stack (DenonProxyServer + discovery).
 Spins up DenonProxyServer (VirtualAVR) + run_discovery_servers, then hits discovery
 endpoints with real TCP HTTP. Matches how the app runs (main_async). M-SEARCH tests
 send to 239.255.255.250:1900 and are skipped when port 1900 is unavailable.
+
+Fixtures discovery_config, discovery_logger, discovery_stack are in conftest.py.
 """
 
 from __future__ import annotations
 
 import asyncio
-import logging
 
 import pytest
 
-from avr_connection import create_avr_connection
-from avr_discovery import run_discovery_servers, SSDP_MCAST_GRP, SSDP_MCAST_PORT
-from denon_proxy import DenonProxyServer, load_config_from_dict
-
-
-@pytest.fixture
-def discovery_config():
-    """Config for full-stack discovery: proxy (VirtualAVR) + SSDP + discovery HTTP."""
-    return load_config_from_dict({
-        "avr_host": "",
-        "proxy_host": "127.0.0.1",
-        "proxy_port": 0,
-        "enable_http": False,
-        "enable_ssdp": True,
-        "ssdp_advertise_ip": "127.0.0.1",
-        "ssdp_http_port": 0,
-        "ssdp_friendly_name": "Test Discovery Proxy",
-    })
-
-
-@pytest.fixture
-def discovery_logger():
-    return logging.getLogger("test.discovery")
-
-
-@pytest.fixture
-async def discovery_stack(discovery_config, discovery_logger):
-    """
-    Start full stack: DenonProxyServer (VirtualAVR) + run_discovery_servers.
-    Yields (proxy, ssdp_transport, http_servers, config). Teardown closes all.
-    """
-    proxy = DenonProxyServer(discovery_config, discovery_logger, create_avr_connection)
-    await proxy.start()
-    ssdp_transport, http_servers = None, None
-    try:
-        ssdp_transport, http_servers = await run_discovery_servers(
-            discovery_config, discovery_logger, proxy.state
-        )
-    except Exception:
-        pass
-    yield proxy, ssdp_transport, http_servers, discovery_config
-    if ssdp_transport:
-        ssdp_transport.close()
-    if http_servers:
-        for srv in http_servers:
-            srv.close()
-        for srv in http_servers:
-            await asyncio.wait_for(srv.wait_closed(), timeout=2.0)
-    await proxy.stop()
+from avr_discovery import SSDP_MCAST_GRP, SSDP_MCAST_PORT
 
 
 async def _http_get(host: str, port: int, path: str) -> tuple[int, bytes]:
