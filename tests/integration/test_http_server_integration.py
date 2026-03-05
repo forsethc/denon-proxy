@@ -1,0 +1,141 @@
+"""
+Integration tests: DenonProxyServer with VirtualAVR and HTTP JSON API.
+
+These tests start the full proxy stack (DenonProxyServer + VirtualAVR + HTTP),
+exercise the JSON API, and assert that HTTP commands update the real proxy state.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import json
+import logging
+
+import pytest
+
+from avr_connection import create_avr_connection
+from denon_proxy import DenonProxyServer, load_config_from_dict
+
+
+@pytest.fixture
+def http_integration_config():
+    """Minimal config for full-stack HTTP integration: virtual AVR, port 0, HTTP enabled, no SSDP."""
+    return load_config_from_dict(
+        {
+            "avr_host": "",
+            "proxy_host": "127.0.0.1",
+            "proxy_port": 0,
+            "enable_http": True,
+            "http_port": 0,
+            "enable_ssdp": False,
+        }
+    )
+
+
+@pytest.fixture
+def http_integration_logger():
+    return logging.getLogger("test.http.integration")
+
+
+async def _open_http_connection(port: int) -> tuple[asyncio.StreamReader, asyncio.StreamWriter]:
+    return await asyncio.wait_for(
+        asyncio.open_connection("127.0.0.1", port),
+        timeout=2.0,
+    )
+
+
+def _parse_http_response(raw: bytes) -> tuple[bytes, bytes]:
+    """Split raw HTTP response into (status_line, body_bytes)."""
+    headers, _, body = raw.partition(b"\r\n\r\n")
+    status_line = headers.split(b"\r\n", 1)[0]
+    return status_line, body
+
+
+@pytest.mark.asyncio
+async def test_http_status_and_command_full_stack(http_integration_config, http_integration_logger):
+    """
+    Start DenonProxyServer with VirtualAVR and HTTP enabled, hit /api/status and /api/command,
+    and assert that HTTP commands update the real proxy state.
+    """
+    server = DenonProxyServer(http_integration_config, http_integration_logger, create_avr_connection)
+    await server.start()
+    try:
+        http_port = server.config["http_port"]
+        assert http_port != 0
+
+        # Initial status reflects default AVRState and virtual AVR details
+        reader, writer = await _open_http_connection(http_port)
+        try:
+            request = (
+                "GET /api/status HTTP/1.1\r\n"
+                "Host: 127.0.0.1\r\n"
+                "Connection: close\r\n"
+                "\r\n"
+            ).encode("ascii")
+            writer.write(request)
+            await writer.drain()
+
+            response = await asyncio.wait_for(reader.read(65536), timeout=2.0)
+            status_line, body = _parse_http_response(response)
+            assert b"200" in status_line
+
+            data = json.loads(body.decode("utf-8"))
+            assert data["avr"]["type"] == "virtual"
+            assert data["avr"]["connected"] is True
+            # Default state comes from AVRState defaults + VirtualAVR
+            assert data["state"]["power"] in ("ON", "STANDBY")
+        finally:
+            writer.close()
+            await writer.wait_closed()
+
+        # Send a power command via HTTP and ensure it propagates through VirtualAVR to proxy state
+        reader2, writer2 = await _open_http_connection(http_port)
+        try:
+            body2 = b'{"command":"PWSTANDBY"}'
+            request2 = (
+                "POST /api/command HTTP/1.1\r\n"
+                "Host: 127.0.0.1\r\n"
+                "Content-Type: application/json\r\n"
+                f"Content-Length: {len(body2)}\r\n"
+                "Connection: close\r\n"
+                "\r\n"
+            ).encode("ascii") + body2
+            writer2.write(request2)
+            await writer2.drain()
+
+            response2 = await asyncio.wait_for(reader2.read(65536), timeout=2.0)
+            status_line2, body_bytes2 = _parse_http_response(response2)
+            assert b"200" in status_line2
+            result = json.loads(body_bytes2.decode("utf-8"))
+            assert result == {"ok": True, "command": "PWSTANDBY"}
+        finally:
+            writer2.close()
+            await writer2.wait_closed()
+
+        # Give the proxy a moment to process the VirtualAVR response
+        await asyncio.sleep(0.1)
+
+        # Status should now reflect the new power state, and proxy.state should be updated
+        reader3, writer3 = await _open_http_connection(http_port)
+        try:
+            request3 = (
+                "GET /api/status HTTP/1.1\r\n"
+                "Host: 127.0.0.1\r\n"
+                "Connection: close\r\n"
+                "\r\n"
+            ).encode("ascii")
+            writer3.write(request3)
+            await writer3.drain()
+
+            response3 = await asyncio.wait_for(reader3.read(65536), timeout=2.0)
+            status_line3, body_bytes3 = _parse_http_response(response3)
+            assert b"200" in status_line3
+            data3 = json.loads(body_bytes3.decode("utf-8"))
+            assert data3["state"]["power"] == "STANDBY"
+            assert server.state.power == "STANDBY"
+        finally:
+            writer3.close()
+            await writer3.wait_closed()
+    finally:
+        await server.stop()
+
