@@ -20,7 +20,7 @@ def integration_config():
         "avr_host": "",
         "proxy_host": "127.0.0.1",
         "proxy_port": 0,
-        "enable_web_ui": False,
+        "enable_http": False,
         "enable_ssdp": False,
     })
 

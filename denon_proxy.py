@@ -44,7 +44,7 @@ from runtime_utils import is_docker_internal_ip, is_running_in_docker
 from avr_state import AVRState, volume_to_level, _normalize_smart_select
 from telnet_utils import parse_telnet_lines, telnet_line_to_bytes
 
-from web_ui import run_web_ui
+from http_server import run_http_server
 
 # -----------------------------------------------------------------------------
 # Logging setup
@@ -85,8 +85,8 @@ _DEFAULT_CONFIG = {
     "optimistic_broadcast_delay": 0.1,
     "volume_step": 0.5,  # step for MVUP/MVDOWN when optimistic_state true / virtual AVR (0.5 = half-step; some AVRs use 1.0)
     "volume_query_delay": 0.15,  # seconds to wait after MVUP/MVDOWN before sending MV? (give AVR time to apply)
-    "enable_web_ui": False,
-    "web_ui_port": 8081,
+    "enable_http": True,
+    "http_port": 8081,
     "log_command_groups_info": [],  # e.g. ["power", "volume"] - these groups logged at INFO
 }
 
@@ -145,6 +145,19 @@ def _apply_env_overrides(config: dict) -> None:
     denonavr_log_level = os.getenv("DENONAVR_LOG_LEVEL")
     if denonavr_log_level is not None:
         config["denonavr_log_level"] = denonavr_log_level
+
+
+def _load_dashboard_html() -> Optional[str]:
+    """
+    Load the Web UI HTML dashboard from web_ui.html next to this file.
+
+    Returns the HTML string, or None if the file is missing or unreadable.
+    """
+    html_path = Path(__file__).with_name("web_ui.html")
+    try:
+        return html_path.read_text(encoding="utf-8")
+    except OSError:
+        return None
 
 
 def load_config_from_dict(raw: dict) -> dict:
@@ -649,22 +662,29 @@ class DenonProxyServer:
                     await self.avr.request_state()
             asyncio.create_task(_do())
 
-        result = await run_web_ui(
-            self.config,
-            self.logger,
-            _get_json_state,
-            send_command=_send_command_cb,
-            request_state=_request_state_cb,
-        )
-        if result:
-            self._json_api_server, self._notify_web_state = result
-            self.config["_notify_web_state"] = self._notify_web_state
-            api_host = get_advertise_ip(self.config) or "localhost"
-            api_port = int(self.config.get("web_ui_port", 8081))
-            self.logger.info(
-                "Web UI at http://%s:%d (dashboard, JSON API, commands)",
-                api_host, api_port,
+        enable_http = bool(self.config.get("enable_http", True))
+
+        if enable_http:
+            dashboard_html = _load_dashboard_html()
+            result = await run_http_server(
+                self.config,
+                self.logger,
+                _get_json_state,
+                send_command=_send_command_cb,
+                request_state=_request_state_cb,
+                dashboard_html=dashboard_html,
             )
+            if result:
+                self._json_api_server, self._notify_web_state = result
+                self.config["_notify_web_state"] = self._notify_web_state
+                api_host = get_advertise_ip(self.config) or "localhost"
+                api_port = int(self.config.get("http_port", 8081))
+                if dashboard_html:
+                    self.logger.info(
+                        "Web UI at http://%s:%d (dashboard, JSON API, commands)",
+                        api_host,
+                        api_port,
+                    )
 
     async def stop(self) -> None:
         """Stop the proxy server."""

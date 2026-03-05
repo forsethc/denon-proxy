@@ -1,4 +1,4 @@
-from web_ui import parse_http_request
+from http_server import parse_http_request
 
 
 def test_parse_http_request_incomplete_returns_none():

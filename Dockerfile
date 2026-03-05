@@ -11,7 +11,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY denon_proxy.py avr_connection.py avr_state.py avr_discovery.py runtime_utils.py web_ui.py telnet_utils.py .
+COPY denon_proxy.py http_server.py avr_connection.py avr_state.py avr_discovery.py runtime_utils.py telnet_utils.py web_ui.html .
 COPY config.sample.yaml config.yaml
 
 EXPOSE 23 8080 8081 80 60006 1900/udp

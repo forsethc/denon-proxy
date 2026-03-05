@@ -16,6 +16,8 @@ Denon AVR receivers only support **one active Telnet connection** at a time. If 
 ## Project Structure
 
 - **`denon_proxy.py`** – Main proxy: Telnet multiplexer, client handling, AVR connection
+- **`http_server.py`** – Optional HTTP server: JSON API + SSE (status, commands) and Web UI wiring; only used when the HTTP interface is enabled
+- **`web_ui.html`** – HTML dashboard for the browser UI, served only when the HTTP interface is enabled
 - **`avr_state.py`** – Canonical Denon state model (`AVRState`) and volume presentation helpers; used by proxy, connection, and discovery
 - **`avr_connection.py`** – AVR I/O: physical Telnet connection or in-process virtual AVR (same interface for the proxy)
 - **`avr_discovery.py`** – AVR discovery: HTTP/SSDP (device discovery, Deviceinfo, AppCommand, MainZone XML). Used by the proxy when SSDP is enabled; can also be used standalone for testing
@@ -69,6 +71,8 @@ avr_host: "192.168.1.100"   # Your Denon AVR's IP
 | `ssdp_http_port` | 8080 | Port for device description XML                |
 | `ssdp_advertise_ip` | "" | IP to advertise (empty = auto-detect)      |
 | `sources` | (from AVR or default) | Custom input sources: dict of `func_code: "Display Name"`. Omit to use actual device sources (including custom renames) when a physical AVR is connected |
+| `enable_http` | true | Enable the HTTP interface (JSON API + HTML dashboard). Set to `false` to run the Telnet proxy only (no HTTP server). |
+| `http_port` | 8081 | Port for the HTTP server (JSON API and optional Web UI dashboard) |
 
 ### Troubleshooting "Unknown Error" or Timeout
 
