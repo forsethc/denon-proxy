@@ -71,24 +71,30 @@ avr_host: "192.168.1.100"   # Your Denon AVR's IP
 | `ssdp_http_port` | 8080 | Port for device description XML                |
 | `ssdp_advertise_ip` | "" | IP to advertise (empty = auto-detect)      |
 | `sources` | (from AVR or default) | Custom input sources: dict of `func_code: "Display Name"`. Omit to use actual device sources (including custom renames) when a physical AVR is connected |
+| `optimistic_state` | true | Apply changes to internal state immediately when clients send commands; revert only if sending to the AVR fails. When no AVR is configured, keeps optimistic state so you can test the proxy without hardware. |
+| `optimistic_broadcast_delay` | 0.1 | Seconds to wait before broadcasting optimistic state to clients; emulates AVR confirmation and avoids flicker when a send fails. |
+| `volume_step` | 0.5 | Volume increment used for `MVUP`/`MVDOWN` when using optimistic updates or the virtual AVR. `0.5` = half-step; some AVRs use `1.0`. |
+| `volume_query_delay` | 0.15 | Delay after `MVUP`/`MVDOWN` before sending `MV?` so the AVR has time to apply the change before the volume is refreshed. |
 | `enable_http` | true | Enable the HTTP interface (JSON API + HTML dashboard). Set to `false` to run the Telnet proxy only (no HTTP server). |
 | `http_port` | 8081 | Port for the HTTP server (JSON API and optional Web UI dashboard) |
 
-### Troubleshooting "Unknown Error" or Timeout
-
-If adding the device in Home Assistant fails with "Unknown error" or "Timeout":
-
-1. **Check Home Assistant logs** – Settings → System → Logs. The actual exception (e.g. `AvrIncompleteResponseError`) will appear there and pinpoint the issue.
-2. **Ensure port 60006 is available** – denonavr fetches device info from port 60006 for AVR-X models. The proxy binds 80, 8080, and 60006. If 60006 is in use, restart the proxy.
-3. **Use the proxy IP** – When adding manually, enter the **proxy's** IP (the machine running denon-proxy), not the physical AVR's IP.
-4. **Run proxy with DEBUG** – `log_level: DEBUG` in config will log which AppCommand requests denonavr sends.
-
 ### Environment Variables
 
-You can override config with environment variables:
+You can override `config.yaml` values with environment variables:
+
+| Variable | Overrides | Example |
+|----------|-----------|---------|
+| `AVR_HOST` | `avr_host` | `AVR_HOST=192.168.1.100` |
+| `AVR_PORT` | `avr_port` | `AVR_PORT=23` |
+| `PROXY_HOST` | `proxy_host` | `PROXY_HOST=0.0.0.0` |
+| `PROXY_PORT` | `proxy_port` | `PROXY_PORT=23` |
+| `LOG_LEVEL` | `log_level` | `LOG_LEVEL=DEBUG` |
+| `DENONAVR_LOG_LEVEL` | `denonavr_log_level` | `DENONAVR_LOG_LEVEL=WARNING` |
+
+Example:
 
 ```bash
-AVR_HOST=192.168.1.100 python denon_proxy.py
+AVR_HOST=192.168.1.100 PROXY_PORT=2323 python denon_proxy.py
 ```
 
 ## Running
@@ -104,6 +110,38 @@ Or with a custom config file:
 ```bash
 python denon_proxy.py --config config.yaml
 ```
+
+### JSON API & Web UI
+
+When `enable_http` is `true`, the proxy starts an HTTP server on `http_port` (default `8081`) that exposes a small JSON API, an SSE stream, and an optional HTML dashboard.
+
+- **Base URL**: `http://<proxy_ip>:<http_port>`
+
+- **GET `/`** – **HTML dashboard**
+  - Served only when `web_ui.html` is present and `enable_http` is `true`.
+  - Provides a browser UI on top of the JSON API and SSE stream.
+
+- **GET `/api/status`** – **Current status JSON**
+  - Returns a JSON object with:
+    - `friendly_name`: advertised name of the proxy
+    - `avr`: AVR details (`type`, `host`, `port`, `connected`, `volume_max`, `sources`, and optional metadata)
+    - `clients`: list of connected client IPs
+    - `client_count`: number of connected clients
+    - `state`: AVR state (power, volume, input_source, mute, sound_mode, smart_select, etc.)
+    - `discovery`: SSDP/discovery info (enabled flag, proxy IP, `http_port`, Docker hints)
+
+- **POST `/api/command`** – **Send a Telnet command**
+  - Body: JSON `{"command": "PWON"}` (any valid Denon Telnet command, without CRLF)
+  - Response: `{"ok": true, "command": "PWON"}` on success, or `{"error": "..."}`
+
+- **POST `/api/refresh`** – **Request a state refresh**
+  - Triggers a fresh state request from the AVR (if supported by the current backend).
+  - Response: `{"ok": true}` on success, or `{"error": "..."}`
+
+- **GET `/events`** – **Server-Sent Events stream**
+  - Long-lived SSE connection that pushes the same JSON payload as `/api/status` whenever state changes.
+  - Each event is sent as: `data: <json>\n\n`
+
 
 ### Running on Port 23
 
@@ -290,6 +328,15 @@ The advertised name is taken from `ssdp_friendly_name` when set; otherwise the p
 - Verify the HTTP server: `curl http://<proxy_ip>:8080/goform/Deviceinfo.xml` — should return XML
 - Ports 80 and 60006: denonavr needs these for AVR-X 2016. The proxy binds 80, 8080, and 60006 when possible. Run with `sudo` if 80 or 60006 fail to bind
 - Ensure `enable_ssdp` is true (the HTTP server only runs when SSDP is enabled; it defaults to true)
+
+### "Unknown Error" or Timeout in Home Assistant
+
+If adding the device in Home Assistant fails with "Unknown error" or "Timeout":
+
+1. **Check Home Assistant logs** – Settings → System → Logs. The actual exception (e.g. `AvrIncompleteResponseError`) will appear there and pinpoint the issue.
+2. **Ensure port 60006 is available** – denonavr fetches device info from port 60006 for AVR-X models. The proxy binds 80, 8080, and 60006. If 60006 is in use, restart the proxy.
+3. **Use the proxy IP** – When adding manually, enter the **proxy's** IP (the machine running denon-proxy), not the physical AVR's IP.
+4. **Run proxy with DEBUG** – `log_level: DEBUG` in config will log which AppCommand requests denonavr sends.
 
 ### SSDP discovery not working
 
