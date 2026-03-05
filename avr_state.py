@@ -8,7 +8,6 @@ Volume helpers are used for presentation (JSON, XML).
 
 from __future__ import annotations
 
-from typing import Optional
 
 # Denon 0–98 scale: 80 = 0 dB reference; (vol - 80) * 0.5 ≈ dB.
 VOLUME_REFERENCE_LEVEL = 80.0
@@ -16,7 +15,7 @@ VOLUME_REFERENCE_LEVEL = 80.0
 VOLUME_DEFAULT_LEVEL = 50
 
 
-def _normalize_smart_select(value: Optional[str]) -> Optional[str]:
+def _normalize_smart_select(value: str | None) -> str | None:
     """Normalize to SMART{n} (e.g. SMART0, SMART1). Accepts numeral, smart0, or SMART0."""
     if not value or not str(value).strip():
         return None
@@ -44,12 +43,12 @@ class AVRState:
 
     def __init__(self) -> None:
         # Defaults for demo mode / before AVR responds
-        self.power: Optional[str] = "ON"       # ON, STANDBY, OFF
-        self.volume: Optional[str] = str(VOLUME_DEFAULT_LEVEL)  # 0 to AVR max; overwritten by AVR
-        self.input_source: Optional[str] = "CD"  # e.g. "CD", "TUNER", "DVD"
-        self.mute: Optional[bool] = False      # True = muted
-        self.sound_mode: Optional[str] = "STEREO"  # e.g. STEREO, MULTI CH IN, DOLBY DIGITAL
-        self.smart_select: Optional[str] = None   # Smart Select slot, always "SMART{n}" (e.g. SMART0, SMART1)
+        self.power: str | None = "ON"       # ON, STANDBY, OFF
+        self.volume: str | None = str(VOLUME_DEFAULT_LEVEL)  # 0 to AVR max; overwritten by AVR
+        self.input_source: str | None = "CD"  # e.g. "CD", "TUNER", "DVD"
+        self.mute: bool | None = False      # True = muted
+        self.sound_mode: str | None = "STEREO"  # e.g. STEREO, MULTI CH IN, DOLBY DIGITAL
+        self.smart_select: str | None = None   # Smart Select slot, always "SMART{n}" (e.g. SMART0, SMART1)
 
     def update_from_message(self, message: str) -> None:
         """Update state from a Denon telnet response (PW, MV, SI, MU, ZM, MS, MSSMART)."""
@@ -241,7 +240,7 @@ def _format_volume(level: float, max_volume: float = 98.0) -> str:
     return str(int(round(level * 10)))
 
 
-def volume_to_level(vol_str: Optional[str], max_volume: float = 98.0) -> float:
+def volume_to_level(vol_str: str | None, max_volume: float = 98.0) -> float:
     """Extract numeric level from Denon volume. Handles half steps (e.g. 535=53.5). Clamps to max_volume."""
     if not vol_str or not str(vol_str).strip():
         return VOLUME_DEFAULT_LEVEL
@@ -256,7 +255,7 @@ def volume_to_level(vol_str: Optional[str], max_volume: float = 98.0) -> float:
     return VOLUME_DEFAULT_LEVEL
 
 
-def volume_to_db(vol_str: Optional[str]) -> str:
+def volume_to_db(vol_str: str | None) -> str:
     """Convert Denon telnet volume (0-98, half steps, MAX, etc.) to dB for status XML."""
     vol = volume_to_level(vol_str)
     db = (vol - VOLUME_REFERENCE_LEVEL) * 0.5

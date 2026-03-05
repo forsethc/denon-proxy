@@ -1,4 +1,6 @@
 """Unit tests: avr_discovery helpers (get_sources, deviceinfo_xml, description_xml, etc.)."""
+import logging
+
 from avr_discovery import (
     get_advertise_ip,
     get_sources,
@@ -66,7 +68,7 @@ def test_appcommand_response_xml_get_friendly_name():
     cfg = {"ssdp_friendly_name": "Test AVR"}
     state = _FakeState()
     body = b'<tx><cmd id="1">GetFriendlyName</cmd></tx>'
-    out = appcommand_response_xml(cfg, state, body)
+    out = appcommand_response_xml(cfg, state, body, logging.getLogger("tests.avr_discovery_helpers"))
     text = out.decode("utf-8")
     assert "<rx>" in text
     assert 'cmd_text="GetFriendlyName"' in text
@@ -79,14 +81,14 @@ def test_appcommand_response_xml_zone_power_and_volume():
     state.power = "STANDBY"
     state.volume = "45"
     body = b'<tx><cmd id="1">GetAllZonePowerStatus</cmd></tx><tx><cmd id="2">GetAllZoneVolume</cmd></tx>'
-    out = appcommand_response_xml(cfg, state, body)
+    out = appcommand_response_xml(cfg, state, body, logging.getLogger("tests.avr_discovery_helpers"))
     text = out.decode("utf-8")
     assert "<zone1>STANDBY</zone1>" in text
     assert "<volume>" in text
 
 
 def test_appcommand_response_xml_empty_body_defaults_to_get_friendly_name():
-    out = appcommand_response_xml({}, None, b"")
+    out = appcommand_response_xml({}, None, b"", logging.getLogger("tests.avr_discovery_helpers"))
     text = out.decode("utf-8")
     assert "GetFriendlyName" in text
     assert "<friendlyname>" in text

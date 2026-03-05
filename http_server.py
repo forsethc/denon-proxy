@@ -16,10 +16,10 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from typing import Any, Callable, Optional, Set
+from typing import Any, Callable, Set
 
 
-def parse_http_request(buffer: bytes) -> Optional[tuple[str, str, bytes, bytes]]:
+def parse_http_request(buffer: bytes) -> tuple[str, str, bytes, bytes] | None:
     """
     Parse an HTTP/1.1 request from a byte buffer.
 
@@ -39,7 +39,7 @@ def parse_http_request(buffer: bytes) -> Optional[tuple[str, str, bytes, bytes]]
     return method, path, header_bytes, body_bytes
 
 
-def parse_command_request(body_bytes: bytes) -> tuple[Optional[str], Optional[dict]]:
+def parse_command_request(body_bytes: bytes) -> tuple[str | None, dict | None]:
     """
     Parse and validate POST /api/command body.
 
@@ -67,9 +67,9 @@ class HttpServerHandler(asyncio.Protocol):
         get_state: Callable[[], dict[str, Any]],
         logger: logging.Logger,
         sse_subscribers: Set[Any],
-        send_command: Optional[Callable[[str], None]] = None,
-        request_state: Optional[Callable[[], None]] = None,
-        dashboard_html: Optional[str] = None,
+        send_command: Callable[[str], None] | None = None,
+        request_state: Callable[[], None] | None = None,
+        dashboard_html: str | None = None,
     ) -> None:
         self.get_state = get_state
         self.send_command = send_command
@@ -77,7 +77,7 @@ class HttpServerHandler(asyncio.Protocol):
         self.sse_subscribers = sse_subscribers
         self.on_sse_push: Callable[[], None] = lambda: None
         self.logger = logger
-        self.transport: Optional[asyncio.BaseTransport] = None
+        self.transport: asyncio.BaseTransport | None = None
         self._buffer = b""
         self._sse_mode = False
         self._dashboard_html = dashboard_html
@@ -85,7 +85,7 @@ class HttpServerHandler(asyncio.Protocol):
     def connection_made(self, transport: asyncio.BaseTransport) -> None:
         self.transport = transport
 
-    def connection_lost(self, exc: Optional[BaseException]) -> None:
+    def connection_lost(self, exc: BaseException | None) -> None:
         if self._sse_mode and self.transport:
             self.sse_subscribers.discard(self.transport)
         self.transport = None
@@ -213,11 +213,11 @@ async def run_http_server(
     config: dict,
     logger: logging.Logger,
     get_state: Callable[[], dict[str, Any]],
-    send_command: Optional[Callable[[str], None]] = None,
-    request_state: Optional[Callable[[], None]] = None,
+    send_command: Callable[[str], None] | None = None,
+    request_state: Callable[[], None] | None = None,
     *,
-    dashboard_html: Optional[str] = None,
-) -> Optional[tuple[asyncio.Server, Callable[[], None]]]:
+    dashboard_html: str | None = None,
+) -> tuple[asyncio.Server, Callable[[], None]] | None:
     """
     Start the HTTP server (JSON API, SSE, and optional Web UI).
 

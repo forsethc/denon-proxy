@@ -8,7 +8,6 @@ when to show Docker-related UI messages and when the advertised IP is internal.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Optional
 
 
 def is_running_in_docker() -> bool:
@@ -20,7 +19,7 @@ def is_running_in_docker() -> bool:
     return Path("/.dockerenv").exists() or Path("/run/.containerenv").exists()
 
 
-def is_docker_internal_ip(ip: Optional[str]) -> bool:
+def is_docker_internal_ip(ip: str | None) -> bool:
     """
     True if ip is in a Docker/internal bridge range:
     - 172.16.0.0/12 (typical Docker bridge on Linux)

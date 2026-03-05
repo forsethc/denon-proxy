@@ -11,7 +11,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
-from typing import Any, Callable, Optional
+from typing import Any, Callable
 
 from avr_state import AVRState
 from telnet_utils import parse_telnet_lines, telnet_line_to_bytes
@@ -20,7 +20,7 @@ from telnet_utils import parse_telnet_lines, telnet_line_to_bytes
 DEFAULT_MAX_VOLUME = 98.0
 
 
-def _parse_mvmax(param: str) -> Optional[float]:
+def _parse_mvmax(param: str) -> float | None:
     """Parse MVMAX nn from param (e.g. 'MAX 60' or 'MAX60'). Returns None if no number."""
     if not param.upper().startswith("MAX"):
         return None
@@ -51,7 +51,7 @@ class AVRConnection:
         on_disconnect: Callable[[], None],
         state: AVRState,
         logger: logging.Logger,
-        on_send_while_disconnected: Optional[Callable[[], None]] = None,
+        on_send_while_disconnected: Callable[[], None] | None = None,
     ) -> None:
         self.host = host
         self.port = port
@@ -60,8 +60,8 @@ class AVRConnection:
         self.on_send_while_disconnected = on_send_while_disconnected
         self.state = state
         self.logger = logger
-        self.reader: Optional[asyncio.StreamReader] = None
-        self.writer: Optional[asyncio.StreamWriter] = None
+        self.reader: asyncio.StreamReader | None = None
+        self.writer: asyncio.StreamWriter | None = None
         self._buffer = b""
         self.volume_max: float = DEFAULT_MAX_VOLUME  # from AVR MVMAX when received
 
@@ -249,7 +249,7 @@ def create_avr_connection(
     on_response: Callable[[str], None],
     on_disconnect: Callable[[], None],
     logger: logging.Logger,
-    on_send_while_disconnected: Optional[Callable[[], None]] = None,
+    on_send_while_disconnected: Callable[[], None] | None = None,
 ) -> AVRConnection | VirtualAVRConnection:
     """
     Create an AVR connection based on config. Returns AVRConnection for a

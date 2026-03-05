@@ -32,7 +32,7 @@ import re
 import socket
 import struct
 import xml.etree.ElementTree as ET
-from typing import Any, Callable, Optional
+from typing import Any, Callable
 
 from runtime_utils import is_docker_internal_ip
 
@@ -147,7 +147,7 @@ def get_sources(config: dict) -> list[tuple[str, str]]:
 # Helpers
 # -----------------------------------------------------------------------------
 
-def get_advertise_ip(config: dict) -> Optional[str]:
+def get_advertise_ip(config: dict) -> str | None:
     """Get the IP to advertise in SSDP LOCATION."""
     ip = config.get("ssdp_advertise_ip", "").strip()
     if ip:
@@ -260,7 +260,7 @@ def appcommand_response_xml(
     config: dict,
     state: Any,
     body_bytes: bytes,
-    logger: Optional[logging.Logger] = None,
+    logger: logging.Logger,
 ) -> bytes:
     """
     Build AppCommand.xml response from request body.
@@ -275,8 +275,7 @@ def appcommand_response_xml(
     sound_mode = (getattr(state, "sound_mode", None) if state else None) or "STEREO"
 
     cmds_requested = parse_appcommand_request(body_bytes)
-    if logger and logger.isEnabledFor(logging.DEBUG):
-        logger.debug("AppCommand requested: %s", [cmd_text for _, cmd_text in cmds_requested])
+    logger.debug("AppCommand requested: %s", [cmd_text for _, cmd_text in cmds_requested])
     if not cmds_requested:
         cmds_requested = [("1", "GetFriendlyName")]
 
@@ -361,7 +360,7 @@ def appcommand_response_xml(
     return xml_str.encode("utf-8")
 
 
-def mainzone_xml(state: Any, config: Optional[dict] = None) -> bytes:
+def mainzone_xml(state: Any, config: dict | None = None) -> bytes:
     """Build MainZone XML for denonavr status polling."""
     config = config or {}
     friendly_name = get_proxy_friendly_name(config)
@@ -411,7 +410,7 @@ def _escape_xml_text(s: str) -> str:
     )
 
 
-async def _fetch_avr_description(avr_host: str, logger: logging.Logger) -> Optional[str]:
+async def _fetch_avr_description(avr_host: str, logger: logging.Logger) -> str | None:
     """Fetch description.xml from the physical AVR. Returns None on failure."""
     if not httpx:
         return None
@@ -470,7 +469,7 @@ def description_xml(config: dict, advertise_ip: str) -> str:
 </root>"""
 
 
-def parse_ssdp_search_target(msg: str) -> Optional[str]:
+def parse_ssdp_search_target(msg: str) -> str | None:
     """Extract ST (Search Target) from SSDP M-SEARCH request."""
     for line in msg.split("\r\n"):
         if line.upper().startswith("ST:"):
@@ -513,7 +512,7 @@ class SSDPProtocol(asyncio.DatagramProtocol):
     def __init__(self, config: dict, logger: logging.Logger) -> None:
         self.config = config
         self.logger = logger
-        self.transport: Optional[asyncio.DatagramTransport] = None
+        self.transport: asyncio.DatagramTransport | None = None
         self._advertise_ip = get_advertise_ip(config)
 
     def connection_made(self, transport: asyncio.BaseTransport) -> None:
@@ -555,7 +554,7 @@ class DeviceDescriptionHandler(asyncio.Protocol):
         appcommand_xml: bytes,
         logger: logging.Logger,
         state: Any = None,
-        config: Optional[dict] = None,
+        config: dict | None = None,
     ) -> None:
         self.description_xml = description_xml
         self.deviceinfo_xml = deviceinfo_xml
@@ -564,7 +563,7 @@ class DeviceDescriptionHandler(asyncio.Protocol):
         self.state = state
         self.config = config or {}
         self._buffer = b""
-        self.transport: Optional[asyncio.BaseTransport] = None
+        self.transport: asyncio.BaseTransport | None = None
 
     def connection_made(self, transport: asyncio.BaseTransport) -> None:
         self.transport = transport
@@ -657,7 +656,7 @@ async def run_discovery_servers(
     config: dict,
     logger: logging.Logger,
     state: Any = None,
-) -> tuple[Optional[asyncio.DatagramTransport], Optional[list]]:
+) -> tuple[asyncio.DatagramTransport | None, list | None]:
     """
     Start SSDP (UDP 1900) and HTTP device description servers.
 

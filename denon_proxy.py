@@ -22,7 +22,7 @@ import os
 import signal
 import sys
 from pathlib import Path
-from typing import Any, Callable, Iterable, Optional, Set, Union
+from typing import Any, Callable, Iterable, Set
 
 try:
     import yaml
@@ -52,7 +52,7 @@ from http_server import run_http_server
 # Logging setup
 # -----------------------------------------------------------------------------
 
-def setup_logging(level: str = "INFO", denonavr_log_level: Optional[str] = None) -> None:
+def setup_logging(level: str = "INFO", denonavr_log_level: str | None = None) -> None:
     """Configure logging format and level. denonavr_log_level sets the denonavr library logger separately."""
     logging.basicConfig(
         level=getattr(logging, level.upper(), logging.INFO),
@@ -93,7 +93,7 @@ _DEFAULT_CONFIG = {
 }
 
 
-def _load_config_dict_from_file(config_path: Optional[Path]) -> dict:
+def _load_config_dict_from_file(config_path: Path | None) -> dict:
     """
     Load raw config data (dict) from YAML file.
 
@@ -149,7 +149,7 @@ def _apply_env_overrides(config: dict) -> None:
         config["denonavr_log_level"] = denonavr_log_level
 
 
-def _load_dashboard_html(path: Optional[Path] = None) -> Optional[str]:
+def _load_dashboard_html(path: Path | None = None) -> str | None:
     """
     Load the Web UI HTML dashboard from web_ui.html next to this file.
 
@@ -174,7 +174,7 @@ def load_config_from_dict(raw: dict) -> dict:
     return config
 
 
-def load_config(config_path: Optional[Path] = None) -> dict:
+def load_config(config_path: Path | None = None) -> dict:
     """Load configuration from YAML file with environment overrides."""
     raw = _load_config_dict_from_file(config_path)
     config = load_config_from_dict(raw)
@@ -222,7 +222,7 @@ def _client_ip_for_display(client: Any) -> str:
 
 def build_json_state(
     state: AVRState,
-    avr: Optional[Union[AVRConnection, VirtualAVRConnection]],
+    avr: (AVRConnection | VirtualAVRConnection) | None,
     clients: Iterable[Any],
     config: dict,
 ) -> dict:
@@ -385,20 +385,20 @@ class ClientHandler(asyncio.Protocol):
 
     def __init__(
         self,
-        avr: Union[AVRConnection, VirtualAVRConnection],
+        avr: AVRConnection | VirtualAVRConnection,
         state: AVRState,
         clients: Set["ClientHandler"],
         logger: logging.Logger,
-        config: Optional[dict] = None,
+        config: dict | None = None,
     ) -> None:
         self.avr = avr
         self.state = state
         self.clients = clients
         self.logger = logger
         self.config = config or {}
-        self.transport: Optional[asyncio.Transport] = None
+        self.transport: asyncio.Transport | None = None
         self._buffer = b""
-        self._peername: Optional[tuple] = None
+        self._peername: tuple | None = None
 
     def connection_made(self, transport: asyncio.BaseTransport) -> None:
         """Called when a client connects."""
@@ -486,7 +486,7 @@ class ClientHandler(asyncio.Protocol):
             except Exception as e:
                 self.logger.debug("Broadcast to client failed: %s", e)
 
-    def connection_lost(self, exc: Optional[Exception]) -> None:
+    def connection_lost(self, exc: Exception | None) -> None:
         """Called when client disconnects."""
         self.clients.discard(self)
         self.transport = None
@@ -515,21 +515,21 @@ class DenonProxyServer:
                 Callable[[str], None],
                 Callable[[], None],
                 logging.Logger,
-                Optional[Callable[[], None]],
+                Callable[[], None] | None,
             ],
-            Union[AVRConnection, VirtualAVRConnection],
+            AVRConnection | VirtualAVRConnection,
         ],
     ) -> None:
         self.config = config
         self.logger = logger
         self.state = AVRState()
         self.clients: Set[ClientHandler] = set()
-        self.avr: Optional[Union[AVRConnection, VirtualAVRConnection]] = None
-        self._server: Optional[asyncio.Server] = None
-        self._json_api_server: Optional[asyncio.Server] = None
+        self.avr: (AVRConnection | VirtualAVRConnection) | None = None
+        self._server: asyncio.Server | None = None
+        self._json_api_server: asyncio.Server | None = None
         self._notify_web_state: Callable[[], None] = lambda: None
         self._avr_factory = avr_factory
-        self._reconnect_task: Optional[asyncio.Task[Any]] = None
+        self._reconnect_task: asyncio.Task[Any] | None = None
 
     def _broadcast(self, message: str) -> None:
         """Broadcast an AVR response to all connected clients."""
@@ -539,14 +539,14 @@ class DenonProxyServer:
         if client_list:
             if _should_log_command_info(self.config, message):
                 self.logger.info("Broadcast to %d client(s): %s", len(client_list), message)
-            elif self.logger.isEnabledFor(logging.DEBUG):
+            else:
                 self.logger.debug("Broadcast to %d client(s): %s", len(client_list), message)
 
     def _on_avr_response(self, message: str) -> None:
         """Called when the AVR sends a response."""
         if _should_log_command_info(self.config, message):
             self.logger.info("AVR response: %s", message)
-        elif self.logger.isEnabledFor(logging.DEBUG):
+        else:
             self.logger.debug("AVR response: %s", message)
         for line in avr_response_broadcast_lines(message):
             self._broadcast(line)
