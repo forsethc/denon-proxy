@@ -16,6 +16,9 @@ def test_volume_to_level_empty_and_max_clamp():
     assert volume_to_level("MAX 60", max_volume=80.0) == 60.0
     # Values above max_volume are clamped (e.g. 990 -> 99.0, then clamped to 80.0)
     assert volume_to_level("990", max_volume=80.0) == 80.0
+    # MAX with no number or non-digit uses max_volume
+    assert volume_to_level("MAX", max_volume=80.0) == 80.0
+    assert volume_to_level("MAX x", max_volume=80.0) == 80.0
 
 
 def test_volume_to_db_roundtrip_shape():

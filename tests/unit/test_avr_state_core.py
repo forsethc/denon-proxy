@@ -23,6 +23,42 @@ def test_update_from_message_updates_all_fields():
     assert state.smart_select == "SMART1"
 
 
+def test_apply_command_empty_or_short_returns_false():
+    """Empty or single-char command does not change state and returns False."""
+    state = AVRState()
+    assert state.apply_command("", volume_step=0.5, volume_max=80.0) is False
+    assert state.apply_command("P", volume_step=0.5, volume_max=80.0) is False
+    assert state.power == "ON"
+
+
+def test_apply_command_pw_with_param():
+    """PW with extra param (e.g. PWSTANDBY) sets power."""
+    state = AVRState()
+    state.apply_command("PWSTANDBY", volume_step=0.5, volume_max=80.0)
+    assert state.power == "STANDBY"
+    state.apply_command("PWOTHER", volume_step=0.5, volume_max=80.0)
+    assert state.power == "OTHER"
+
+
+def test_update_from_message_query_does_not_change_state():
+    """PW? and MV? are queries; state is unchanged (pass branches)."""
+    state = AVRState()
+    state.power = "ON"
+    state.volume = "50"
+    state.update_from_message("PW?")
+    state.update_from_message("MV?")
+    assert state.power == "ON"
+    assert state.volume == "50"
+
+
+def test_update_from_message_mvmax_ignored():
+    """MVMAX is AVR config, not current volume; param is ignored."""
+    state = AVRState()
+    state.volume = "50"
+    state.update_from_message("MVMAX60")
+    assert state.volume == "50"
+
+
 def test_apply_command_and_get_status_dump_and_snapshot_restore():
     state = AVRState()
     # Start from known defaults
@@ -59,6 +95,16 @@ def test_apply_command_and_get_status_dump_and_snapshot_restore():
     state.restore(snap)
     assert state.power == snap["power"]
     assert state.volume == snap["volume"]
+
+
+def test_get_status_dump_power_off_includes_zm():
+    """When power is STANDBY/OFF, status dump includes ZMSTANDBY and ZMOFF."""
+    state = AVRState()
+    state.power = "STANDBY"
+    dump = state.get_status_dump()
+    assert "PWSTANDBY" in dump
+    assert "ZMSTANDBY" in dump
+    assert "ZMOFF" in dump
 
 
 def test_normalize_smart_select():

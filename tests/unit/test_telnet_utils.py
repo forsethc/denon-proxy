@@ -54,3 +54,10 @@ def test_parse_telnet_lines_blank_lines_ignored():
     commands, remaining = parse_telnet_lines(b"", b"\r\nPWON\r\n\r\n")
     assert commands == ["PWON"]
     assert remaining == b""
+
+
+def test_parse_telnet_lines_skips_invalid_utf8_line():
+    """Bytes that are not valid UTF-8 are skipped (UnicodeDecodeError); buffer advances."""
+    commands, remaining = parse_telnet_lines(b"", b"\xff\xfe\r\nPWON\r\n")
+    assert commands == ["PWON"]
+    assert remaining == b""

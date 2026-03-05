@@ -447,3 +447,165 @@ async def test_http_server_disabled():
     result = await run_http_server(config, logger, get_state)
     assert result is None
 
+
+@pytest.mark.asyncio
+async def test_http_get_root_returns_404_when_no_dashboard():
+    """GET / returns 404 when dashboard_html is not configured."""
+    config = load_config_from_dict({"enable_http": True, "http_port": 0})
+    logger = logging.getLogger("test.http.root.404")
+
+    def get_state() -> dict:
+        return {}
+
+    result = await run_http_server(config, logger, get_state, dashboard_html=None)
+    assert result is not None
+    server, _ = result
+    try:
+        port = server.sockets[0].getsockname()[1]
+        reader, writer = await _open_connection(port)
+        try:
+            request = b"GET / HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n"
+            writer.write(request)
+            await writer.drain()
+            response = await asyncio.wait_for(reader.read(4096), timeout=2.0)
+            assert b"404" in response.split(b"\r\n", 1)[0]
+        finally:
+            writer.close()
+            await writer.wait_closed()
+    finally:
+        server.close()
+        await server.wait_closed()
+
+
+@pytest.mark.asyncio
+async def test_http_get_root_returns_html_when_dashboard_set():
+    """GET / returns 200 and HTML when dashboard_html is configured."""
+    config = load_config_from_dict({"enable_http": True, "http_port": 0})
+    logger = logging.getLogger("test.http.root.html")
+    html = "<!DOCTYPE html><html><body>Test Dashboard</body></html>"
+
+    def get_state() -> dict:
+        return {}
+
+    result = await run_http_server(config, logger, get_state, dashboard_html=html)
+    assert result is not None
+    server, _ = result
+    try:
+        port = server.sockets[0].getsockname()[1]
+        reader, writer = await _open_connection(port)
+        try:
+            request = b"GET / HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n"
+            writer.write(request)
+            await writer.drain()
+            response = await asyncio.wait_for(reader.read(4096), timeout=2.0)
+            status_line = response.split(b"\r\n", 1)[0]
+            assert b"200" in status_line
+            assert b"Test Dashboard" in response
+            assert b"text/html" in response
+        finally:
+            writer.close()
+            await writer.wait_closed()
+    finally:
+        server.close()
+        await server.wait_closed()
+
+
+@pytest.mark.asyncio
+async def test_http_get_status_returns_500_when_get_state_raises():
+    """GET /api/status returns 500 when get_state raises."""
+    config = load_config_from_dict({"enable_http": True, "http_port": 0})
+    logger = logging.getLogger("test.http.status.500")
+
+    def get_state() -> dict:
+        raise RuntimeError("get_state failed")
+
+    result = await run_http_server(config, logger, get_state)
+    assert result is not None
+    server, _ = result
+    try:
+        port = server.sockets[0].getsockname()[1]
+        reader, writer = await _open_connection(port)
+        try:
+            request = b"GET /api/status HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n"
+            writer.write(request)
+            await writer.drain()
+            response = await asyncio.wait_for(reader.read(4096), timeout=2.0)
+            assert b"500" in response.split(b"\r\n", 1)[0]
+        finally:
+            writer.close()
+            await writer.wait_closed()
+    finally:
+        server.close()
+        await server.wait_closed()
+
+
+@pytest.mark.asyncio
+async def test_http_post_command_returns_500_when_send_command_raises():
+    """POST /api/command returns 500 when send_command raises."""
+    config = load_config_from_dict({"enable_http": True, "http_port": 0})
+    logger = logging.getLogger("test.http.command.500")
+
+    def get_state() -> dict:
+        return {}
+
+    def send_command(_cmd: str) -> None:
+        raise RuntimeError("send failed")
+
+    result = await run_http_server(config, logger, get_state, send_command=send_command)
+    assert result is not None
+    server, _ = result
+    try:
+        port = server.sockets[0].getsockname()[1]
+        reader, writer = await _open_connection(port)
+        try:
+            body = b'{"command":"PWON"}'
+            request = (
+                b"POST /api/command HTTP/1.1\r\n"
+                b"Host: 127.0.0.1\r\n"
+                b"Content-Type: application/json\r\n"
+                b"Content-Length: 12\r\n"
+                b"Connection: close\r\n\r\n"
+            ) + body
+            writer.write(request)
+            await writer.drain()
+            response = await asyncio.wait_for(reader.read(4096), timeout=2.0)
+            assert b"500" in response.split(b"\r\n", 1)[0]
+        finally:
+            writer.close()
+            await writer.wait_closed()
+    finally:
+        server.close()
+        await server.wait_closed()
+
+
+@pytest.mark.asyncio
+async def test_http_post_refresh_returns_500_when_request_state_raises():
+    """POST /api/refresh returns 500 when request_state raises."""
+    config = load_config_from_dict({"enable_http": True, "http_port": 0})
+    logger = logging.getLogger("test.http.refresh.500")
+
+    def get_state() -> dict:
+        return {}
+
+    def request_state() -> None:
+        raise RuntimeError("request_state failed")
+
+    result = await run_http_server(config, logger, get_state, request_state=request_state)
+    assert result is not None
+    server, _ = result
+    try:
+        port = server.sockets[0].getsockname()[1]
+        reader, writer = await _open_connection(port)
+        try:
+            request = b"POST /api/refresh HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n"
+            writer.write(request)
+            await writer.drain()
+            response = await asyncio.wait_for(reader.read(4096), timeout=2.0)
+            assert b"500" in response.split(b"\r\n", 1)[0]
+        finally:
+            writer.close()
+            await writer.wait_closed()
+    finally:
+        server.close()
+        await server.wait_closed()
+

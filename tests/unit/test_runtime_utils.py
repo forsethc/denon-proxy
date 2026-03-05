@@ -4,6 +4,19 @@ from unittest.mock import patch
 from runtime_utils import is_docker_internal_ip, is_running_in_docker
 
 
+def test_is_docker_internal_ip_rejects_non_string_or_empty():
+    """Non-string or empty ip returns False before parsing."""
+    assert is_docker_internal_ip(None) is False
+    assert is_docker_internal_ip("") is False
+    assert is_docker_internal_ip(123) is False
+
+
+def test_is_docker_internal_ip_rejects_invalid_octets():
+    """IP with non-numeric octets returns False (ValueError path)."""
+    assert is_docker_internal_ip("172.16.0.a") is False
+    assert is_docker_internal_ip("192.168.65.1x") is False
+
+
 def test_is_running_in_docker_detection():
     # Patch Path.exists so we can assert True when container markers exist
     with patch.object(Path, "exists", lambda self: str(self) in ("/.dockerenv", "/run/.containerenv")):
