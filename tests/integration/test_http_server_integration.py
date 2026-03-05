@@ -139,3 +139,144 @@ async def test_http_status_and_command_full_stack(http_integration_config, http_
     finally:
         await server.stop()
 
+
+@pytest.mark.asyncio
+async def test_http_status_reflects_telnet_clients(http_integration_config, http_integration_logger):
+    """
+    Telnet clients connected to the proxy are reflected in /api/status (clients and client_count).
+    """
+    server = DenonProxyServer(http_integration_config, http_integration_logger, create_avr_connection)
+    await server.start()
+    try:
+        proxy_port = server.config["proxy_port"]
+        http_port = server.config["http_port"]
+        assert proxy_port != 0
+        assert http_port != 0
+
+        # Connect a Telnet client to the proxy and drain the initial status dump
+        reader_telnet, writer_telnet = await asyncio.wait_for(
+            asyncio.open_connection("127.0.0.1", proxy_port),
+            timeout=2.0,
+        )
+        try:
+            # Initial dump may contain multiple lines; just ensure connection is fully established.
+            try:
+                await asyncio.wait_for(reader_telnet.read(1024), timeout=1.0)
+            except asyncio.TimeoutError:
+                # It's fine if nothing arrives yet; connection is still valid.
+                pass
+
+            # Now GET /api/status and assert the Telnet client is visible
+            reader_http, writer_http = await _open_http_connection(http_port)
+            try:
+                request = (
+                    "GET /api/status HTTP/1.1\r\n"
+                    "Host: 127.0.0.1\r\n"
+                    "Connection: close\r\n"
+                    "\r\n"
+                ).encode("ascii")
+                writer_http.write(request)
+                await writer_http.drain()
+
+                response = await asyncio.wait_for(reader_http.read(65536), timeout=2.0)
+                status_line, body = _parse_http_response(response)
+                assert b"200" in status_line
+
+                data = json.loads(body.decode("utf-8"))
+                assert data["client_count"] >= 1
+                assert "127.0.0.1" in data["clients"]
+            finally:
+                writer_http.close()
+                await writer_http.wait_closed()
+        finally:
+            writer_telnet.close()
+            await writer_telnet.wait_closed()
+
+        # After Telnet client disconnects, status should show zero clients
+        await asyncio.sleep(0.05)
+        reader_http2, writer_http2 = await _open_http_connection(http_port)
+        try:
+            request2 = (
+                "GET /api/status HTTP/1.1\r\n"
+                "Host: 127.0.0.1\r\n"
+                "Connection: close\r\n"
+                "\r\n"
+            ).encode("ascii")
+            writer_http2.write(request2)
+            await writer_http2.drain()
+
+            response2 = await asyncio.wait_for(reader_http2.read(65536), timeout=2.0)
+            status_line2, body2 = _parse_http_response(response2)
+            assert b"200" in status_line2
+
+            data2 = json.loads(body2.decode("utf-8"))
+            assert data2["client_count"] == 0
+        finally:
+            writer_http2.close()
+            await writer_http2.wait_closed()
+    finally:
+        await server.stop()
+
+
+@pytest.mark.asyncio
+async def test_http_events_sse_streams_updates_on_command(http_integration_config, http_integration_logger):
+    """
+    /events SSE stream receives updated JSON state when an HTTP command changes AVR state.
+    """
+    server = DenonProxyServer(http_integration_config, http_integration_logger, create_avr_connection)
+    await server.start()
+    try:
+        http_port = server.config["http_port"]
+        assert http_port != 0
+
+        # Open SSE connection
+        reader_sse, writer_sse = await _open_http_connection(http_port)
+        try:
+            request_sse = (
+                "GET /events HTTP/1.1\r\n"
+                "Host: 127.0.0.1\r\n"
+                "Connection: keep-alive\r\n"
+                "\r\n"
+            ).encode("ascii")
+            writer_sse.write(request_sse)
+            await writer_sse.drain()
+
+            # First chunk should contain headers + initial state push
+            chunk1 = await asyncio.wait_for(reader_sse.read(4096), timeout=2.0)
+            assert b"200 OK" in chunk1.split(b"\r\n", 1)[0]
+            assert b"Content-Type: text/event-stream" in chunk1
+
+            # Send a power command via HTTP to change state
+            reader_cmd, writer_cmd = await _open_http_connection(http_port)
+            try:
+                body_cmd = b'{"command":"PWSTANDBY"}'
+                request_cmd = (
+                    "POST /api/command HTTP/1.1\r\n"
+                    "Host: 127.0.0.1\r\n"
+                    "Content-Type: application/json\r\n"
+                    f"Content-Length: {len(body_cmd)}\r\n"
+                    "Connection: close\r\n"
+                    "\r\n"
+                ).encode("ascii") + body_cmd
+                writer_cmd.write(request_cmd)
+                await writer_cmd.drain()
+
+                response_cmd = await asyncio.wait_for(reader_cmd.read(65536), timeout=2.0)
+                status_line_cmd, body_cmd_bytes = _parse_http_response(response_cmd)
+                assert b"200" in status_line_cmd
+                result_cmd = json.loads(body_cmd_bytes.decode("utf-8"))
+                assert result_cmd == {"ok": True, "command": "PWSTANDBY"}
+            finally:
+                writer_cmd.close()
+                await writer_cmd.wait_closed()
+
+            # Read more from SSE stream and ensure updated state (power=STANDBY) appears
+            chunk2 = await asyncio.wait_for(reader_sse.read(4096), timeout=2.0)
+            combined = (chunk1 + chunk2).decode("utf-8", errors="replace")
+            assert "data: " in combined
+            assert '"power": "STANDBY"' in combined
+        finally:
+            writer_sse.close()
+            await writer_sse.wait_closed()
+    finally:
+        await server.stop()
