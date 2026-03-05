@@ -147,13 +147,14 @@ def _apply_env_overrides(config: dict) -> None:
         config["denonavr_log_level"] = denonavr_log_level
 
 
-def _load_dashboard_html() -> Optional[str]:
+def _load_dashboard_html(path: Optional[Path] = None) -> Optional[str]:
     """
     Load the Web UI HTML dashboard from web_ui.html next to this file.
 
     Returns the HTML string, or None if the file is missing or unreadable.
+    path: optional path for tests; when None, uses web_ui.html next to this file.
     """
-    html_path = Path(__file__).with_name("web_ui.html")
+    html_path = path if path is not None else Path(__file__).with_name("web_ui.html")
     try:
         return html_path.read_text(encoding="utf-8")
     except OSError:

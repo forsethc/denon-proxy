@@ -2,6 +2,7 @@ from denon_proxy import (
     _is_valid_client_command,
     _command_group,
     _should_log_command_info,
+    load_config_from_dict,
     AVRState,
     apply_payload_to_state,
     avr_response_broadcast_lines,
@@ -27,6 +28,9 @@ def test_command_group_and_should_log_command_info():
     assert _command_group("MVMAX 60") == "other"
     assert _command_group("MSSMART1") == "smart_select"
     assert _command_group("UNKNOWN") == "other"
+    # Empty or single-char command -> other
+    assert _command_group("") == "other"
+    assert _command_group("P") == "other"
 
     cfg = {"log_command_groups_info": ["power", "volume"]}
     assert _should_log_command_info(cfg, "PWON") is True
@@ -48,6 +52,19 @@ class _FakeAvr:
 
     def get_details(self) -> dict:
         return {"type": "physical", "host": "127.0.0.1", "port": 23}
+
+
+def test_build_json_state_with_no_avr():
+    """build_json_state with avr=None reports type 'none', connected False, default volume_max."""
+    state = AVRState()
+    state.power = "ON"
+    state.volume = "50"
+    config = load_config_from_dict({})
+    result = build_json_state(state, None, [], config)
+    assert result["avr"]["type"] == "none"
+    assert result["avr"]["connected"] is False
+    assert result["avr"]["volume_max"] == 98.0
+    assert result["state"]["power"] == "ON"
 
 
 def test_build_json_state_structure_and_volume_conversion():
@@ -91,6 +108,16 @@ def test_build_json_state_structure_and_volume_conversion():
     # Volume should have been converted to numeric level
     assert isinstance(state_dict["volume"], (int, float))
     assert state_dict["power"] == "ON"
+
+
+def test_build_json_state_includes_discovery_info():
+    """build_json_state includes discovery section with enabled, http_port, proxy_ip."""
+    state = AVRState()
+    config = load_config_from_dict({"enable_ssdp": True, "ssdp_http_port": 9090})
+    result = build_json_state(state, None, [], config)
+    assert "discovery" in result
+    assert result["discovery"]["enabled"] is True
+    assert result["discovery"]["http_port"] == 9090
 
 
 def test_state_and_config_updates_from_denonavr_basic():
@@ -150,6 +177,47 @@ def test_state_and_config_updates_from_denonavr_smart_select_and_sources():
     assert state_updates["smart_select"] == "SMART1"
     assert state_updates.get("sound_mode") is None
     assert device_sources == [("CD", "CD Player"), ("HDMI1", "Game")]
+
+
+def test_state_and_config_updates_from_denonavr_sound_mode_smart_treated_as_smart_select():
+    """When denonavr returns sound_mode like SMART0, it is stored as smart_select and sound_mode cleared."""
+    class MockD:
+        power = "ON"
+        vol = None
+        input_func = None
+        muted = None
+        sound_mode = "SMART0"
+        smart_select = None
+        manufacturer = None
+        model_name = None
+        serial_number = None
+        name = None
+        input = None
+
+    state_updates, _, _ = state_and_config_updates_from_denonavr(MockD())
+    assert state_updates.get("smart_select") == "SMART0"
+    assert state_updates.get("sound_mode") is None
+
+
+def test_state_and_config_updates_from_denonavr_minimal_attributes():
+    """When denonavr has few attributes set, only those are in state_updates."""
+    class MockD:
+        power = None
+        vol = None
+        input_func = None
+        muted = None
+        sound_mode = None
+        smart_select = None
+        manufacturer = None
+        model_name = None
+        serial_number = None
+        name = None
+        input = None
+
+    state_updates, avr_info, device_sources = state_and_config_updates_from_denonavr(MockD())
+    assert state_updates == {}
+    assert avr_info["manufacturer"] is None
+    assert device_sources == []
 
 
 def test_state_and_config_updates_from_denonavr_volume_conversion():

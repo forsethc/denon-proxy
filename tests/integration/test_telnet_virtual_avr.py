@@ -150,6 +150,37 @@ async def test_telnet_mvup_updates_volume(integration_config, integration_logger
 
 
 @pytest.mark.asyncio
+async def test_telnet_invalid_command_ignored(integration_config, integration_logger):
+    """
+    Invalid telnet input (too short or control bytes) is ignored: proxy stays up and state unchanged.
+    """
+    server = DenonProxyServer(integration_config, integration_logger, create_avr_connection)
+    await server.start()
+    port = server.config["proxy_port"]
+    try:
+        reader, writer = await asyncio.wait_for(
+            asyncio.open_connection("127.0.0.1", port),
+            timeout=2.0,
+        )
+        try:
+            await asyncio.wait_for(reader.read(4096), timeout=1.0)
+            initial_volume = server.state.volume
+            # Send invalid commands: single byte, empty line
+            writer.write(b"X\r")
+            await writer.drain()
+            writer.write(b"\r\n")
+            await writer.drain()
+            await asyncio.sleep(0.1)
+            # State should be unchanged (invalid commands not applied)
+            assert server.state.volume == initial_volume
+        finally:
+            writer.close()
+            await writer.wait_closed()
+    finally:
+        await server.stop()
+
+
+@pytest.mark.asyncio
 async def test_telnet_two_clients_both_receive_broadcast(integration_config, integration_logger):
     """
     Connect two Telnet clients; one sends a command. Assert both clients receive
