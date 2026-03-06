@@ -183,34 +183,14 @@ docker run -d --name denon-proxy \
 
 ## Tests
 
-This project uses **pytest** (with `pytest-asyncio` for async tests and `pytest-cov` for coverage).
-
-- **Install test dependencies** (after installing runtime deps from `requirements.txt`):
+The project is pretty well covered by unit, integration, and end-to-end tests. 
 
 ```bash
-pip install -r tests/requirements.txt
-```
-
-- **Run all tests** from the project root:
-
-```bash
+# run all tests
 pytest
 ```
 
-- **Run a specific test file or directory**:
-
-```bash
-pytest tests/unit/test_avr_state_volume.py      # single file
-pytest tests/unit                               # all unit tests
-```
-
-- **Run tests with coverage**
-
-```bash
-pytest --cov                                 # text summary + missing lines
-# or override the report format, e.g. HTML:
-pytest --cov --cov-report=html               # then open htmlcov/index.html
-```
+See [tests/README.md](tests/README.md) for more info.
 
 ## Connecting Clients
 
