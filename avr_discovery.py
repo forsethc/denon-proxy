@@ -431,7 +431,7 @@ def description_xml(config: Config, advertise_ip: str, runtime_state: RuntimeSta
     Uses physical AVR manufacturer/model from runtime_state.avr_info when available (e.g. after
     HTTP sync) so UC Remote and other clients can detect Denon vs Marantz correctly."""
     friendly_name = get_proxy_friendly_name(config, runtime_state)
-    http_port = runtime_state.ssdp_http_port if runtime_state.ssdp_http_port is not None else config.get("ssdp_http_port", DEFAULT_SSDP_HTTP_PORT)
+    http_port = runtime_state.get_resolved_port(config, "ssdp_http_port", DEFAULT_SSDP_HTTP_PORT)
     serial = runtime_state.avr_info.udn_serial(advertise_ip)
     manufacturer = (runtime_state.avr_info.manufacturer or "Denon").strip() or "Denon"
     raw_model = (runtime_state.avr_info.model_name or "").strip()
@@ -461,7 +461,7 @@ def parse_ssdp_search_target(msg: str) -> str | None:
 
 def ssdp_response(config: Config, advertise_ip: str, st: str, runtime_state: RuntimeState) -> bytes:
     """Build SSDP HTTP 200 response for M-SEARCH."""
-    http_port = runtime_state.ssdp_http_port if runtime_state.ssdp_http_port is not None else config.get("ssdp_http_port", DEFAULT_SSDP_HTTP_PORT)
+    http_port = runtime_state.get_resolved_port(config, "ssdp_http_port", DEFAULT_SSDP_HTTP_PORT)
     location = f"http://{advertise_ip}:{http_port}/description.xml"
     serial = runtime_state.avr_info.udn_serial(advertise_ip)
     usn = f"uuid:denon-proxy-{serial}::{st}"

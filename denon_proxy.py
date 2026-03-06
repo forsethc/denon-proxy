@@ -39,7 +39,7 @@ except ImportError:
 
 from avr_connection import AVRConnection, VirtualAVRConnection, create_avr_connection
 from avr_discovery import get_advertise_ip, get_proxy_friendly_name, run_discovery_servers
-from config import Config, DEFAULT_AVR_PORT, DEFAULT_HTTP_PORT, DEFAULT_SSDP_HTTP_PORT
+from config import Config, DEFAULT_AVR_PORT, DEFAULT_HTTP_PORT, DEFAULT_PROXY_PORT, DEFAULT_SSDP_HTTP_PORT
 from avr_info import AVRInfo
 from runtime_state import RuntimeState
 from runtime_utils import is_docker_internal_ip, is_running_in_docker, resolve_listening_port
@@ -200,7 +200,7 @@ def build_json_state(
     if sources:
         avr_dict["sources"] = [{"func": func_name, "display_name": display_name} for func_name, display_name in sources]
     proxy_ip = get_advertise_ip(config) or None
-    http_port = runtime_state.ssdp_http_port if runtime_state.ssdp_http_port is not None else config.get("ssdp_http_port", DEFAULT_SSDP_HTTP_PORT)
+    http_port = runtime_state.get_resolved_port(config, "ssdp_http_port", DEFAULT_SSDP_HTTP_PORT)
     discovery = {
         "http_port": int(http_port),
         "enabled": bool(config.get("enable_ssdp", False)),
@@ -567,7 +567,7 @@ class DenonProxyServer:
         )
         resolve_listening_port(self._server, port, self.runtime_state, "proxy_port")
         connect_host = get_advertise_ip(self.config) or (host if host and host != "0.0.0.0" else "localhost")
-        listen_port = (self.runtime_state.proxy_port if self.runtime_state.proxy_port is not None else None) or port
+        listen_port = self.runtime_state.get_resolved_port(self.config, "proxy_port", DEFAULT_PROXY_PORT)
         avr_host = (self.config.get("avr_host") or "").strip()
         if avr_host:
             self.logger.info("Proxy listening on %s:%d (AVR: %s:%d)",
@@ -609,11 +609,7 @@ class DenonProxyServer:
                 self._json_api_server, self._notify_web_state = result
                 self.runtime_state.notify_web_state = self._notify_web_state
                 api_host = get_advertise_ip(self.config) or "localhost"
-                api_port = (
-                    self.runtime_state.http_port
-                    if self.runtime_state.http_port is not None
-                    else int(self.config.get("http_port", DEFAULT_HTTP_PORT))
-                )
+                api_port = self.runtime_state.get_resolved_port(self.config, "http_port", DEFAULT_HTTP_PORT)
                 if dashboard_html:
                     self.logger.info(
                         "Web UI at http://%s:%d (dashboard, JSON API, commands)",

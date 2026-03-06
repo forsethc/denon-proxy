@@ -11,6 +11,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Callable
 
 from avr_info import AVRInfo
+from runtime_utils import get_resolved_port as _get_resolved_port
 
 if TYPE_CHECKING:
     from config import Config
@@ -52,6 +53,10 @@ class RuntimeState:
         self.http_port: int | None = None
         # Resolved friendly name (computed on first access; avr_info is set once at startup)
         self._cached_friendly_name: str | None = None
+
+    def get_resolved_port(self, config: "Config", config_key: str, default: int) -> int:
+        """Return effective port: resolved value if set, else config key with default."""
+        return _get_resolved_port(self, config, config_key, default)
 
     def get_friendly_name(self, config: "Config") -> str:
         """Resolved proxy friendly name: config override, else AVR name + ' Proxy', else default.

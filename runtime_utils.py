@@ -7,6 +7,11 @@ from __future__ import annotations
 
 import ipaddress
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from config import Config
+    from runtime_state import RuntimeState
 
 _DOCKER_NETWORKS = (
     ipaddress.IPv4Network("172.16.0.0/12"), # typical Docker bridge on Linux
@@ -52,3 +57,19 @@ def resolve_listening_port(
     """
     if requested_port == 0 and getattr(server, "sockets", None):
         setattr(target, port_attr, server.sockets[0].getsockname()[1])
+
+
+def get_resolved_port(
+    runtime_state: "RuntimeState",
+    config: "Config",
+    config_key: str,
+    default: int,
+) -> int:
+    """
+    Return the effective port: runtime_state's resolved value if set (e.g. from binding to 0),
+    else config[config_key] with default. Use for ssdp_http_port, http_port, proxy_port.
+    """
+    resolved = getattr(runtime_state, config_key, None)
+    if resolved is not None:
+        return int(resolved)
+    return int(config.get(config_key, default))

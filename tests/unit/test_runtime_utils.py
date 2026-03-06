@@ -1,7 +1,12 @@
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from runtime_utils import is_docker_internal_ip, is_running_in_docker, resolve_listening_port
+from runtime_utils import (
+    get_resolved_port,
+    is_docker_internal_ip,
+    is_running_in_docker,
+    resolve_listening_port,
+)
 
 
 def test_is_docker_internal_ip_rejects_non_string_or_empty():
@@ -86,3 +91,58 @@ def test_resolve_listening_port_when_sockets_missing_does_nothing():
     resolve_listening_port(server, 0, target, "proxy_port")
 
     assert not hasattr(target, "proxy_port")
+
+
+# -----------------------------------------------------------------------------
+# get_resolved_port
+# -----------------------------------------------------------------------------
+
+
+def test_get_resolved_port_uses_runtime_state_when_set():
+    """When runtime_state has the port attribute set, that value is returned."""
+    runtime_state = MagicMock()
+    runtime_state.ssdp_http_port = 9090
+    config = MagicMock()
+
+    assert get_resolved_port(runtime_state, config, "ssdp_http_port", 9999) == 9090
+    config.get.assert_not_called()
+
+
+def test_get_resolved_port_uses_config_when_runtime_state_none():
+    """When runtime_state attribute is None, config.get(key, default) is used."""
+    runtime_state = MagicMock()
+    runtime_state.ssdp_http_port = None
+    config = MagicMock()
+    config.get.return_value = 8080
+
+    assert get_resolved_port(runtime_state, config, "ssdp_http_port", 9999) == 8080
+    config.get.assert_called_once_with("ssdp_http_port", 9999)
+
+
+def test_get_resolved_port_uses_config_when_runtime_state_missing_attr():
+    """When runtime_state has no attribute, config.get(key, default) is used."""
+    runtime_state = object()  # no ssdp_http_port attr
+    config = MagicMock()
+    config.get.return_value = 8081
+
+    assert get_resolved_port(runtime_state, config, "http_port", 9999) == 8081
+    config.get.assert_called_once_with("http_port", 9999)
+
+
+def test_get_resolved_port_returns_int_from_resolved():
+    """Resolved port from runtime_state is returned as int."""
+    runtime_state = MagicMock()
+    runtime_state.proxy_port = 2323
+
+    assert get_resolved_port(runtime_state, MagicMock(), "proxy_port", 9999) == 2323
+
+
+def test_get_resolved_port_returns_int_from_config():
+    """Config value is returned as int."""
+    runtime_state = MagicMock()
+    runtime_state.proxy_port = None
+    config = MagicMock()
+    config.get.return_value = 2323
+
+    assert get_resolved_port(runtime_state, config, "proxy_port", 9999) == 2323
+    config.get.assert_called_once_with("proxy_port", 9999)
