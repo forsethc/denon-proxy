@@ -164,6 +164,29 @@ class AVRState:
         self.smart_select = snapshot.get("smart_select")
         self.volume_max = snapshot.get("volume_max", DEFAULT_MAX_VOLUME)
 
+    def apply_payload(self, payload: dict) -> None:
+        """
+        Apply a dict of state fields (e.g. from JSON POST /state or denonavr sync).
+        Only updates keys present in payload. smart_select is normalized to SMART{n}.
+        """
+        if "power" in payload:
+            v = payload["power"]
+            self.power = str(v).upper() if v else None
+        if "volume" in payload:
+            v = payload["volume"]
+            self.volume = str(v) if v is not None else None
+        if "input_source" in payload:
+            v = payload["input_source"]
+            self.input_source = str(v) if v is not None else None
+        if "mute" in payload:
+            self.mute = bool(payload["mute"])
+        if "sound_mode" in payload:
+            v = payload["sound_mode"]
+            self.sound_mode = str(v) if v is not None else None
+        if "smart_select" in payload:
+            v = payload["smart_select"]
+            self.smart_select = _normalize_smart_select(str(v) if v is not None else None)
+
     def apply_command(
         self,
         command: str,

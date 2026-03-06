@@ -1,4 +1,4 @@
-from avr_state import AVRState, VOLUME_DEFAULT_LEVEL, _normalize_smart_select
+from avr_state import AVRState, VOLUME_DEFAULT_LEVEL
 
 
 def test_update_from_message_updates_all_fields():
@@ -142,14 +142,25 @@ def test_get_status_dump_power_off_includes_zm():
     assert "ZMOFF" in dump
 
 
-def test_normalize_smart_select():
-    assert _normalize_smart_select("SMART0") == "SMART0"
-    assert _normalize_smart_select("smart1") == "SMART1"
-    assert _normalize_smart_select("2") == "SMART2"
-    assert _normalize_smart_select("  SMART3  ") == "SMART3"
-    assert _normalize_smart_select(None) is None
-    assert _normalize_smart_select("") is None
-    assert _normalize_smart_select("  ") is None
-    assert _normalize_smart_select("SMART") is None
-    assert _normalize_smart_select("SMARTx") is None
+def test_apply_payload_normalizes_smart_select():
+    """apply_payload normalizes smart_select to SMART{n} (raw values accepted)."""
+    state = AVRState()
+    state.apply_payload({"smart_select": "SMART0"})
+    assert state.smart_select == "SMART0"
+    state.apply_payload({"smart_select": "smart1"})
+    assert state.smart_select == "SMART1"
+    state.apply_payload({"smart_select": "2"})
+    assert state.smart_select == "SMART2"
+    state.apply_payload({"smart_select": "  SMART3  "})
+    assert state.smart_select == "SMART3"
+    state.apply_payload({"smart_select": None})
+    assert state.smart_select is None
+    state.apply_payload({"smart_select": ""})
+    assert state.smart_select is None
+    state.apply_payload({"smart_select": "  "})
+    assert state.smart_select is None
+    state.apply_payload({"smart_select": "SMART"})
+    assert state.smart_select is None
+    state.apply_payload({"smart_select": "SMARTx"})
+    assert state.smart_select is None
 

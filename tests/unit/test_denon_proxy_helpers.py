@@ -1,12 +1,11 @@
 from runtime_state import AVRInfo, RuntimeState
+from avr_state import AVRState
 from denon_proxy import (
     _client_ip_for_display,
     _command_group,
     _is_valid_client_command,
     _should_log_command_info,
     load_config_from_dict,
-    AVRState,
-    apply_payload_to_state,
     avr_response_broadcast_lines,
     build_json_state,
     state_and_config_updates_from_denonavr,
@@ -291,56 +290,56 @@ def test_avr_response_broadcast_lines_other():
     assert avr_response_broadcast_lines("MUON") == ["MUON"]
 
 
-def test_apply_payload_to_state_updates_present_fields():
+def test_apply_payload_updates_present_fields():
     state = AVRState()
     state.power = "STANDBY"
     state.volume = "40"
-    apply_payload_to_state(state, {"power": "ON", "volume": "55"})
+    state.apply_payload({"power": "ON", "volume": "55"})
     assert state.power == "ON"
     assert state.volume == "55"
     assert state.input_source == "CD"  # unchanged default
 
 
-def test_apply_payload_to_state_power_uppercased():
+def test_apply_payload_power_uppercased():
     state = AVRState()
-    apply_payload_to_state(state, {"power": "on"})
+    state.apply_payload({"power": "on"})
     assert state.power == "ON"
-    apply_payload_to_state(state, {"power": "standby"})
+    state.apply_payload({"power": "standby"})
     assert state.power == "STANDBY"
 
 
-def test_apply_payload_to_state_falsy_values():
+def test_apply_payload_falsy_values():
     state = AVRState()
     state.power = "ON"
-    apply_payload_to_state(state, {"power": None})
+    state.apply_payload({"power": None})
     assert state.power is None
-    apply_payload_to_state(state, {"volume": ""})
+    state.apply_payload({"volume": ""})
     assert state.volume == ""
 
 
-def test_apply_payload_to_state_mute_and_sources():
+def test_apply_payload_mute_and_sources():
     state = AVRState()
-    apply_payload_to_state(state, {"mute": True, "input_source": "HDMI1", "sound_mode": "DOLBY"})
+    state.apply_payload({"mute": True, "input_source": "HDMI1", "sound_mode": "DOLBY"})
     assert state.mute is True
     assert state.input_source == "HDMI1"
     assert state.sound_mode == "DOLBY"
 
 
-def test_apply_payload_to_state_smart_select_normalized():
+def test_apply_payload_smart_select_normalized():
     state = AVRState()
-    apply_payload_to_state(state, {"smart_select": "smart1"})
+    state.apply_payload({"smart_select": "smart1"})
     assert state.smart_select == "SMART1"
-    apply_payload_to_state(state, {"smart_select": "2"})
+    state.apply_payload({"smart_select": "2"})
     assert state.smart_select == "SMART2"
-    apply_payload_to_state(state, {"smart_select": None})
+    state.apply_payload({"smart_select": None})
     assert state.smart_select is None
 
 
-def test_apply_payload_to_state_partial_leaves_others_unchanged():
+def test_apply_payload_partial_leaves_others_unchanged():
     state = AVRState()
     state.input_source = "TUNER"
     state.sound_mode = "STEREO"
-    apply_payload_to_state(state, {"volume": "60"})
+    state.apply_payload({"volume": "60"})
     assert state.volume == "60"
     assert state.input_source == "TUNER"
     assert state.sound_mode == "STEREO"

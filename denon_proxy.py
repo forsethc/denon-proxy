@@ -42,7 +42,7 @@ from avr_discovery import get_advertise_ip, get_proxy_friendly_name, run_discove
 from config import Config
 from runtime_state import AVRInfo, RuntimeState
 from runtime_utils import is_docker_internal_ip, is_running_in_docker
-from avr_state import AVRState, volume_to_level, _normalize_smart_select
+from avr_state import AVRState, volume_to_level
 from telnet_utils import parse_telnet_lines, telnet_line_to_bytes
 
 from http_server import run_http_server
@@ -217,30 +217,6 @@ def build_json_state(
     }
 
 
-def apply_payload_to_state(avr_state: AVRState, payload: dict) -> None:
-    """
-    Apply a JSON payload to AVRState (e.g. from POST /state).
-    Only updates fields present in payload. Uses _normalize_smart_select for smart_select.
-    """
-    if "power" in payload:
-        v = payload["power"]
-        avr_state.power = str(v).upper() if v else None
-    if "volume" in payload:
-        v = payload["volume"]
-        avr_state.volume = str(v) if v is not None else None
-    if "input_source" in payload:
-        v = payload["input_source"]
-        avr_state.input_source = str(v) if v is not None else None
-    if "mute" in payload:
-        avr_state.mute = bool(payload["mute"])
-    if "sound_mode" in payload:
-        v = payload["sound_mode"]
-        avr_state.sound_mode = str(v) if v is not None else None
-    if "smart_select" in payload:
-        v = payload["smart_select"]
-        avr_state.smart_select = _normalize_smart_select(str(v) if v is not None else None)
-
-
 def state_and_config_updates_from_denonavr(d: Any) -> tuple[dict[str, Any], AVRInfo]:
     """
     Extract state updates and AVR identity/capabilities from a denonavr instance.
@@ -267,12 +243,12 @@ def state_and_config_updates_from_denonavr(d: Any) -> tuple[dict[str, Any], AVRI
     if raw_sound_mode:
         raw = str(raw_sound_mode).strip().upper()
         if raw.startswith("SMART") and len(raw) > 5 and raw[5:].isdigit():
-            state_updates["smart_select"] = _normalize_smart_select(raw_sound_mode)
+            state_updates["smart_select"] = raw_sound_mode
             state_updates["sound_mode"] = None  # leave for telnet MS? to fill real mode
         else:
             state_updates["sound_mode"] = raw_sound_mode
     if getattr(d, "smart_select", None) is not None:
-        state_updates["smart_select"] = _normalize_smart_select(str(d.smart_select))
+        state_updates["smart_select"] = str(d.smart_select)
 
     # --- Device metadata and input sources for AVRInfo ---
     rev = getattr(getattr(d, "input", None), "_input_func_map_rev", None)
@@ -537,8 +513,7 @@ class DenonProxyServer:
                 timeout=10.0,
             )
             state_updates, avr_info = state_and_config_updates_from_denonavr(d)
-            for key, value in state_updates.items():
-                setattr(self.avr_state, key, value)
+            self.avr_state.apply_payload(state_updates)
             self.runtime_state.avr_info = avr_info
             if avr_info.has_sources():
                 self.logger.info("Fetched %d input sources from AVR", len(avr_info.raw_sources))
