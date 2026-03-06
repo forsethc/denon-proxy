@@ -9,12 +9,15 @@ Volume helpers are used for presentation (JSON, XML).
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
+import re
 
 
 # Denon 0–98 scale: 80 = 0 dB reference; (vol - 80) * 0.5 ≈ dB.
 VOLUME_REFERENCE_LEVEL = 80.0
 # Default state/display level when we have no AVR value (e.g. demo, discovery). 50 ≈ -15 dB.
 VOLUME_DEFAULT_LEVEL = 50
+# Default max volume when AVR has not sent MVMAX; many Denon/Marantz use 98.
+DEFAULT_MAX_VOLUME = 98.0
 
 
 def _normalize_smart_select(value: str | None) -> str | None:
@@ -30,6 +33,18 @@ def _normalize_smart_select(value: str | None) -> str | None:
     if s.isdigit():
         return f"SMART{s}"
     return None
+
+
+def _parse_mvmax(param: str) -> float | None:
+    """Parse MVMAX nn from param (e.g. 'MAX 60' or 'MAX60'). Returns None if no number."""
+    if not param.upper().startswith("MAX"):
+        return None
+    rest = param[3:].strip() if len(param) > 3 else ""
+    if not rest and " " in param:
+        parts = param.split()
+        rest = parts[-1] if len(parts) > 1 else ""
+    match = re.search(r"\d+", rest) if rest else None
+    return max(0.0, float(match.group())) if match else None
 
 
 # -----------------------------------------------------------------------------
@@ -50,6 +65,7 @@ class AVRState:
     mute: bool | None = False  # True = muted
     sound_mode: str | None = "STEREO"  # e.g. STEREO, MULTI CH IN, DOLBY DIGITAL
     smart_select: str | None = None  # Smart Select slot, always "SMART{n}" (e.g. SMART0, SMART1)
+    volume_max: float = DEFAULT_MAX_VOLUME  # AVR max volume limit from MVMAX
 
     def update_from_message(self, message: str) -> None:
         """Update state from a Denon telnet response (PW, MV, SI, MU, ZM, MS, MSSMART)."""
@@ -79,8 +95,10 @@ class AVRState:
             if param == "?":
                 pass
             elif param.upper().startswith("MAX"):
-                # MVMAX = AVR max volume limit (handled by connection; not current volume)
-                pass
+                # MVMAX = AVR max volume limit; stored on state, not current volume
+                parsed = _parse_mvmax(param)
+                if parsed is not None:
+                    self.volume_max = parsed
             elif param.upper() not in ("UP", "DOWN") and param:
                 self.volume = param
 
@@ -144,16 +162,16 @@ class AVRState:
         self.mute = snapshot.get("mute")
         self.sound_mode = snapshot.get("sound_mode")
         self.smart_select = snapshot.get("smart_select")
+        self.volume_max = snapshot.get("volume_max", DEFAULT_MAX_VOLUME)
 
     def apply_command(
         self,
         command: str,
         volume_step: float,
-        volume_max: float,
     ) -> bool:
         """Optimistically apply a Denon telnet command. Returns True if state changed.
 
-        volume_step and volume_max are AVR/config properties; pass from connection/config.
+        volume_step is an AVR/config property. volume_max is tracked on this state instance.
         """
         if not command or len(command) < 2:
             return False
@@ -181,14 +199,14 @@ class AVRState:
             if param == "?":
                 pass
             elif param.upper() == "UP":
-                level = volume_to_level(self.volume, volume_max)
-                level = min(volume_max, level + volume_step)
-                self.volume = _format_volume(level, volume_max)
+                level = volume_to_level(self.volume, self.volume_max)
+                level = min(self.volume_max, level + volume_step)
+                self.volume = _format_volume(level, self.volume_max)
                 applied = True
             elif param.upper() == "DOWN":
-                level = volume_to_level(self.volume, volume_max)
+                level = volume_to_level(self.volume, self.volume_max)
                 level = max(0.0, level - volume_step)
-                self.volume = _format_volume(level, volume_max)
+                self.volume = _format_volume(level, self.volume_max)
                 applied = True
             elif param and "MAX" not in param.upper():
                 self.volume = param

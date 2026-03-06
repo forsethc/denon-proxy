@@ -186,11 +186,11 @@ def build_json_state(
         if not k.startswith("_")
     }
     if "volume" in state_dict and state_dict["volume"] is not None:
-        vol_max = getattr(avr, "volume_max", 98.0) if avr else 98.0
+        vol_max = getattr(avr_state, "volume_max", 98.0)
         state_dict["volume"] = volume_to_level(state_dict["volume"], vol_max)
     avr_dict = dict(avr.get_details()) if avr else {"type": "none"}
     avr_dict["connected"] = avr.is_connected() if avr else False
-    avr_dict["volume_max"] = getattr(avr, "volume_max", 98.0) if avr else 98.0
+    avr_dict["volume_max"] = getattr(avr_state, "volume_max", 98.0)
     avr_dict["manufacturer"] = runtime_state.avr_info.manufacturer
     avr_dict["model_name"] = runtime_state.avr_info.model_name
     avr_dict["serial_number"] = runtime_state.avr_info.serial_number
@@ -403,7 +403,6 @@ class ClientHandler(asyncio.Protocol):
             if not self.avr_state.apply_command(
                 command,
                 volume_step=float(self.config["volume_step"]),
-                volume_max=self.avr.volume_max,
             ):
                 snapshot = None  # command didn't change state, nothing to revert
 

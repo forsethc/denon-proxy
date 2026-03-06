@@ -10,29 +10,12 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import re
 from typing import Any, Callable
 
 from config import Config
 
 from avr_state import AVRState
 from telnet_utils import parse_telnet_lines, telnet_line_to_bytes
-
-# Default max volume when AVR has not sent MVMAX; many Denon/Marantz use 98.
-DEFAULT_MAX_VOLUME = 98.0
-
-
-def _parse_mvmax(param: str) -> float | None:
-    """Parse MVMAX nn from param (e.g. 'MAX 60' or 'MAX60'). Returns None if no number."""
-    if not param.upper().startswith("MAX"):
-        return None
-    rest = param[3:].strip() if len(param) > 3 else ""
-    if not rest and " " in param:
-        parts = param.split()
-        rest = parts[-1] if len(parts) > 1 else ""
-    match = re.search(r"\d+", rest) if rest else None
-    return max(0.0, float(match.group())) if match else None
-
 
 # -----------------------------------------------------------------------------
 # AVR Connection - telnet connection to physical AVR
@@ -65,7 +48,6 @@ class AVRConnection:
         self.reader: asyncio.StreamReader | None = None
         self.writer: asyncio.StreamWriter | None = None
         self._buffer = b""
-        self.volume_max: float = DEFAULT_MAX_VOLUME  # from AVR MVMAX when received
 
     def is_connected(self) -> bool:
         """Return True if connected to the AVR."""
@@ -101,10 +83,6 @@ class AVRConnection:
                 messages, self._buffer = parse_telnet_lines(self._buffer, data)
                 for msg in messages:
                     payload = msg[2:] if len(msg) > 2 else ""
-                    if msg.startswith("MV") and len(msg) > 2 and "MAX" in payload.upper():
-                        parsed = _parse_mvmax(payload.strip())
-                        if parsed is not None:
-                            self.volume_max = parsed
                     # AVR responses that contain "?" in the payload are invalid
                     # (e.g. buggy echoes like "MSQUICK ?"); don't update state or echo to clients.
                     if not (payload and "?" in payload):
@@ -189,7 +167,6 @@ class VirtualAVRConnection:
         self.logger = logger
         self._connected = False
         self.volume_step = volume_step
-        self.volume_max: float = DEFAULT_MAX_VOLUME
 
     def is_connected(self) -> bool:
         return self._connected
@@ -210,7 +187,7 @@ class VirtualAVRConnection:
         if not cmd or len(cmd) < 2:
             return True
         self.logger.debug("Virtual AVR received: %s", cmd)
-        self.avr_state.apply_command(cmd, volume_step=self.volume_step, volume_max=self.volume_max)
+        self.avr_state.apply_command(cmd, volume_step=self.volume_step)
         # Emit the response(s) a real AVR would send for this command
         dump = self.avr_state.get_status_dump().strip()
         prefix = cmd[:2].upper()

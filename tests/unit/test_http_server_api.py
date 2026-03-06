@@ -50,8 +50,6 @@ async def test_http_get_status_json_shape():
     runtime_state.resolved_sources = [("CD", "CD"), ("HDMI1", "Game Console")]
 
     class _FakeAvr:
-        volume_max = 80.0
-
         def is_connected(self) -> bool:
             return True
 

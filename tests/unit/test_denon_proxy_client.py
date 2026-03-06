@@ -23,8 +23,6 @@ async def test_optimistic_revert_when_send_fails():
     state.volume = "50"
 
     class FailingAVR:
-        volume_max = 80.0
-
         def is_connected(self) -> bool:
             return True
 

@@ -153,7 +153,7 @@ async def test_avr_connection_read_loop_skips_payload_with_question_mark():
 
 @pytest.mark.asyncio
 async def test_avr_connection_read_loop_updates_volume_max_from_mvmax():
-    """When AVR sends MVMAX60, volume_max is set to 60."""
+    """When AVR sends MVMAX60, state.volume_max is set to 60."""
     responses = []
 
     def on_response(msg: str) -> None:
@@ -180,7 +180,7 @@ async def test_avr_connection_read_loop_updates_volume_max_from_mvmax():
     try:
         await avr.connect()
         await asyncio.sleep(0.2)
-        assert avr.volume_max == 60.0
+        assert state.volume_max == 60.0
     finally:
         avr.close()
         server.close()

@@ -57,8 +57,7 @@ class _FakeClient:
 
 class _FakeAvr:
     def __init__(self) -> None:
-        self.volume_max = 80.0
-
+        pass
     def is_connected(self) -> bool:
         return True
 
@@ -85,6 +84,7 @@ def test_build_json_state_structure_and_volume_conversion():
     state = AVRState()
     state.power = "ON"
     state.volume = "50"
+    state.volume_max = 80.0
     avr = _FakeAvr()
     clients = [_FakeClient("10.0.0.1"), _FakeClient("10.0.0.2")]
     config = {

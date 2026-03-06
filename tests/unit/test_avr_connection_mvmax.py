@@ -1,5 +1,5 @@
-"""Unit tests: _parse_mvmax (avr_connection)."""
-from avr_connection import _parse_mvmax
+"""Unit tests: _parse_mvmax (now on AVRState)."""
+from avr_state import _parse_mvmax
 
 
 def test_parse_mvmax_valid_and_invalid_inputs():

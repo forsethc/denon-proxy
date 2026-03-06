@@ -26,17 +26,17 @@ def test_update_from_message_updates_all_fields():
 def test_apply_command_empty_or_short_returns_false():
     """Empty or single-char command does not change state and returns False."""
     state = AVRState()
-    assert state.apply_command("", volume_step=0.5, volume_max=80.0) is False
-    assert state.apply_command("P", volume_step=0.5, volume_max=80.0) is False
+    assert state.apply_command("", volume_step=0.5) is False
+    assert state.apply_command("P", volume_step=0.5) is False
     assert state.power == "ON"
 
 
 def test_apply_command_pw_with_param():
     """PW with extra param (e.g. PWSTANDBY) sets power."""
     state = AVRState()
-    state.apply_command("PWSTANDBY", volume_step=0.5, volume_max=80.0)
+    state.apply_command("PWSTANDBY", volume_step=0.5)
     assert state.power == "STANDBY"
-    state.apply_command("PWOTHER", volume_step=0.5, volume_max=80.0)
+    state.apply_command("PWOTHER", volume_step=0.5)
     assert state.power == "OTHER"
 
 
@@ -44,21 +44,21 @@ def test_apply_command_zm_sets_power():
     """ZM (zone main) commands set power: ZMON -> ON, ZMOFF/ZMSTANDBY -> STANDBY."""
     state = AVRState()
     state.power = "STANDBY"
-    changed = state.apply_command("ZMON", volume_step=0.5, volume_max=80.0)
+    changed = state.apply_command("ZMON", volume_step=0.5)
     assert changed and state.power == "ON"
-    changed = state.apply_command("ZMSTANDBY", volume_step=0.5, volume_max=80.0)
+    changed = state.apply_command("ZMSTANDBY", volume_step=0.5)
     assert changed and state.power == "STANDBY"
     state.power = "ON"
-    changed = state.apply_command("ZMOFF", volume_step=0.5, volume_max=80.0)
+    changed = state.apply_command("ZMOFF", volume_step=0.5)
     assert changed and state.power == "STANDBY"
 
 
 def test_apply_command_ms_sets_sound_mode():
     """MS (sound mode) command sets sound_mode; distinct from MSSMART (smart select)."""
     state = AVRState()
-    changed = state.apply_command("MSDOLBY", volume_step=0.5, volume_max=80.0)
+    changed = state.apply_command("MSDOLBY", volume_step=0.5)
     assert changed and state.sound_mode == "DOLBY"
-    changed = state.apply_command("MSNEO6", volume_step=0.5, volume_max=80.0)
+    changed = state.apply_command("MSNEO6", volume_step=0.5)
     assert changed and state.sound_mode == "NEO6"
 
 
@@ -66,7 +66,7 @@ def test_apply_command_mv_query_does_not_change_volume():
     """MV? is a query; apply_command does not change volume and returns False."""
     state = AVRState()
     state.volume = "50"
-    changed = state.apply_command("MV?", volume_step=0.5, volume_max=80.0)
+    changed = state.apply_command("MV?", volume_step=0.5)
     assert changed is False and state.volume == "50"
 
 
@@ -81,12 +81,17 @@ def test_update_from_message_query_does_not_change_state():
     assert state.volume == "50"
 
 
-def test_update_from_message_mvmax_ignored():
-    """MVMAX is AVR config, not current volume; param is ignored."""
+def test_update_from_message_mvmax_updates_volume_max_and_not_volume():
+    """MVMAX is AVR config, not current volume; updates volume_max only."""
     state = AVRState()
     state.volume = "50"
+    original_max = state.volume_max
     state.update_from_message("MVMAX60")
     assert state.volume == "50"
+    assert state.volume_max == 60.0
+    # Other values still unchanged when MVMAX received
+    state.update_from_message("MVMAX ?")
+    assert state.volume_max == 60.0
 
 
 def test_apply_command_and_get_status_dump_and_snapshot_restore():
@@ -95,19 +100,19 @@ def test_apply_command_and_get_status_dump_and_snapshot_restore():
     assert state.volume == str(VOLUME_DEFAULT_LEVEL)
 
     # Apply commands
-    changed = state.apply_command("PWON", volume_step=0.5, volume_max=80.0)
+    changed = state.apply_command("PWON", volume_step=0.5)
     assert changed and state.power == "ON"
 
-    changed = state.apply_command("MVUP", volume_step=1.0, volume_max=80.0)
+    changed = state.apply_command("MVUP", volume_step=1.0)
     assert changed
 
-    changed = state.apply_command("MUON", volume_step=1.0, volume_max=80.0)
+    changed = state.apply_command("MUON", volume_step=1.0)
     assert changed and state.mute is True
 
-    changed = state.apply_command("SIHDRADIO", volume_step=1.0, volume_max=80.0)
+    changed = state.apply_command("SIHDRADIO", volume_step=1.0)
     assert changed and state.input_source == "HDRADIO"
 
-    changed = state.apply_command("MSSMART2", volume_step=1.0, volume_max=80.0)
+    changed = state.apply_command("MSSMART2", volume_step=1.0)
     assert changed and state.smart_select == "SMART2"
 
     dump = state.get_status_dump()
