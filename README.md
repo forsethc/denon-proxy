@@ -23,6 +23,22 @@ Denon AVR receivers only support **one active Telnet connection** at a time. If 
 - **`avr_discovery.py`** – AVR discovery: HTTP/SSDP (device discovery, Deviceinfo, AppCommand, MainZone XML). Used by the proxy when SSDP is enabled; can also be used standalone for testing
 - **`runtime_utils.py`** – Runtime/environment helpers: container detection (`is_running_in_docker`), internal IP classification (`is_docker_internal_ip`)
 
+## State and configuration
+
+The proxy keeps configuration and runtime data in four distinct layers. Keeping them separate avoids mutating config at runtime and makes it clear where each value comes from.
+
+| Class | Module | Role |
+|-------|--------|------|
+| **Config** | `config.py` | User- and environment-driven inputs (avr_host, proxy_port, sources override, etc.). Immutable after parse; read via mapping interface. |
+| **AVRInfo** | `avr_info.py` | AVR identity and capabilities discovered at runtime (manufacturer, model, serial, friendly name, raw input sources). Frozen dataclass; set once at startup from HTTP sync (or `unknown`/`virtual` placeholders). |
+| **RuntimeState** | `runtime_state.py` | Resolved, cached views derived from Config + AVRInfo: resolved sources, resolved friendly name, chosen ports (when config uses 0), and callbacks (e.g. notify Web UI). Single mutable instance passed through proxy and discovery. |
+| **AVRState** | `avr_state.py` | Live AVR state (power, volume, input, mute, sound mode, smart select). Updated from Telnet responses; used by proxy, connection, and discovery for JSON/XML and optimistic updates. |
+
+- **Config** → never mutated after load; overrides come from env vars at startup.
+- **AVRInfo** → immutable value; the reference in RuntimeState is set once after discovery (or virtual/unknown).
+- **RuntimeState** → holds that reference plus derived caches and callbacks.
+- **AVRState** → the only frequently mutating state; it reflects the current device (or optimistic) state.
+
 ## Requirements
 
 - Python 3.10+
