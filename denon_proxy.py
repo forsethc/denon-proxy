@@ -19,6 +19,7 @@ import argparse
 import asyncio
 import logging
 import os
+import pprint
 import signal
 import sys
 from pathlib import Path
@@ -714,6 +715,7 @@ class DenonProxyServer:
 async def main_async(config: dict) -> None:
     """Run the proxy server."""
     logger = logging.getLogger("denon-proxy")
+    logger.debug("Starting proxy with config:\n%s", pprint.pformat(config))
     proxy = DenonProxyServer(config, logger, create_avr_connection)
 
     # Handle shutdown gracefully - must not block event loop or Ctrl-C won't work
