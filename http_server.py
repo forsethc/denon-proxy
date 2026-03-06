@@ -241,7 +241,8 @@ async def run_http_server(
             for t in list(sse_subscribers):
                 try:
                     t.write(msg)
-                except Exception:
+                except Exception as e:
+                    logger.debug("SSE write to subscriber failed, removing: %s", e)
                     sse_subscribers.discard(t)
         except Exception as e:
             logger.debug("SSE push error: %s", e)

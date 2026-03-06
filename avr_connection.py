@@ -106,8 +106,8 @@ class AVRConnection:
             try:
                 self.writer.close()
                 asyncio.create_task(self.writer.wait_closed())
-            except Exception:
-                pass
+            except Exception as e:
+                self.logger.debug("Error closing writer on disconnect: %s", e)
             self.reader = None
             self.writer = None
         self.logger.warning("Disconnected from AVR")
@@ -141,8 +141,8 @@ class AVRConnection:
         if self.writer:
             try:
                 self.writer.close()
-            except Exception:
-                pass
+            except Exception as e:
+                self.logger.debug("Error closing writer: %s", e)
             self.reader = None
             self.writer = None
 
