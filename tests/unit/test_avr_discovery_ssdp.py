@@ -59,6 +59,7 @@ def test_parse_ssdp_search_target_first_st_wins():
 def test_ssdp_response_http_200():
     config = {"ssdp_http_port": 8080}
     runtime_state = RuntimeState()
+    runtime_state.avr_info = AVRInfo.virtual()
     body = ssdp_response(config, "192.168.1.1", "urn:schemas-denon-com:device:AiosDevice:1", runtime_state)
     text = body.decode("utf-8")
     assert text.startswith("HTTP/1.1 200 OK\r\n")
@@ -67,6 +68,7 @@ def test_ssdp_response_http_200():
 def test_ssdp_response_contains_location_with_description_xml():
     config = {"ssdp_http_port": 8080}
     runtime_state = RuntimeState()
+    runtime_state.avr_info = AVRInfo.virtual()
     body = ssdp_response(config, "192.168.1.1", "urn:test:device:1", runtime_state)
     text = body.decode("utf-8")
     assert "LOCATION: http://192.168.1.1:8080/description.xml" in text
@@ -75,6 +77,7 @@ def test_ssdp_response_contains_location_with_description_xml():
 def test_ssdp_response_uses_config_port():
     config = {"ssdp_http_port": 9000}
     runtime_state = RuntimeState()
+    runtime_state.avr_info = AVRInfo.virtual()
     body = ssdp_response(config, "10.0.0.5", "ssdp:all", runtime_state)
     text = body.decode("utf-8")
     assert "http://10.0.0.5:9000/description.xml" in text
@@ -83,6 +86,7 @@ def test_ssdp_response_uses_config_port():
 def test_ssdp_response_default_port():
     config = {}
     runtime_state = RuntimeState()
+    runtime_state.avr_info = AVRInfo.virtual()
     body = ssdp_response(config, "127.0.0.1", "upnp:rootdevice", runtime_state)
     text = body.decode("utf-8")
     assert "http://127.0.0.1:8080/description.xml" in text
@@ -92,6 +96,7 @@ def test_ssdp_response_contains_st():
     config = {"ssdp_http_port": 8080}
     st = "urn:schemas-denon-com:device:AiosDevice:1"
     runtime_state = RuntimeState()
+    runtime_state.avr_info = AVRInfo.virtual()
     body = ssdp_response(config, "192.168.1.1", st, runtime_state)
     text = body.decode("utf-8")
     assert f"ST: {st}" in text
@@ -100,6 +105,7 @@ def test_ssdp_response_contains_st():
 def test_ssdp_response_contains_usn_format():
     config = {"ssdp_http_port": 8080}
     runtime_state = RuntimeState()
+    runtime_state.avr_info = AVRInfo.virtual()
     body = ssdp_response(config, "192.168.1.1", "urn:test:1", runtime_state)
     text = body.decode("utf-8")
     # USN is uuid:denon-proxy-{serial}::{st}, serial = proxy-{ip with dashes}
@@ -109,6 +115,7 @@ def test_ssdp_response_contains_usn_format():
 def test_ssdp_response_usn_serial_escapes_dots():
     config = {"ssdp_http_port": 80}
     runtime_state = RuntimeState()
+    runtime_state.avr_info = AVRInfo.virtual()
     body = ssdp_response(config, "10.0.0.1", "ssdp:all", runtime_state)
     text = body.decode("utf-8")
     assert "denon-proxy-proxy-10-0-0-1" in text

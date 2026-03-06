@@ -13,7 +13,7 @@ import logging
 
 import pytest
 
-from runtime_state import RuntimeState
+from runtime_state import AVRInfo, RuntimeState
 from avr_discovery import run_discovery_servers, SSDP_MCAST_GRP, SSDP_MCAST_PORT
 from avr_state import AVRState
 from denon_proxy import load_config_from_dict
@@ -43,6 +43,7 @@ async def discovery_servers(discovery_config, discovery_logger):
     """
     state = AVRState()
     runtime_state = RuntimeState()
+    runtime_state.avr_info = AVRInfo.virtual()
     ssdp_transport, http_servers = await run_discovery_servers(
         discovery_config, discovery_logger, state, runtime_state
     )

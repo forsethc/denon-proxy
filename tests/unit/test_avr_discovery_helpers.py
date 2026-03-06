@@ -54,6 +54,7 @@ def test_description_xml_structure_and_sources():
         "ssdp_http_port": 9000,
     }
     runtime_state = RuntimeState()
+    runtime_state.avr_info = AVRInfo.virtual()
     xml = description_xml(cfg, "192.168.1.1", runtime_state)
     assert 'xmlns="urn:schemas-upnp-org:device-1-0"' in xml
     assert "<friendlyName>My Proxy</friendlyName>" in xml
@@ -119,6 +120,7 @@ def test_appcommand_response_xml_zone_power_and_volume():
     state.power = "STANDBY"
     state.volume = "45"
     runtime_state = RuntimeState()
+    runtime_state.avr_info = AVRInfo.virtual()
     body = b'<tx><cmd id="1">GetAllZonePowerStatus</cmd></tx><tx><cmd id="2">GetAllZoneVolume</cmd></tx>'
     out = appcommand_response_xml(cfg, state, body, logging.getLogger("tests.avr_discovery_helpers"), runtime_state)
     text = out.decode("utf-8")
@@ -128,6 +130,7 @@ def test_appcommand_response_xml_zone_power_and_volume():
 
 def test_appcommand_response_xml_empty_body_defaults_to_get_friendly_name():
     runtime_state = RuntimeState()
+    runtime_state.avr_info = AVRInfo.virtual()
     out = appcommand_response_xml({}, None, b"", logging.getLogger("tests.avr_discovery_helpers"), runtime_state)
     text = out.decode("utf-8")
     assert "GetFriendlyName" in text
@@ -200,6 +203,7 @@ def test_escape_xml_text():
 def test_get_sources_from_dict():
     config = {"sources": {"CD": "CD Player", "HDMI1": "Game"}}
     runtime_state = RuntimeState()
+    runtime_state.avr_info = AVRInfo.virtual()
     result = get_sources(config, runtime_state)
     assert result == [("CD", "CD Player"), ("HDMI1", "Game")]
     assert runtime_state.resolved_sources == result
@@ -208,6 +212,7 @@ def test_get_sources_from_dict():
 def test_get_sources_from_list_of_tuples():
     config = {"sources": [("CD", "CD Player"), ("HDMI1", "Game")]}
     runtime_state = RuntimeState()
+    runtime_state.avr_info = AVRInfo.virtual()
     result = get_sources(config, runtime_state)
     assert result == [("CD", "CD Player"), ("HDMI1", "Game")]
 
@@ -215,6 +220,7 @@ def test_get_sources_from_list_of_tuples():
 def test_get_sources_from_list_of_dicts():
     config = {"sources": [{"func": "CD", "display_name": "CD Player"}, {"func": "HDMI1", "name": "Game"}]}
     runtime_state = RuntimeState()
+    runtime_state.avr_info = AVRInfo.virtual()
     result = get_sources(config, runtime_state)
     assert result == [("CD", "CD Player"), ("HDMI1", "Game")]
 

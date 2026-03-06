@@ -66,7 +66,7 @@ class RuntimeState:
             resolved = configured
         else:
             avr_raw = None
-            if self.avr_info and self.avr_info.raw_friendly_name:
+            if self.avr_info.raw_friendly_name:
                 avr_raw = (self.avr_info.raw_friendly_name or "").strip() or None
             resolved = f"{avr_raw} Proxy" if avr_raw else "Denon AVR Proxy"
         self._cached_friendly_name = resolved

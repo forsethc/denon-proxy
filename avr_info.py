@@ -48,12 +48,16 @@ class AVRInfo:
             raw_sources=[],
         )
 
-    @staticmethod
-    def ssdp_serial(avr_info: AVRInfo | None, advertise_ip: str) -> str:
-        """Serial for SSDP when avr_info may be None. Use in description_xml and ssdp_response."""
-        if avr_info is not None:
-            return avr_info.udn_serial(advertise_ip)
-        return f"proxy-{advertise_ip.replace('.', '-')}"
+    @classmethod
+    def unknown(cls) -> AVRInfo:
+        """Placeholder when a physical AVR is configured but identity could not be discovered (e.g. HTTP sync failed)."""
+        return cls(
+            manufacturer="Denon",
+            model_name=None,
+            serial_number=None,
+            raw_friendly_name=None,
+            raw_sources=[],
+        )
 
     def has_sources(self) -> bool:
         """Return True if the AVR reported any input sources."""

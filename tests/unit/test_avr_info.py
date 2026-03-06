@@ -1,4 +1,4 @@
-"""Unit tests for AVRInfo: describe, has_sources, raw_sources coercion, udn_serial, ssdp_serial."""
+"""Unit tests for AVRInfo: describe, has_sources, raw_sources coercion, udn_serial."""
 
 from avr_info import AVRInfo
 
@@ -92,7 +92,7 @@ def test_raw_sources_tuple_converted_to_list():
     assert isinstance(info.raw_sources, list)
 
 
-# --- udn_serial / ssdp_serial ---
+# --- udn_serial ---
 
 
 def test_udn_serial_uses_serial_number_when_set():
@@ -128,10 +128,6 @@ def test_udn_serial_fallback_when_serial_whitespace_only():
     assert info.udn_serial("10.0.0.5") == "proxy-10-0-0-5"
 
 
-def test_ssdp_serial_none_avr_info_returns_proxy_ip():
-    assert AVRInfo.ssdp_serial(None, "192.168.1.1") == "proxy-192-168-1-1"
-
-
 def test_virtual_returns_canonical_placeholder():
     """Virtual mode gets a consistent AVRInfo (Denon Virtual, no serial, no sources)."""
     info = AVRInfo.virtual()
@@ -142,6 +138,7 @@ def test_virtual_returns_canonical_placeholder():
     assert info.raw_sources == []
     assert info.has_sources() is False
     assert info.describe() == "Denon Virtual"
+    assert info.udn_serial("192.168.1.1") == "proxy-192-168-1-1"
 
 
 def test_virtual_udn_serial_different_ips():
@@ -150,12 +147,6 @@ def test_virtual_udn_serial_different_ips():
     assert info.udn_serial("192.168.1.1") == "proxy-192-168-1-1"
     assert info.udn_serial("10.0.0.5") == "proxy-10-0-0-5"
     assert info.udn_serial("127.0.0.1") == "proxy-127-0-0-1"
-
-
-def test_virtual_ssdp_serial():
-    """ssdp_serial with virtual AVRInfo uses proxy-ip (same as udn_serial)."""
-    info = AVRInfo.virtual()
-    assert AVRInfo.ssdp_serial(info, "10.0.0.1") == "proxy-10-0-0-1"
 
 
 def test_virtual_distinct_from_physical_with_no_serial():
@@ -180,12 +171,28 @@ def test_virtual_distinct_from_physical_with_no_serial():
     assert virtual != other
 
 
-def test_ssdp_serial_with_avr_info_delegates_to_udn_serial():
-    info = AVRInfo(
-        manufacturer="Denon",
-        model_name="X",
-        serial_number="DEVICE-SERIAL",
-        raw_friendly_name=None,
-        raw_sources=[],
-    )
-    assert AVRInfo.ssdp_serial(info, "1.2.3.4") == "DEVICE-SERIAL"
+# --- unknown() (physical AVR configured but sync failed) ---
+
+
+def test_unknown_returns_placeholder_for_failed_sync():
+    """Unknown = physical AVR but identity not discovered (e.g. HTTP sync failed)."""
+    info = AVRInfo.unknown()
+    assert info.manufacturer == "Denon"
+    assert info.model_name is None
+    assert info.serial_number is None
+    assert info.raw_friendly_name is None
+    assert info.raw_sources == []
+    assert info.has_sources() is False
+    assert info.describe() == "Denon"
+    assert info.udn_serial("192.168.1.1") == "proxy-192-168-1-1"
+
+
+def test_unknown_equality():
+    assert AVRInfo.unknown() == AVRInfo.unknown()
+
+
+def test_unknown_distinct_from_virtual():
+    """Unknown (sync failed) is not the same as virtual (no physical AVR)."""
+    assert AVRInfo.unknown() != AVRInfo.virtual()
+
+

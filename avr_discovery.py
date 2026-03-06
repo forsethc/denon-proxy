@@ -94,7 +94,7 @@ def get_sources(config: Config, runtime_state: RuntimeState) -> list[tuple[str, 
         return runtime_state.resolved_sources
 
     cfg = config.get("sources")
-    raw_sources = runtime_state.avr_info.raw_sources if runtime_state.avr_info else None
+    raw_sources = runtime_state.avr_info.raw_sources
 
     if cfg:
         out: list[tuple[str, str]] = []
@@ -431,12 +431,9 @@ def description_xml(config: Config, advertise_ip: str, runtime_state: RuntimeSta
     HTTP sync) so UC Remote and other clients can detect Denon vs Marantz correctly."""
     friendly_name = get_proxy_friendly_name(config, runtime_state)
     http_port = runtime_state.ssdp_http_port if runtime_state.ssdp_http_port is not None else config.get("ssdp_http_port", 8080)
-    serial = AVRInfo.ssdp_serial(runtime_state.avr_info, advertise_ip)
-    manufacturer = "Denon"
-    raw_model = ""
-    if runtime_state.avr_info:
-        manufacturer = (runtime_state.avr_info.manufacturer or "Denon").strip() or "Denon"
-        raw_model = (runtime_state.avr_info.model_name or "").strip()
+    serial = runtime_state.avr_info.udn_serial(advertise_ip)
+    manufacturer = (runtime_state.avr_info.manufacturer or "Denon").strip() or "Denon"
+    raw_model = (runtime_state.avr_info.model_name or "").strip()
     model_name = f"{raw_model} Proxy" if raw_model else "AVR-Proxy"
     return f"""<?xml version="1.0" encoding="utf-8"?>
 <root xmlns="urn:schemas-upnp-org:device-1-0">
@@ -465,7 +462,7 @@ def ssdp_response(config: Config, advertise_ip: str, st: str, runtime_state: Run
     """Build SSDP HTTP 200 response for M-SEARCH."""
     http_port = runtime_state.ssdp_http_port if runtime_state.ssdp_http_port is not None else config.get("ssdp_http_port", 8080)
     location = f"http://{advertise_ip}:{http_port}/description.xml"
-    serial = AVRInfo.ssdp_serial(runtime_state.avr_info, advertise_ip)
+    serial = runtime_state.avr_info.udn_serial(advertise_ip)
     usn = f"uuid:denon-proxy-{serial}::{st}"
     return "\r\n".join([
         "HTTP/1.1 200 OK",

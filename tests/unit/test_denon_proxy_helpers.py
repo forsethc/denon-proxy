@@ -73,6 +73,7 @@ def test_build_json_state_with_no_avr():
     state.volume = "50"
     config = load_config_from_dict({})
     runtime_state = RuntimeState()
+    runtime_state.avr_info = AVRInfo.virtual()
     result = build_json_state(state, None, [], config, runtime_state)
     assert result["avr"]["type"] == "none"
     assert result["avr"]["connected"] is False
@@ -145,6 +146,7 @@ def test_build_json_state_includes_discovery_info():
     state = AVRState()
     config = load_config_from_dict({"enable_ssdp": True, "ssdp_http_port": 9090})
     runtime_state = RuntimeState()
+    runtime_state.avr_info = AVRInfo.virtual()
     result = build_json_state(state, None, [], config, runtime_state)
     assert "discovery" in result
     assert result["discovery"]["enabled"] is True

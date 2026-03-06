@@ -9,7 +9,7 @@ import logging
 import pytest
 
 from avr_state import AVRState
-from runtime_state import RuntimeState
+from runtime_state import AVRInfo, RuntimeState
 from denon_proxy import build_json_state, load_config_from_dict
 from http_server import run_http_server
 
@@ -46,6 +46,7 @@ async def test_http_get_status_json_shape():
     logger = logging.getLogger("test.http.status")
     state = AVRState()
     runtime_state = RuntimeState()
+    runtime_state.avr_info = AVRInfo.virtual()
     runtime_state.resolved_sources = [("CD", "CD"), ("HDMI1", "Game Console")]
 
     class _FakeAvr:

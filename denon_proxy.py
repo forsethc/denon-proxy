@@ -191,12 +191,11 @@ def build_json_state(
     avr_dict = dict(avr.get_details()) if avr else {"type": "none"}
     avr_dict["connected"] = avr.is_connected() if avr else False
     avr_dict["volume_max"] = getattr(avr, "volume_max", 98.0) if avr else 98.0
-    if runtime_state.avr_info:
-        avr_dict["manufacturer"] = runtime_state.avr_info.manufacturer
-        avr_dict["model_name"] = runtime_state.avr_info.model_name
-        avr_dict["serial_number"] = runtime_state.avr_info.serial_number
-        avr_dict["friendly_name"] = runtime_state.avr_info.raw_friendly_name
-    sources = runtime_state.resolved_sources or (runtime_state.avr_info.raw_sources if runtime_state.avr_info else None)
+    avr_dict["manufacturer"] = runtime_state.avr_info.manufacturer
+    avr_dict["model_name"] = runtime_state.avr_info.model_name
+    avr_dict["serial_number"] = runtime_state.avr_info.serial_number
+    avr_dict["friendly_name"] = runtime_state.avr_info.raw_friendly_name
+    sources = runtime_state.resolved_sources or runtime_state.avr_info.raw_sources
     if sources:
         avr_dict["sources"] = [{"func": func_name, "display_name": display_name} for func_name, display_name in sources]
     proxy_ip = get_advertise_ip(config) or None
@@ -554,6 +553,8 @@ class DenonProxyServer:
         """Start the proxy server and AVR connection."""
         if (self.config.get("avr_host") or "").strip():
             await self._sync_initial_state()
+            if self.runtime_state.avr_info is None:
+                self.runtime_state.avr_info = AVRInfo.unknown()
         else:
             self.runtime_state.avr_info = AVRInfo.virtual()
 
