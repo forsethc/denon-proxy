@@ -37,18 +37,16 @@ try:
 except ImportError:
     DENONAVR_AVAILABLE = False
 
-from avr_connection import (
-    AVRConnection,
-    VirtualAVRConnection,
-    create_avr_connection,
-)
+from avr_connection import AVRConnection, VirtualAVRConnection, create_avr_connection
 from avr_discovery import get_advertise_ip, get_proxy_friendly_name, run_discovery_servers
+from config import Config
 from runtime_state import RuntimeState
 from runtime_utils import is_docker_internal_ip, is_running_in_docker
 from avr_state import AVRState, volume_to_level, _normalize_smart_select
 from telnet_utils import parse_telnet_lines, telnet_line_to_bytes
 
 from http_server import run_http_server
+
 
 # -----------------------------------------------------------------------------
 # Logging setup
@@ -68,31 +66,6 @@ def setup_logging(level: str = "INFO", denonavr_log_level: str | None = None) ->
         logging.getLogger("denonavr").setLevel(
             getattr(logging, denonavr_log_level.upper(), logging.INFO)
         )
-
-
-# -----------------------------------------------------------------------------
-# Configuration
-# -----------------------------------------------------------------------------
-
-_DEFAULT_CONFIG = {
-    "avr_host": "",
-    "avr_port": 23,
-    "proxy_host": "0.0.0.0",
-    "proxy_port": 23,
-    "log_level": "INFO",
-    "denonavr_log_level": "INFO",  # denonavr library logger (independent of log_level)
-    "enable_ssdp": True,
-    # ssdp_friendly_name: omit from defaults so get_proxy_friendly_name can use physical name + " Proxy" when unset
-    "ssdp_http_port": 8080,
-    "ssdp_advertise_ip": "",
-    "optimistic_state": True,
-    "optimistic_broadcast_delay": 0.1,
-    "volume_step": 0.5,  # step for MVUP/MVDOWN when optimistic_state true / virtual AVR (0.5 = half-step; some AVRs use 1.0)
-    "volume_query_delay": 0.15,  # seconds to wait after MVUP/MVDOWN before sending MV? (give AVR time to apply)
-    "enable_http": True,
-    "http_port": 8081,
-    "log_command_groups_info": [],  # e.g. ["power", "volume"] - these groups logged at INFO
-}
 
 
 def _load_config_dict_from_file(config_path: Path | None) -> dict:
@@ -124,33 +97,6 @@ def _load_config_dict_from_file(config_path: Path | None) -> dict:
     return data
 
 
-def _apply_env_overrides(config: dict) -> None:
-    """Apply environment variable overrides in-place."""
-    avr_host = os.getenv("AVR_HOST")
-    if avr_host is not None:
-        config["avr_host"] = avr_host
-
-    avr_port = os.getenv("AVR_PORT")
-    if avr_port:
-        config["avr_port"] = int(avr_port)
-
-    proxy_host = os.getenv("PROXY_HOST")
-    if proxy_host is not None:
-        config["proxy_host"] = proxy_host
-
-    proxy_port = os.getenv("PROXY_PORT")
-    if proxy_port:
-        config["proxy_port"] = int(proxy_port)
-
-    log_level = os.getenv("LOG_LEVEL")
-    if log_level is not None:
-        config["log_level"] = log_level
-
-    denonavr_log_level = os.getenv("DENONAVR_LOG_LEVEL")
-    if denonavr_log_level is not None:
-        config["denonavr_log_level"] = denonavr_log_level
-
-
 def _load_dashboard_html(path: Path | None = None) -> str | None:
     """
     Load the Web UI HTML dashboard from web_ui.html next to this file.
@@ -165,25 +111,21 @@ def _load_dashboard_html(path: Path | None = None) -> str | None:
         return None
 
 
-def load_config_from_dict(raw: dict) -> dict:
+def load_config_from_dict(raw: dict | None) -> Config:
     """
     Merge defaults with a raw config dict (no file I/O or env).
 
     This is pure and easy to unit-test.
     """
-    config = _DEFAULT_CONFIG.copy()
-    config.update(raw or {})
-    return config
+    return Config.from_dict(raw)
 
 
-def load_config(config_path: Path | None = None) -> dict:
+def load_config(config_path: Path | None = None) -> Config:
     """Load configuration from YAML file with environment overrides."""
     raw = _load_config_dict_from_file(config_path)
     config = load_config_from_dict(raw)
-    _apply_env_overrides(config)
-    # Virtual AVR (no avr_host) is never optimistic — commands can't fail so there's never a need to revert.
-    if not (config.get("avr_host") or "").strip():
-        config["optimistic_state"] = False
+    config.apply_env_overrides()
+    config.finalize()
     return config
 
 
@@ -211,7 +153,7 @@ def _command_group(cmd: str) -> str:
     return _COMMAND_GROUPS.get(prefix, "other")
 
 
-def _should_log_command_info(config: dict, cmd: str) -> bool:
+def _should_log_command_info(config: Config, cmd: str) -> bool:
     """True if this command's group is configured for INFO-level logging."""
     groups = config.get("log_command_groups_info") or []
     if not groups:
@@ -229,7 +171,7 @@ def build_json_state(
     avr_state: AVRState,
     avr: (AVRConnection | VirtualAVRConnection) | None,
     clients: Iterable[ClientHandler],
-    config: dict,
+    config: Config,
     runtime_state: RuntimeState,
 ) -> dict:
     """
@@ -397,7 +339,7 @@ class ClientHandler(asyncio.Protocol):
         clients: Set["ClientHandler"],
         logger: logging.Logger,
         runtime_state: RuntimeState,
-        config: dict,
+        config: Config,
     ) -> None:
         self.avr = avr
         self.avr_state = avr_state
@@ -518,7 +460,7 @@ class DenonProxyServer:
 
     def __init__(
         self,
-        config: dict,
+        config: Config,
         logger: logging.Logger,
         avr_factory: Callable[
             [
@@ -729,7 +671,7 @@ class DenonProxyServer:
 # Main entry point
 # -----------------------------------------------------------------------------
 
-async def main_async(config: dict) -> None:
+async def main_async(config: Config) -> None:
     """Run the proxy server."""
     logger = logging.getLogger("denon-proxy")
     logger.debug("Starting proxy with config:\n%s", pprint.pformat(config))

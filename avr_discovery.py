@@ -36,6 +36,8 @@ import struct
 import xml.etree.ElementTree as ET
 from typing import Callable
 
+from config import Config
+
 from runtime_state import RuntimeState
 from runtime_utils import is_docker_internal_ip
 
@@ -79,7 +81,7 @@ DEMO_SOURCES = [
 ]
 
 
-def get_sources(config: dict, runtime_state: RuntimeState) -> list[tuple[str, str]]:
+def get_sources(config: Config, runtime_state: RuntimeState) -> list[tuple[str, str]]:
     """
     Return list of (func_name, display_name) for input sources.
     func_name is the Denon code (e.g. CD, BD, HDMI1) used in SI commands.
@@ -146,7 +148,7 @@ def get_sources(config: dict, runtime_state: RuntimeState) -> list[tuple[str, st
 # Helpers
 # -----------------------------------------------------------------------------
 
-def get_advertise_ip(config: dict) -> str | None:
+def get_advertise_ip(config: Config) -> str | None:
     """Get the IP to advertise in SSDP LOCATION."""
     ip = config.get("ssdp_advertise_ip", "").strip()
     if ip:
@@ -169,7 +171,7 @@ def get_advertise_ip(config: dict) -> str | None:
 _cached_friendly_name: str | None = None
 
 
-def get_proxy_friendly_name(config: dict, runtime_state: RuntimeState) -> str:
+def get_proxy_friendly_name(config: Config, runtime_state: RuntimeState) -> str:
     """Proxy's advertised friendly name: config if set, else physical device name + ' Proxy'. Computed once at first use."""
     global _cached_friendly_name
     if _cached_friendly_name is not None:
@@ -190,7 +192,7 @@ def get_proxy_friendly_name(config: dict, runtime_state: RuntimeState) -> str:
     return _cached_friendly_name
 
 
-def deviceinfo_xml(config: dict, runtime_state: RuntimeState) -> str:
+def deviceinfo_xml(config: Config, runtime_state: RuntimeState) -> str:
     """Deviceinfo.xml - identify as pre-2016 AVR so denonavr uses port 8080/description.xml
     (avoids port 60006 aios_device.xml which can cause HA config flow issues)."""
     sources_xml = "\n".join(
@@ -214,7 +216,7 @@ def deviceinfo_xml(config: dict, runtime_state: RuntimeState) -> str:
 </Device_Info>"""
 
 
-def appcommand_friendlyname_xml(config: dict, runtime_state: RuntimeState) -> str:
+def appcommand_friendlyname_xml(config: Config, runtime_state: RuntimeState) -> str:
     """AppCommand.xml response for GetFriendlyName (denonavr setup)."""
     name = get_proxy_friendly_name(config, runtime_state)
     return f"""<?xml version="1.0" encoding="utf-8"?>
@@ -256,7 +258,7 @@ def parse_appcommand_request(body_bytes: bytes) -> list[tuple[str, str]]:
 
 
 def appcommand_response_xml(
-    config: dict,
+    config: Config,
     avr_state: AVRState,
     body_bytes: bytes,
     logger: logging.Logger,
@@ -360,7 +362,7 @@ def appcommand_response_xml(
     return xml_str.encode("utf-8")
 
 
-def mainzone_xml(avr_state: AVRState, config: dict, runtime_state: RuntimeState) -> bytes:
+def mainzone_xml(avr_state: AVRState, config: Config, runtime_state: RuntimeState) -> bytes:
     """Build MainZone XML for denonavr status polling."""
     friendly_name = get_proxy_friendly_name(config, runtime_state)
     power = (getattr(avr_state, "power", None) if avr_state else None) or "ON"
@@ -442,7 +444,7 @@ def _rewrite_avr_description(
     return xml_str
 
 
-def description_xml(config: dict, advertise_ip: str, runtime_state: RuntimeState) -> str:
+def description_xml(config: Config, advertise_ip: str, runtime_state: RuntimeState) -> str:
     """Minimal UPnP device description XML matching what Home Assistant expects.
     Uses physical AVR manufacturer/model from runtime_state.avr_info when available (e.g. after
     HTTP sync) so UC Remote and other clients can detect Denon vs Marantz correctly."""
@@ -476,7 +478,7 @@ def parse_ssdp_search_target(msg: str) -> str | None:
     return None
 
 
-def ssdp_response(config: dict, advertise_ip: str, st: str, runtime_state: RuntimeState) -> bytes:
+def ssdp_response(config: Config, advertise_ip: str, st: str, runtime_state: RuntimeState) -> bytes:
     """Build SSDP HTTP 200 response for M-SEARCH."""
     http_port = runtime_state.ssdp_http_port if runtime_state.ssdp_http_port is not None else config.get("ssdp_http_port", 8080)
     location = f"http://{advertise_ip}:{http_port}/description.xml"
@@ -508,7 +510,7 @@ class SSDPProtocol(asyncio.DatagramProtocol):
         "urn:schemas-denon-com:device:AiosDevice:1",
     )
 
-    def __init__(self, config: dict, logger: logging.Logger, runtime_state: RuntimeState) -> None:
+    def __init__(self, config: Config, logger: logging.Logger, runtime_state: RuntimeState) -> None:
         self.config = config
         self.logger = logger
         self.runtime_state = runtime_state
@@ -554,7 +556,7 @@ class DeviceDescriptionHandler(asyncio.Protocol):
         appcommand_xml: bytes,
         logger: logging.Logger,
         avr_state: AVRState,
-        config: dict,
+        config: Config,
         runtime_state: RuntimeState,
     ) -> None:
         self.description_xml = description_xml
@@ -655,7 +657,7 @@ class DeviceDescriptionHandler(asyncio.Protocol):
 # -----------------------------------------------------------------------------
 
 async def run_discovery_servers(
-    config: dict,
+    config: Config,
     logger: logging.Logger,
     avr_state: AVRState,
     runtime_state: RuntimeState,

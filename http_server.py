@@ -18,6 +18,8 @@ import json
 import logging
 from typing import Any, Callable, Set
 
+from config import Config
+
 
 def parse_http_request(buffer: bytes) -> tuple[str, str, bytes, bytes] | None:
     """
@@ -210,7 +212,7 @@ class HttpServerHandler(asyncio.Protocol):
 
 
 async def run_http_server(
-    config: dict,
+    config: Config,
     logger: logging.Logger,
     get_state: Callable[[], dict[str, Any]],
     send_command: Callable[[str], None] | None = None,

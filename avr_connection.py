@@ -13,6 +13,8 @@ import logging
 import re
 from typing import Any, Callable
 
+from config import Config
+
 from avr_state import AVRState
 from telnet_utils import parse_telnet_lines, telnet_line_to_bytes
 
@@ -247,7 +249,7 @@ class VirtualAVRConnection:
 
 
 def create_avr_connection(
-    config: dict,
+    config: Config,
     avr_state: AVRState,
     on_response: Callable[[str], None],
     on_disconnect: Callable[[], None],
