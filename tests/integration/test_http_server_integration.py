@@ -61,7 +61,7 @@ async def test_http_status_and_command_full_stack(http_integration_config, http_
     server = DenonProxyServer(http_integration_config, http_integration_logger, create_avr_connection, RuntimeState())
     await server.start()
     try:
-        http_port = server.config["http_port"]
+        http_port = server.runtime_state.http_port or server.config.get("http_port")
         assert http_port and http_port != 0
 
         # Initial status reflects default AVRState and virtual AVR details
@@ -150,7 +150,7 @@ async def test_http_status_reflects_telnet_clients(http_integration_config, http
     await server.start()
     try:
         proxy_port = server.runtime_state.proxy_port or server.config["proxy_port"]
-        http_port = server.config["http_port"]
+        http_port = server.runtime_state.http_port or server.config.get("http_port")
         assert proxy_port and proxy_port != 0, "Proxy port should be set"
         assert http_port and http_port != 0, "HTTP port should be set"
 
@@ -227,7 +227,7 @@ async def test_http_events_sse_streams_updates_on_command(http_integration_confi
     server = DenonProxyServer(http_integration_config, http_integration_logger, create_avr_connection, RuntimeState())
     await server.start()
     try:
-        http_port = server.config["http_port"]
+        http_port = server.runtime_state.http_port or server.config.get("http_port")
         assert http_port and http_port != 0
 
         # Open SSE connection
@@ -295,7 +295,7 @@ async def test_http_refresh_request_state_broadcasts_to_telnet_clients(
     server = DenonProxyServer(http_integration_config, http_integration_logger, create_avr_connection, RuntimeState())
     await server.start()
     proxy_port = server.runtime_state.proxy_port or server.config["proxy_port"]
-    http_port = server.config["http_port"]
+    http_port = server.runtime_state.http_port or server.config.get("http_port")
     assert proxy_port and proxy_port != 0, "Proxy port should be set"
     assert http_port and http_port != 0, "HTTP port should be set"
     try:

@@ -60,7 +60,7 @@ async def test_http_get_status_json_shape():
     def get_state() -> dict:
         return build_json_state(state, _FakeAvr(), [], config, runtime_state)
 
-    result = await run_http_server(config, logger, get_state)
+    result = await run_http_server(config, logger, get_state, runtime_state=runtime_state)
     assert result is not None, "HTTP server should start when HTTP is enabled"
     server, _notify_state_changed = result
 
@@ -138,7 +138,7 @@ async def test_http_post_command_requires_send_command():
     def get_state() -> dict:
         return {}
 
-    result = await run_http_server(config, logger, get_state)
+    result = await run_http_server(config, logger, get_state, runtime_state=RuntimeState())
     assert result is not None
     server, _ = result
 
@@ -190,7 +190,7 @@ async def test_http_post_command_calls_send_command():
     def send_command(cmd: str) -> None:
         commands.append(cmd)
 
-    result = await run_http_server(config, logger, get_state, send_command=send_command)
+    result = await run_http_server(config, logger, get_state, send_command=send_command, runtime_state=RuntimeState())
     assert result is not None
     server, _ = result
 
@@ -252,7 +252,7 @@ async def test_http_post_command_bad_body_returns_400(body, expected_error_subst
     def send_command(cmd: str) -> None:
         pass
 
-    result = await run_http_server(config, logger, get_state, send_command=send_command)
+    result = await run_http_server(config, logger, get_state, send_command=send_command, runtime_state=RuntimeState())
     assert result is not None
     server, _ = result
 
@@ -299,7 +299,7 @@ async def test_http_post_refresh_requires_request_state():
     def get_state() -> dict:
         return {}
 
-    result = await run_http_server(config, logger, get_state)
+    result = await run_http_server(config, logger, get_state, runtime_state=RuntimeState())
     assert result is not None
     server, _ = result
 
@@ -348,7 +348,7 @@ async def test_http_post_refresh_calls_request_state():
     def request_state() -> None:
         called.append(True)
 
-    result = await run_http_server(config, logger, get_state, request_state=request_state)
+    result = await run_http_server(config, logger, get_state, request_state=request_state, runtime_state=RuntimeState())
     assert result is not None
     server, _ = result
 
@@ -393,7 +393,7 @@ async def test_http_events_sse_streams_state():
     def get_state() -> dict:
         return {"state": {"power": "ON"}}
 
-    result = await run_http_server(config, logger, get_state)
+    result = await run_http_server(config, logger, get_state, runtime_state=RuntimeState())
     assert result is not None
     server, notify_state_changed = result
 
@@ -446,7 +446,7 @@ async def test_http_server_disabled():
     def get_state() -> dict:
         return {}
 
-    result = await run_http_server(config, logger, get_state)
+    result = await run_http_server(config, logger, get_state, runtime_state=RuntimeState())
     assert result is None
 
 
@@ -459,7 +459,7 @@ async def test_http_get_root_returns_404_when_no_dashboard():
     def get_state() -> dict:
         return {}
 
-    result = await run_http_server(config, logger, get_state, dashboard_html=None)
+    result = await run_http_server(config, logger, get_state, dashboard_html=None, runtime_state=RuntimeState())
     assert result is not None
     server, _ = result
     try:
@@ -489,7 +489,7 @@ async def test_http_get_root_returns_html_when_dashboard_set():
     def get_state() -> dict:
         return {}
 
-    result = await run_http_server(config, logger, get_state, dashboard_html=html)
+    result = await run_http_server(config, logger, get_state, dashboard_html=html, runtime_state=RuntimeState())
     assert result is not None
     server, _ = result
     try:
@@ -521,7 +521,7 @@ async def test_http_get_status_returns_500_when_get_state_raises():
     def get_state() -> dict:
         raise RuntimeError("get_state failed")
 
-    result = await run_http_server(config, logger, get_state)
+    result = await run_http_server(config, logger, get_state, runtime_state=RuntimeState())
     assert result is not None
     server, _ = result
     try:
@@ -553,7 +553,7 @@ async def test_http_post_command_returns_500_when_send_command_raises():
     def send_command(_cmd: str) -> None:
         raise RuntimeError("send failed")
 
-    result = await run_http_server(config, logger, get_state, send_command=send_command)
+    result = await run_http_server(config, logger, get_state, send_command=send_command, runtime_state=RuntimeState())
     assert result is not None
     server, _ = result
     try:
@@ -592,7 +592,7 @@ async def test_http_post_refresh_returns_500_when_request_state_raises():
     def request_state() -> None:
         raise RuntimeError("request_state failed")
 
-    result = await run_http_server(config, logger, get_state, request_state=request_state)
+    result = await run_http_server(config, logger, get_state, request_state=request_state, runtime_state=RuntimeState())
     assert result is not None
     server, _ = result
     try:

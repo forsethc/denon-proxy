@@ -27,6 +27,7 @@ class RuntimeState:
         "notify_web_state",
         "ssdp_http_port",
         "proxy_port",
+        "http_port",
     )
 
     def __init__(self) -> None:
@@ -42,3 +43,5 @@ class RuntimeState:
         self.ssdp_http_port: int | None = None
         # Resolved proxy (telnet) port when config had proxy_port=0 (OS-chosen port)
         self.proxy_port: int | None = None
+        # Resolved HTTP API port when config had http_port=0 (OS-chosen port)
+        self.http_port: int | None = None

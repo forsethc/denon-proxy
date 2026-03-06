@@ -97,7 +97,7 @@ async def test_json_api_status_and_command_while_discovery_running(full_stack_ht
     Command updates proxy state; next GET reflects it.
     """
     proxy, _ssdp, _discovery_servers = full_stack_http
-    http_port = proxy.config.get("http_port")
+    http_port = proxy.runtime_state.http_port or proxy.config.get("http_port")
     assert http_port is not None and http_port != 0
 
     status1, body1 = await _http_get("127.0.0.1", http_port, "/api/status")

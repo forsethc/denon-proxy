@@ -688,12 +688,17 @@ class DenonProxyServer:
                 send_command=_send_command_cb,
                 request_state=_request_state_cb,
                 dashboard_html=dashboard_html,
+                runtime_state=self.runtime_state,
             )
             if result:
                 self._json_api_server, self._notify_web_state = result
                 self.runtime_state.notify_web_state = self._notify_web_state
                 api_host = get_advertise_ip(self.config) or "localhost"
-                api_port = int(self.config.get("http_port", 8081))
+                api_port = (
+                    self.runtime_state.http_port
+                    if self.runtime_state.http_port is not None
+                    else int(self.config.get("http_port", 8081))
+                )
                 if dashboard_html:
                     self.logger.info(
                         "Web UI at http://%s:%d (dashboard, JSON API, commands)",

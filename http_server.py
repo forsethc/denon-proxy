@@ -217,6 +217,7 @@ async def run_http_server(
     request_state: Callable[[], None] | None = None,
     *,
     dashboard_html: str | None = None,
+    runtime_state: RuntimeState,
 ) -> tuple[asyncio.Server, Callable[[], None]] | None:
     """
     Start the HTTP server (JSON API, SSE, and optional Web UI).
@@ -270,7 +271,7 @@ async def run_http_server(
         )
         # port=0 means "let the OS pick a free port"; store the chosen port so callers (e.g. tests) can connect
         if port == 0 and server.sockets:
-            config["http_port"] = server.sockets[0].getsockname()[1]
+            runtime_state.http_port = server.sockets[0].getsockname()[1]
         return server, notify_state_changed
     except OSError as e:
         logger.warning("HTTP server port %d unavailable: %s", port, e)
