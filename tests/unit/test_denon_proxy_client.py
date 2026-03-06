@@ -7,6 +7,7 @@ import logging
 
 import pytest
 
+from runtime_state import RuntimeState
 from avr_state import AVRState
 from denon_proxy import ClientHandler
 
@@ -36,7 +37,7 @@ async def test_optimistic_revert_when_send_fails():
         "optimistic_broadcast_delay": 0,
     }
     logger = logging.getLogger("test.client")
-    handler = ClientHandler(FailingAVR(), state, set(), logger, config)
+    handler = ClientHandler(FailingAVR(), state, set(), logger, RuntimeState(), config)
 
     await handler._handle_command_async("PWSTANDBY")
 

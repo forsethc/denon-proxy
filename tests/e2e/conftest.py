@@ -6,6 +6,7 @@ import logging
 
 import pytest
 
+from runtime_state import RuntimeState
 from avr_connection import create_avr_connection
 from avr_discovery import run_discovery_servers
 from denon_proxy import DenonProxyServer, load_config_from_dict
@@ -40,12 +41,13 @@ async def discovery_stack(discovery_config, discovery_logger):
     Start full stack: DenonProxyServer (VirtualAVR) + run_discovery_servers.
     Yields (proxy, ssdp_transport, http_servers, config). Teardown closes all.
     """
-    proxy = DenonProxyServer(discovery_config, discovery_logger, create_avr_connection)
+    runtime_state = RuntimeState()
+    proxy = DenonProxyServer(discovery_config, discovery_logger, create_avr_connection, runtime_state)
     await proxy.start()
     ssdp_transport, http_servers = None, None
     try:
         ssdp_transport, http_servers = await run_discovery_servers(
-            discovery_config, discovery_logger, proxy.state
+            discovery_config, discovery_logger, proxy.avr_state, runtime_state
         )
     except Exception:
         pass
@@ -87,12 +89,13 @@ async def full_stack_http(full_stack_http_config, full_stack_http_logger):
     Start full stack: DenonProxyServer (VirtualAVR) + HTTP JSON API + run_discovery_servers.
     Yields (proxy, ssdp_transport, http_servers, config). Teardown closes all.
     """
-    proxy = DenonProxyServer(full_stack_http_config, full_stack_http_logger, create_avr_connection)
+    runtime_state = RuntimeState()
+    proxy = DenonProxyServer(full_stack_http_config, full_stack_http_logger, create_avr_connection, runtime_state)
     await proxy.start()
     ssdp_transport, discovery_http_servers = None, None
     try:
         ssdp_transport, discovery_http_servers = await run_discovery_servers(
-            full_stack_http_config, full_stack_http_logger, proxy.state
+            full_stack_http_config, full_stack_http_logger, proxy.avr_state, runtime_state
         )
     except Exception:
         pass

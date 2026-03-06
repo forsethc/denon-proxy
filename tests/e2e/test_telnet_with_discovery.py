@@ -20,7 +20,7 @@ async def test_telnet_command_and_broadcast_on_discovery_stack(discovery_stack):
     assert client receives PWON and ZMON and proxy state becomes ON.
     """
     proxy, _ssdp, _http_servers, _config = discovery_stack
-    port = proxy.config["proxy_port"]
+    port = proxy.runtime_state.proxy_port or proxy.config["proxy_port"]
     assert port != 0
 
     reader, writer = await asyncio.wait_for(
@@ -33,7 +33,7 @@ async def test_telnet_command_and_broadcast_on_discovery_stack(discovery_stack):
         writer.write(b"PWSTANDBY\r")
         await writer.drain()
         await asyncio.wait_for(reader.read(4096), timeout=2.0)
-        assert proxy.state.power == "STANDBY"
+        assert proxy.avr_state.power == "STANDBY"
 
         writer.write(b"PWON\r")
         await writer.drain()
@@ -41,7 +41,7 @@ async def test_telnet_command_and_broadcast_on_discovery_stack(discovery_stack):
         text = response.decode("utf-8", errors="replace")
         assert "PWON" in text
         assert "ZMON" in text
-        assert proxy.state.power == "ON"
+        assert proxy.avr_state.power == "ON"
     finally:
         writer.close()
         await writer.wait_closed()

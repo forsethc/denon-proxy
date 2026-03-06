@@ -1,6 +1,7 @@
 """Unit tests: avr_discovery helpers (get_sources, deviceinfo_xml, description_xml, etc.)."""
 import logging
 
+from runtime_state import RuntimeState
 from avr_discovery import (
     get_advertise_ip,
     get_sources,
@@ -24,16 +25,16 @@ def test_get_advertise_ip_prefers_config_value():
 def test_get_proxy_friendly_name_uses_config_then_physical_then_default():
     # From config
     cfg = {"ssdp_friendly_name": "Configured Name"}
-    # Reset cached name by calling with config first
-    name = get_proxy_friendly_name(cfg)
+    runtime_state = RuntimeState()
+    name = get_proxy_friendly_name(cfg, runtime_state)
     assert name == "Configured Name"
 
 
 def test_deviceinfo_xml_includes_sources():
-    cfg = {
-        "_resolved_sources": [("CD", "CD Player"), ("HDMI1", "Game Console")],
-    }
-    xml = deviceinfo_xml(cfg)
+    cfg = {}
+    runtime_state = RuntimeState()
+    runtime_state.resolved_sources = [("CD", "CD Player"), ("HDMI1", "Game Console")]
+    xml = deviceinfo_xml(cfg, runtime_state)
     assert "<Device_Info>" in xml
     assert "<ModelName>AVR-3808</ModelName>" in xml
     assert "<Source><FuncName>CD</FuncName><DefaultName>CD Player</DefaultName></Source>" in xml
@@ -42,7 +43,8 @@ def test_deviceinfo_xml_includes_sources():
 
 def test_appcommand_friendlyname_xml_uses_proxy_name():
     cfg = {"ssdp_friendly_name": "Proxy Name"}
-    xml = appcommand_friendlyname_xml(cfg)
+    runtime_state = RuntimeState()
+    xml = appcommand_friendlyname_xml(cfg, runtime_state)
     assert "<friendlyname>Proxy Name</friendlyname>" in xml
 
 
@@ -50,16 +52,17 @@ def test_description_xml_structure_and_sources():
     cfg = {
         "ssdp_friendly_name": "My Proxy",
         "ssdp_http_port": 9000,
-        "_resolved_sources": [("CD", "CD Player")],
     }
-    xml = description_xml(cfg, "192.168.1.1")
+    runtime_state = RuntimeState()
+    xml = description_xml(cfg, "192.168.1.1", runtime_state)
     assert 'xmlns="urn:schemas-upnp-org:device-1-0"' in xml
     assert "<friendlyName>My Proxy</friendlyName>" in xml
     assert "http://192.168.1.1:9000/description.xml" in xml
     assert "<serialNumber>proxy-192-168-1-1</serialNumber>" in xml
     assert "urn:schemas-upnp-org:device:MediaRenderer:1" in xml
-    cfg_with_avr = {**cfg, "_avr_info": {"manufacturer": "Denon", "model_name": "AVR-X1600H"}}
-    xml2 = description_xml(cfg_with_avr, "10.0.0.5")
+    runtime_state2 = RuntimeState()
+    runtime_state2.avr_info = {"manufacturer": "Denon", "model_name": "AVR-X1600H"}
+    xml2 = description_xml(cfg, "10.0.0.5", runtime_state2)
     assert "AVR-X1600H Proxy" in xml2
     assert "Denon" in xml2
 
@@ -67,8 +70,9 @@ def test_description_xml_structure_and_sources():
 def test_appcommand_response_xml_get_friendly_name():
     cfg = {"ssdp_friendly_name": "Test AVR"}
     state = _FakeState()
+    runtime_state = RuntimeState()
     body = b'<tx><cmd id="1">GetFriendlyName</cmd></tx>'
-    out = appcommand_response_xml(cfg, state, body, logging.getLogger("tests.avr_discovery_helpers"))
+    out = appcommand_response_xml(cfg, state, body, logging.getLogger("tests.avr_discovery_helpers"), runtime_state)
     text = out.decode("utf-8")
     assert "<rx>" in text
     assert 'cmd_text="GetFriendlyName"' in text
@@ -80,15 +84,17 @@ def test_appcommand_response_xml_zone_power_and_volume():
     state = _FakeState()
     state.power = "STANDBY"
     state.volume = "45"
+    runtime_state = RuntimeState()
     body = b'<tx><cmd id="1">GetAllZonePowerStatus</cmd></tx><tx><cmd id="2">GetAllZoneVolume</cmd></tx>'
-    out = appcommand_response_xml(cfg, state, body, logging.getLogger("tests.avr_discovery_helpers"))
+    out = appcommand_response_xml(cfg, state, body, logging.getLogger("tests.avr_discovery_helpers"), runtime_state)
     text = out.decode("utf-8")
     assert "<zone1>STANDBY</zone1>" in text
     assert "<volume>" in text
 
 
 def test_appcommand_response_xml_empty_body_defaults_to_get_friendly_name():
-    out = appcommand_response_xml({}, None, b"", logging.getLogger("tests.avr_discovery_helpers"))
+    runtime_state = RuntimeState()
+    out = appcommand_response_xml({}, None, b"", logging.getLogger("tests.avr_discovery_helpers"), runtime_state)
     text = out.decode("utf-8")
     assert "GetFriendlyName" in text
     assert "<friendlyname>" in text
@@ -132,11 +138,10 @@ class _FakeState:
 
 def test_mainzone_xml_matches_state_and_sources():
     state = _FakeState()
-    cfg = {
-        "ssdp_friendly_name": "Proxy Name",
-        "_resolved_sources": [("CD", "CD Player"), ("HDMI1", "Game Console")],
-    }
-    xml_bytes = mainzone_xml(state, cfg)
+    cfg = {"ssdp_friendly_name": "Proxy Name"}
+    runtime_state = RuntimeState()
+    runtime_state.resolved_sources = [("CD", "CD Player"), ("HDMI1", "Game Console")]
+    xml_bytes = mainzone_xml(state, cfg, runtime_state)
     xml = xml_bytes.decode("utf-8")
 
     assert "<FriendlyName><value>Proxy Name</value></FriendlyName>" in xml
@@ -160,35 +165,41 @@ def test_escape_xml_text():
 
 def test_get_sources_from_dict():
     config = {"sources": {"CD": "CD Player", "HDMI1": "Game"}}
-    result = get_sources(config)
+    runtime_state = RuntimeState()
+    result = get_sources(config, runtime_state)
     assert result == [("CD", "CD Player"), ("HDMI1", "Game")]
-    assert config["_resolved_sources"] == result
+    assert runtime_state.resolved_sources == result
 
 
 def test_get_sources_from_list_of_tuples():
     config = {"sources": [("CD", "CD Player"), ("HDMI1", "Game")]}
-    result = get_sources(config)
+    runtime_state = RuntimeState()
+    result = get_sources(config, runtime_state)
     assert result == [("CD", "CD Player"), ("HDMI1", "Game")]
 
 
 def test_get_sources_from_list_of_dicts():
     config = {"sources": [{"func": "CD", "display_name": "CD Player"}, {"func": "HDMI1", "name": "Game"}]}
-    result = get_sources(config)
+    runtime_state = RuntimeState()
+    result = get_sources(config, runtime_state)
     assert result == [("CD", "CD Player"), ("HDMI1", "Game")]
 
 
 def test_get_sources_filters_against_device_sources():
     config = {
         "sources": {"CD": "CD Player", "HDMI1": "Game", "UNKNOWN": "Other"},
-        "_device_sources": [("CD", "CD"), ("HDMI1", "HDMI1")],
     }
-    result = get_sources(config)
+    runtime_state = RuntimeState()
+    runtime_state.device_sources = [("CD", "CD"), ("HDMI1", "HDMI1")]
+    result = get_sources(config, runtime_state)
     assert result == [("CD", "CD Player"), ("HDMI1", "Game")]
     assert ("UNKNOWN", "Other") not in result
 
 
 def test_get_sources_uses_device_sources_when_no_user_sources():
-    config = {"_device_sources": [("CD", "CD"), ("HDMI1", "Game Console")]}
-    result = get_sources(config)
+    config = {}
+    runtime_state = RuntimeState()
+    runtime_state.device_sources = [("CD", "CD"), ("HDMI1", "Game Console")]
+    result = get_sources(config, runtime_state)
     assert result == [("CD", "CD"), ("HDMI1", "Game Console")]
 

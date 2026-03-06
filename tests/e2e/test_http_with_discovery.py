@@ -78,10 +78,10 @@ async def _http_post_json(host: str, port: int, path: str, payload: dict) -> tup
 @pytest.mark.asyncio
 async def test_discovery_description_xml_while_http_enabled(full_stack_http):
     """Discovery HTTP (description.xml) is reachable when JSON API is also enabled."""
-    _proxy, _ssdp, discovery_http_servers, config = full_stack_http
+    proxy, _ssdp, discovery_http_servers, config = full_stack_http
     assert discovery_http_servers
-    port = config["ssdp_http_port"]
-    assert port != 0
+    port = proxy.runtime_state.ssdp_http_port or config.get("ssdp_http_port")
+    assert port and port != 0
 
     status, body = await _http_get("127.0.0.1", port, "/description.xml")
     assert status == 200
@@ -118,4 +118,4 @@ async def test_json_api_status_and_command_while_discovery_running(full_stack_ht
     assert status2 == 200
     data2 = json.loads(body2.decode("utf-8"))
     assert data2["state"]["power"] == "STANDBY"
-    assert proxy.state.power == "STANDBY"
+    assert proxy.avr_state.power == "STANDBY"

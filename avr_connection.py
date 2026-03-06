@@ -49,7 +49,7 @@ class AVRConnection:
         port: int,
         on_response: Callable[[str], None],
         on_disconnect: Callable[[], None],
-        state: AVRState,
+        avr_state: AVRState,
         logger: logging.Logger,
         on_send_while_disconnected: Callable[[], None] | None = None,
     ) -> None:
@@ -58,7 +58,7 @@ class AVRConnection:
         self.on_response = on_response
         self.on_disconnect = on_disconnect
         self.on_send_while_disconnected = on_send_while_disconnected
-        self.state = state
+        self.avr_state = avr_state
         self.logger = logger
         self.reader: asyncio.StreamReader | None = None
         self.writer: asyncio.StreamWriter | None = None
@@ -106,7 +106,7 @@ class AVRConnection:
                     # AVR responses that contain "?" in the payload are invalid
                     # (e.g. buggy echoes like "MSQUICK ?"); don't update state or echo to clients.
                     if not (payload and "?" in payload):
-                        self.state.update_from_message(msg)
+                        self.avr_state.update_from_message(msg)
                         self.on_response(msg)
         except asyncio.CancelledError:
             pass
@@ -175,13 +175,13 @@ class VirtualAVRConnection:
 
     def __init__(
         self,
-        state: AVRState,
+        avr_state: AVRState,
         on_response: Callable[[str], None],
         on_disconnect: Callable[[], None],
         logger: logging.Logger,
         volume_step: float,
     ) -> None:
-        self.state = state
+        self.avr_state = avr_state
         self.on_response = on_response
         self.on_disconnect = on_disconnect
         self.logger = logger
@@ -208,9 +208,9 @@ class VirtualAVRConnection:
         if not cmd or len(cmd) < 2:
             return True
         self.logger.debug("Virtual AVR received: %s", cmd)
-        self.state.apply_command(cmd, volume_step=self.volume_step, volume_max=self.volume_max)
+        self.avr_state.apply_command(cmd, volume_step=self.volume_step, volume_max=self.volume_max)
         # Emit the response(s) a real AVR would send for this command
-        dump = self.state.get_status_dump().strip()
+        dump = self.avr_state.get_status_dump().strip()
         prefix = cmd[:2].upper()
         for line in dump.splitlines():
             line = line.strip()
@@ -220,14 +220,14 @@ class VirtualAVRConnection:
             if line_prefix == prefix or (
                 prefix in ("PW", "ZM") and line_prefix in ("PW", "ZM")
             ):
-                self.state.update_from_message(line)
+                self.avr_state.update_from_message(line)
                 self.on_response(line)
         return True
 
     async def request_state(self) -> None:
         if not self._connected:
             return
-        for line in self.state.get_status_dump().strip().splitlines():
+        for line in self.avr_state.get_status_dump().strip().splitlines():
             if line.strip():
                 self.on_response(line.strip())
 
@@ -248,7 +248,7 @@ class VirtualAVRConnection:
 
 def create_avr_connection(
     config: dict,
-    state: AVRState,
+    avr_state: AVRState,
     on_response: Callable[[str], None],
     on_disconnect: Callable[[], None],
     logger: logging.Logger,
@@ -267,12 +267,12 @@ def create_avr_connection(
             port=port,
             on_response=on_response,
             on_disconnect=on_disconnect,
-            state=state,
+            avr_state=avr_state,
             logger=logger,
             on_send_while_disconnected=on_send_while_disconnected,
         )
     return VirtualAVRConnection(
-        state=state,
+        avr_state=avr_state,
         on_response=on_response,
         on_disconnect=on_disconnect,
         logger=logger,

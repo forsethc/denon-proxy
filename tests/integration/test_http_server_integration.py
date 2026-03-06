@@ -13,6 +13,7 @@ import logging
 
 import pytest
 
+from runtime_state import RuntimeState
 from avr_connection import create_avr_connection
 from denon_proxy import DenonProxyServer, load_config_from_dict
 
@@ -57,11 +58,11 @@ async def test_http_status_and_command_full_stack(http_integration_config, http_
     Start DenonProxyServer with VirtualAVR and HTTP enabled, hit /api/status and /api/command,
     and assert that HTTP commands update the real proxy state.
     """
-    server = DenonProxyServer(http_integration_config, http_integration_logger, create_avr_connection)
+    server = DenonProxyServer(http_integration_config, http_integration_logger, create_avr_connection, RuntimeState())
     await server.start()
     try:
         http_port = server.config["http_port"]
-        assert http_port != 0
+        assert http_port and http_port != 0
 
         # Initial status reflects default AVRState and virtual AVR details
         reader, writer = await _open_http_connection(http_port)
@@ -115,7 +116,7 @@ async def test_http_status_and_command_full_stack(http_integration_config, http_
         # Give the proxy a moment to process the VirtualAVR response
         await asyncio.sleep(0.1)
 
-        # Status should now reflect the new power state, and proxy.state should be updated
+        # Status should now reflect the new power state, and proxy.avr_state should be updated
         reader3, writer3 = await _open_http_connection(http_port)
         try:
             request3 = (
@@ -132,7 +133,7 @@ async def test_http_status_and_command_full_stack(http_integration_config, http_
             assert b"200" in status_line3
             data3 = json.loads(body_bytes3.decode("utf-8"))
             assert data3["state"]["power"] == "STANDBY"
-            assert server.state.power == "STANDBY"
+            assert server.avr_state.power == "STANDBY"
         finally:
             writer3.close()
             await writer3.wait_closed()
@@ -145,13 +146,13 @@ async def test_http_status_reflects_telnet_clients(http_integration_config, http
     """
     Telnet clients connected to the proxy are reflected in /api/status (clients and client_count).
     """
-    server = DenonProxyServer(http_integration_config, http_integration_logger, create_avr_connection)
+    server = DenonProxyServer(http_integration_config, http_integration_logger, create_avr_connection, RuntimeState())
     await server.start()
     try:
-        proxy_port = server.config["proxy_port"]
+        proxy_port = server.runtime_state.proxy_port or server.config["proxy_port"]
         http_port = server.config["http_port"]
-        assert proxy_port != 0
-        assert http_port != 0
+        assert proxy_port and proxy_port != 0, "Proxy port should be set"
+        assert http_port and http_port != 0, "HTTP port should be set"
 
         # Connect a Telnet client to the proxy and drain the initial status dump
         reader_telnet, writer_telnet = await asyncio.wait_for(
@@ -223,11 +224,11 @@ async def test_http_events_sse_streams_updates_on_command(http_integration_confi
     """
     /events SSE stream receives updated JSON state when an HTTP command changes AVR state.
     """
-    server = DenonProxyServer(http_integration_config, http_integration_logger, create_avr_connection)
+    server = DenonProxyServer(http_integration_config, http_integration_logger, create_avr_connection, RuntimeState())
     await server.start()
     try:
         http_port = server.config["http_port"]
-        assert http_port != 0
+        assert http_port and http_port != 0
 
         # Open SSE connection
         reader_sse, writer_sse = await _open_http_connection(http_port)
@@ -291,12 +292,12 @@ async def test_http_refresh_request_state_broadcasts_to_telnet_clients(
     get_status_dump() lines via on_response; proxy broadcasts to Telnet clients.
     Assert two connected Telnet clients both receive the status dump after refresh.
     """
-    server = DenonProxyServer(http_integration_config, http_integration_logger, create_avr_connection)
+    server = DenonProxyServer(http_integration_config, http_integration_logger, create_avr_connection, RuntimeState())
     await server.start()
-    proxy_port = server.config["proxy_port"]
+    proxy_port = server.runtime_state.proxy_port or server.config["proxy_port"]
     http_port = server.config["http_port"]
-    assert proxy_port != 0
-    assert http_port != 0
+    assert proxy_port and proxy_port != 0, "Proxy port should be set"
+    assert http_port and http_port != 0, "HTTP port should be set"
     try:
         # Connect two Telnet clients and drain initial status dumps
         reader_a, writer_a = await asyncio.wait_for(

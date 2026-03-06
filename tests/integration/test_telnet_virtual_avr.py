@@ -7,6 +7,7 @@ import logging
 
 import pytest
 
+from runtime_state import RuntimeState
 from avr_connection import create_avr_connection
 from denon_proxy import DenonProxyServer, load_config_from_dict
 
@@ -34,9 +35,9 @@ async def test_telnet_pwon_receives_broadcast(integration_config, integration_lo
     Put state in STANDBY then send PWON; assert client receives PWON and ZMON and state becomes ON.
     (Default state is already ON, so we establish STANDBY first to verify PWON actually changes state.)
     """
-    server = DenonProxyServer(integration_config, integration_logger, create_avr_connection)
+    server = DenonProxyServer(integration_config, integration_logger, create_avr_connection, RuntimeState())
     await server.start()
-    port = server.config["proxy_port"]
+    port = server.runtime_state.proxy_port or server.config["proxy_port"]
     try:
         await _telnet_send_and_assert(
             server,
@@ -59,12 +60,12 @@ async def test_telnet_pwon_receives_broadcast(integration_config, integration_lo
 @pytest.mark.asyncio
 async def test_telnet_volume_command(integration_config, integration_logger):
     """MV50 sets volume; client receives MV in broadcast."""
-    server = DenonProxyServer(integration_config, integration_logger, create_avr_connection)
+    server = DenonProxyServer(integration_config, integration_logger, create_avr_connection, RuntimeState())
     await server.start()
     try:
         await _telnet_send_and_assert(
             server,
-            server.config["proxy_port"],
+            server.runtime_state.proxy_port or server.config["proxy_port"],
             [b"MV50"],
             {"volume": "50"},
             ["MV50"],
@@ -76,9 +77,9 @@ async def test_telnet_volume_command(integration_config, integration_logger):
 @pytest.mark.asyncio
 async def test_telnet_mute_commands(integration_config, integration_logger):
     """MUON / MUOFF update mute state and are broadcast."""
-    server = DenonProxyServer(integration_config, integration_logger, create_avr_connection)
+    server = DenonProxyServer(integration_config, integration_logger, create_avr_connection, RuntimeState())
     await server.start()
-    port = server.config["proxy_port"]
+    port = server.runtime_state.proxy_port or server.config["proxy_port"]
     try:
         await _telnet_send_and_assert(
             server,
@@ -101,12 +102,12 @@ async def test_telnet_mute_commands(integration_config, integration_logger):
 @pytest.mark.asyncio
 async def test_telnet_input_source(integration_config, integration_logger):
     """SI<name> sets input source and is broadcast."""
-    server = DenonProxyServer(integration_config, integration_logger, create_avr_connection)
+    server = DenonProxyServer(integration_config, integration_logger, create_avr_connection, RuntimeState())
     await server.start()
     try:
         await _telnet_send_and_assert(
             server,
-            server.config["proxy_port"],
+            server.runtime_state.proxy_port or server.config["proxy_port"],
             [b"SIHDMI1"],
             {"input_source": "HDMI1"},
             ["SIHDMI1"],
@@ -118,12 +119,12 @@ async def test_telnet_input_source(integration_config, integration_logger):
 @pytest.mark.asyncio
 async def test_telnet_sound_mode(integration_config, integration_logger):
     """MS<mode> sets sound mode and is broadcast."""
-    server = DenonProxyServer(integration_config, integration_logger, create_avr_connection)
+    server = DenonProxyServer(integration_config, integration_logger, create_avr_connection, RuntimeState())
     await server.start()
     try:
         await _telnet_send_and_assert(
             server,
-            server.config["proxy_port"],
+            server.runtime_state.proxy_port or server.config["proxy_port"],
             [b"MSSTEREO"],
             {"sound_mode": "STEREO"},
             ["MSSTEREO"],
@@ -135,12 +136,12 @@ async def test_telnet_sound_mode(integration_config, integration_logger):
 @pytest.mark.asyncio
 async def test_telnet_mvup_updates_volume(integration_config, integration_logger):
     """MVUP increases volume; client receives MV in broadcast."""
-    server = DenonProxyServer(integration_config, integration_logger, create_avr_connection)
+    server = DenonProxyServer(integration_config, integration_logger, create_avr_connection, RuntimeState())
     await server.start()
     try:
         await _telnet_send_and_assert(
             server,
-            server.config["proxy_port"],
+            server.runtime_state.proxy_port or server.config["proxy_port"],
             [b"MV50", b"MVUP"],
             {"volume": "505"},
             ["MV505"],
@@ -154,9 +155,9 @@ async def test_telnet_invalid_command_ignored(integration_config, integration_lo
     """
     Invalid telnet input (too short or control bytes) is ignored: proxy stays up and state unchanged.
     """
-    server = DenonProxyServer(integration_config, integration_logger, create_avr_connection)
+    server = DenonProxyServer(integration_config, integration_logger, create_avr_connection, RuntimeState())
     await server.start()
-    port = server.config["proxy_port"]
+    port = server.runtime_state.proxy_port or server.config["proxy_port"]
     try:
         reader, writer = await asyncio.wait_for(
             asyncio.open_connection("127.0.0.1", port),
@@ -164,7 +165,7 @@ async def test_telnet_invalid_command_ignored(integration_config, integration_lo
         )
         try:
             await asyncio.wait_for(reader.read(4096), timeout=1.0)
-            initial_volume = server.state.volume
+            initial_volume = server.avr_state.volume
             # Send invalid commands: single byte, empty line
             writer.write(b"X\r")
             await writer.drain()
@@ -172,7 +173,7 @@ async def test_telnet_invalid_command_ignored(integration_config, integration_lo
             await writer.drain()
             await asyncio.sleep(0.1)
             # State should be unchanged (invalid commands not applied)
-            assert server.state.volume == initial_volume
+            assert server.avr_state.volume == initial_volume
         finally:
             writer.close()
             await writer.wait_closed()
@@ -186,9 +187,9 @@ async def test_telnet_two_clients_both_receive_broadcast(integration_config, int
     Connect two Telnet clients; one sends a command. Assert both clients receive
     the broadcast and proxy state updates (core multi-client guarantee).
     """
-    server = DenonProxyServer(integration_config, integration_logger, create_avr_connection)
+    server = DenonProxyServer(integration_config, integration_logger, create_avr_connection, RuntimeState())
     await server.start()
-    port = server.config["proxy_port"]
+    port = server.runtime_state.proxy_port or server.config["proxy_port"]
     try:
         # Connect both clients and drain initial status dump
         reader_a, writer_a = await asyncio.wait_for(
@@ -215,7 +216,7 @@ async def test_telnet_two_clients_both_receive_broadcast(integration_config, int
 
             assert "MV50" in text_a, f"Sender (A) should receive broadcast, got: {text_a!r}"
             assert "MV50" in text_b, f"Other client (B) should receive broadcast, got: {text_b!r}"
-            assert server.state.volume == "50"
+            assert server.avr_state.volume == "50"
         finally:
             writer_a.close()
             writer_b.close()
@@ -248,7 +249,7 @@ async def _telnet_send_and_assert(
         for sub in response_contains:
             assert sub in response_str, f"Expected {sub!r} in response, got: {response_str!r}"
         for attr, expected in state_assertions.items():
-            assert getattr(server.state, attr) == expected, f"state.{attr}: got {getattr(server.state, attr)!r}, expected {expected!r}"
+            assert getattr(server.avr_state, attr) == expected, f"state.{attr}: got {getattr(server.avr_state, attr)!r}, expected {expected!r}"
     finally:
         writer.close()
         await writer.wait_closed()

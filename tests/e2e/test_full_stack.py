@@ -22,10 +22,11 @@ async def test_full_stack_api_and_telnet_together(full_stack_http):
     and assert client_count >= 1 and state.volume updated.
     """
     proxy, _ssdp, _discovery_servers, config = full_stack_http
+    # Resolved ports: proxy_port from runtime_state; http_port from config (run_http_server mutates it when 0)
     http_port = config.get("http_port") or proxy.config.get("http_port")
-    proxy_port = proxy.config["proxy_port"]
-    assert http_port and http_port != 0
-    assert proxy_port != 0
+    proxy_port = proxy.runtime_state.proxy_port or proxy.config["proxy_port"]
+    assert http_port and http_port != 0, "HTTP API port should be set"
+    assert proxy_port and proxy_port != 0, "Proxy (telnet) port should be set"
 
     async def get_status() -> dict:
         reader, writer = await asyncio.wait_for(
@@ -74,7 +75,7 @@ async def test_full_stack_api_and_telnet_together(full_stack_http):
     await asyncio.sleep(0.15)
     data1 = await get_status()
     assert data1["state"]["volume"] in (50, 50.0, "50")
-    assert proxy.state.volume == "50"
+    assert proxy.avr_state.volume == "50"
 
     telnet_reader, telnet_writer = await asyncio.wait_for(
         asyncio.open_connection("127.0.0.1", proxy_port),
@@ -92,7 +93,7 @@ async def test_full_stack_api_and_telnet_together(full_stack_http):
         await asyncio.sleep(0.1)
         data3 = await get_status()
         assert data3["state"]["mute"] is True
-        assert proxy.state.mute is True
+        assert proxy.avr_state.mute is True
     finally:
         telnet_writer.close()
         await telnet_writer.wait_closed()

@@ -9,6 +9,7 @@ import logging
 import pytest
 
 from avr_state import AVRState
+from runtime_state import RuntimeState
 from denon_proxy import build_json_state, load_config_from_dict
 from http_server import run_http_server
 
@@ -39,12 +40,13 @@ async def test_http_get_status_json_shape():
             "http_port": 0,
             "enable_ssdp": False,
             "ssdp_friendly_name": "My AVR Proxy",
-            "_resolved_sources": [("CD", "CD"), ("HDMI1", "Game Console")],
         }
     )
 
     logger = logging.getLogger("test.http.status")
     state = AVRState()
+    runtime_state = RuntimeState()
+    runtime_state.resolved_sources = [("CD", "CD"), ("HDMI1", "Game Console")]
 
     class _FakeAvr:
         volume_max = 80.0
@@ -56,7 +58,7 @@ async def test_http_get_status_json_shape():
             return {"type": "virtual", "host": "127.0.0.1", "port": 23}
 
     def get_state() -> dict:
-        return build_json_state(state, _FakeAvr(), [], config)
+        return build_json_state(state, _FakeAvr(), [], config, runtime_state)
 
     result = await run_http_server(config, logger, get_state)
     assert result is not None, "HTTP server should start when HTTP is enabled"

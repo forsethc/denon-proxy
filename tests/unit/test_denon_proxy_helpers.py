@@ -1,3 +1,4 @@
+from runtime_state import RuntimeState
 from denon_proxy import (
     _client_ip_for_display,
     _command_group,
@@ -71,7 +72,8 @@ def test_build_json_state_with_no_avr():
     state.power = "ON"
     state.volume = "50"
     config = load_config_from_dict({})
-    result = build_json_state(state, None, [], config)
+    runtime_state = RuntimeState()
+    result = build_json_state(state, None, [], config, runtime_state)
     assert result["avr"]["type"] == "none"
     assert result["avr"]["connected"] is False
     assert result["avr"]["volume_max"] == 98.0
@@ -88,16 +90,17 @@ def test_build_json_state_structure_and_volume_conversion():
         "ssdp_friendly_name": "My AVR Proxy",
         "enable_ssdp": True,
         "ssdp_http_port": 8080,
-        "_avr_info": {
-            "manufacturer": "Denon",
-            "model_name": "TestModel",
-            "serial_number": "12345",
-            "friendly_name": "Proxy AVR",
-        },
-        "_resolved_sources": [("CD", "CD"), ("HDMI1", "Game Console")],
     }
+    runtime_state = RuntimeState()
+    runtime_state.avr_info = {
+        "manufacturer": "Denon",
+        "model_name": "TestModel",
+        "serial_number": "12345",
+        "friendly_name": "Proxy AVR",
+    }
+    runtime_state.resolved_sources = [("CD", "CD"), ("HDMI1", "Game Console")]
 
-    result = build_json_state(state, avr, clients, config)
+    result = build_json_state(state, avr, clients, config, runtime_state)
 
     assert set(result.keys()) == {"friendly_name", "avr", "clients", "client_count", "state", "discovery"}
     assert result["friendly_name"] == "My AVR Proxy"
@@ -125,7 +128,8 @@ def test_build_json_state_includes_discovery_info():
     """build_json_state includes discovery section with enabled, http_port, proxy_ip."""
     state = AVRState()
     config = load_config_from_dict({"enable_ssdp": True, "ssdp_http_port": 9090})
-    result = build_json_state(state, None, [], config)
+    runtime_state = RuntimeState()
+    result = build_json_state(state, None, [], config, runtime_state)
     assert "discovery" in result
     assert result["discovery"]["enabled"] is True
     assert result["discovery"]["http_port"] == 9090

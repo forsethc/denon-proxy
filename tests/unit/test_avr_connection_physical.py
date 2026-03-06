@@ -29,7 +29,7 @@ def _make_avr(host: str, port: int):
         port=port,
         on_response=on_response,
         on_disconnect=on_disconnect,
-        state=state,
+        avr_state=state,
         logger=logger,
         on_send_while_disconnected=lambda: disconnected.append(True),
     ), state, responses, disconnected
@@ -91,7 +91,7 @@ async def test_avr_connection_connect_and_read_loop():
         port=port,
         on_response=on_response,
         on_disconnect=lambda: disconnected.append(True),
-        state=state,
+        avr_state=state,
         logger=logging.getLogger("test"),
         on_send_while_disconnected=None,
     )
@@ -133,7 +133,7 @@ async def test_avr_connection_read_loop_skips_payload_with_question_mark():
         port=port,
         on_response=on_response,
         on_disconnect=lambda: None,
-        state=state,
+        avr_state=state,
         logger=logging.getLogger("test"),
         on_send_while_disconnected=None,
     )
@@ -173,7 +173,7 @@ async def test_avr_connection_read_loop_updates_volume_max_from_mvmax():
         port=port,
         on_response=on_response,
         on_disconnect=lambda: None,
-        state=state,
+        avr_state=state,
         logger=logging.getLogger("test"),
         on_send_while_disconnected=None,
     )
@@ -205,7 +205,7 @@ async def test_avr_connection_send_command_when_connected():
         port=port,
         on_response=lambda _: None,
         on_disconnect=lambda: None,
-        state=state,
+        avr_state=state,
         logger=logging.getLogger("test"),
         on_send_while_disconnected=None,
     )
@@ -244,7 +244,7 @@ async def test_avr_connection_request_state_sends_commands():
         port=port,
         on_response=lambda _: None,
         on_disconnect=lambda: None,
-        state=state,
+        avr_state=state,
         logger=logging.getLogger("test"),
         on_send_while_disconnected=None,
     )

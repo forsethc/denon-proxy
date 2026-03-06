@@ -8,19 +8,21 @@ integration and UC Remote 3.
 Can be used standalone (discovery + HTTP API for testing) or wired to a proxy.
 
 Usage (standalone):
+    from runtime_state import RuntimeState
     from avr_state import AVRState
     from avr_discovery import run_discovery_servers
 
     async def main():
-        state = AVRState()
-        state.power = "ON"
-        state.volume = "50"
-        await run_discovery_servers(config, logger, state)
+        avr_state = AVRState()
+        avr_state.power = "ON"
+        avr_state.volume = "50"
+        runtime_state = RuntimeState()
+        await run_discovery_servers(config, logger, avr_state, runtime_state)
 
 Usage (with denon-proxy):
     from avr_connection import create_avr_connection
     from avr_discovery import run_discovery_servers
-    avr = create_avr_connection(config, state, on_response, on_disconnect, logger)
+    avr = create_avr_connection(config, avr_state, on_response, on_disconnect, logger)
     # Returns AVRConnection (physical) or VirtualAVRConnection (no avr_host) - opaque to caller
 """
 
@@ -34,6 +36,7 @@ import struct
 import xml.etree.ElementTree as ET
 from typing import Any, Callable
 
+from runtime_state import RuntimeState
 from runtime_utils import is_docker_internal_ip
 
 try:
@@ -76,22 +79,21 @@ DEMO_SOURCES = [
 ]
 
 
-def get_sources(config: dict) -> list[tuple[str, str]]:
+def get_sources(config: dict, runtime_state: RuntimeState) -> list[tuple[str, str]]:
     """
     Return list of (func_name, display_name) for input sources.
     func_name is the Denon code (e.g. CD, BD, HDMI1) used in SI commands.
     display_name is shown in Home Assistant.
     Uses config['sources'] if provided (dict or list of [func, name] pairs).
-    If no config mapping and config['_device_sources'] exists (populated from
-    physical AVR during sync), uses that. Otherwise DEMO_SOURCES.
-    When user provides sources, filters out any func codes that don't exist on
-    the AVR (if _device_sources available) and logs a warning for each.
+    If no config mapping and runtime_state.device_sources exist, uses those.
+    Otherwise DEMO_SOURCES. Cache is read/written on runtime_state.
     """
-    cached = config.get("_resolved_sources")
-    if cached is not None:
-        return cached
+    if runtime_state.resolved_sources is not None:
+        return runtime_state.resolved_sources
 
     cfg = config.get("sources")
+    device_sources = runtime_state.device_sources
+
     if cfg:
         out: list[tuple[str, str]] = []
         if isinstance(cfg, dict):
@@ -113,8 +115,7 @@ def get_sources(config: dict) -> list[tuple[str, str]]:
                     if func_name:
                         out.append((str(func_name).strip(), str(display_name).strip() if display_name else str(func_name).strip()))
         # Filter out sources that don't exist on the AVR
-        device_sources = config.get("_device_sources")
-        if device_sources and isinstance(device_sources, (list, tuple)):
+        if device_sources:
             valid_funcs = {str(func).strip() for func, _ in device_sources if func}
             filtered: list[tuple[str, str]] = []
             for func_name, display_name in out:
@@ -129,15 +130,13 @@ def get_sources(config: dict) -> list[tuple[str, str]]:
         result = out if out else DEMO_SOURCES
     else:
         # No user mapping: prefer device sources (from physical AVR) over defaults
-        device_sources = config.get("_device_sources")
-        if device_sources and isinstance(device_sources, (list, tuple)):
+        if device_sources:
             result = [(str(func).strip(), str(display_name).strip() if display_name else str(func).strip()) for func, display_name in device_sources if func]
         else:
             result = DEMO_SOURCES
 
-    config["_resolved_sources"] = result
-    device_sources = config.get("_device_sources")
-    if device_sources and isinstance(device_sources, (list, tuple)):
+    runtime_state.resolved_sources = result
+    if device_sources:
         _logger.info("Device sources from AVR:\n  %s", "\n  ".join(f"{func} -> {display_name}" for func, display_name in device_sources))
     _logger.info("Resolved input sources:\n  %s", "\n  ".join(f"{func} -> {display_name}" for func, display_name in result))
     return result
@@ -170,7 +169,7 @@ def get_advertise_ip(config: dict) -> str | None:
 _cached_friendly_name: str | None = None
 
 
-def get_proxy_friendly_name(config: dict) -> str:
+def get_proxy_friendly_name(config: dict, runtime_state: RuntimeState) -> str:
     """Proxy's advertised friendly name: config if set, else physical device name + ' Proxy'. Computed once at first use."""
     global _cached_friendly_name
     if _cached_friendly_name is not None:
@@ -180,7 +179,7 @@ def get_proxy_friendly_name(config: dict) -> str:
         _cached_friendly_name = configured
         _logger.debug("Friendly name from config: %r", _cached_friendly_name)
         return _cached_friendly_name
-    avr_info = config.get("_avr_info") or {}
+    avr_info = runtime_state.avr_info or {}
     physical_name = (avr_info.get("friendly_name") or "").strip()
     if physical_name:
         _cached_friendly_name = f"{physical_name} Proxy"
@@ -191,12 +190,12 @@ def get_proxy_friendly_name(config: dict) -> str:
     return _cached_friendly_name
 
 
-def deviceinfo_xml(config: dict) -> str:
+def deviceinfo_xml(config: dict, runtime_state: RuntimeState) -> str:
     """Deviceinfo.xml - identify as pre-2016 AVR so denonavr uses port 8080/description.xml
     (avoids port 60006 aios_device.xml which can cause HA config flow issues)."""
     sources_xml = "\n".join(
         f'      <Source><FuncName>{func_name}</FuncName><DefaultName>{display_name}</DefaultName></Source>'
-        for func_name, display_name in get_sources(config)
+        for func_name, display_name in get_sources(config, runtime_state)
     )
     return f"""<?xml version="1.0" encoding="utf-8"?>
 <Device_Info>
@@ -215,9 +214,9 @@ def deviceinfo_xml(config: dict) -> str:
 </Device_Info>"""
 
 
-def appcommand_friendlyname_xml(config: dict) -> str:
+def appcommand_friendlyname_xml(config: dict, runtime_state: RuntimeState) -> str:
     """AppCommand.xml response for GetFriendlyName (denonavr setup)."""
-    name = get_proxy_friendly_name(config)
+    name = get_proxy_friendly_name(config, runtime_state)
     return f"""<?xml version="1.0" encoding="utf-8"?>
 <rx>
   <cmd id="1">
@@ -258,21 +257,22 @@ def parse_appcommand_request(body_bytes: bytes) -> list[tuple[str, str]]:
 
 def appcommand_response_xml(
     config: dict,
-    state: Any,
+    avr_state: Any,
     body_bytes: bytes,
     logger: logging.Logger,
+    runtime_state: RuntimeState,
 ) -> bytes:
     """
     Build AppCommand.xml response from request body.
-    State should have: power, volume, mute, input_source (all optional).
+    avr_state should have: power, volume, mute, input_source (all optional).
     """
-    power = (getattr(state, "power", None) if state else None) or "ON"
-    vol_raw = (getattr(state, "volume", None) if state else None) or "50"
+    power = (getattr(avr_state, "power", None) if avr_state else None) or "ON"
+    vol_raw = (getattr(avr_state, "volume", None) if avr_state else None) or "50"
     volume = volume_to_db(vol_raw)
-    mute_val = "on" if (state and getattr(state, "mute", None)) else "off"
-    input_src = (getattr(state, "input_source", None) if state else None) or "CD"
-    friendly_name = get_proxy_friendly_name(config)
-    sound_mode = (getattr(state, "sound_mode", None) if state else None) or "STEREO"
+    mute_val = "on" if (avr_state and getattr(avr_state, "mute", None)) else "off"
+    input_src = (getattr(avr_state, "input_source", None) if avr_state else None) or "CD"
+    friendly_name = get_proxy_friendly_name(config, runtime_state)
+    sound_mode = (getattr(avr_state, "sound_mode", None) if avr_state else None) or "STEREO"
 
     cmds_requested = parse_appcommand_request(body_bytes)
     logger.debug("AppCommand requested: %s", [cmd_text for _, cmd_text in cmds_requested])
@@ -360,17 +360,17 @@ def appcommand_response_xml(
     return xml_str.encode("utf-8")
 
 
-def mainzone_xml(state: Any, config: dict | None = None) -> bytes:
+def mainzone_xml(avr_state: Any, config: dict | None, runtime_state: RuntimeState) -> bytes:
     """Build MainZone XML for denonavr status polling."""
     config = config or {}
-    friendly_name = get_proxy_friendly_name(config)
-    power = (getattr(state, "power", None) if state else None) or "ON"
-    vol_raw = (getattr(state, "volume", None) if state else None) or "50"
+    friendly_name = get_proxy_friendly_name(config, runtime_state)
+    power = (getattr(avr_state, "power", None) if avr_state else None) or "ON"
+    vol_raw = (getattr(avr_state, "volume", None) if avr_state else None) or "50"
     volume = volume_to_db(vol_raw)
-    mute_val = "on" if (state and getattr(state, "mute", None)) else "off"
-    input_src = (getattr(state, "input_source", None) if state else None) or "CD"
-    sound_mode = (getattr(state, "sound_mode", None) if state else None) or "STEREO"
-    sources = get_sources(config)
+    mute_val = "on" if (avr_state and getattr(avr_state, "mute", None)) else "off"
+    input_src = (getattr(avr_state, "input_source", None) if avr_state else None) or "CD"
+    sound_mode = (getattr(avr_state, "sound_mode", None) if avr_state else None) or "STEREO"
+    sources = get_sources(config, runtime_state)
     func_names = [func_name for func_name, _ in sources]
     display_names = [display_name for _, display_name in sources]
     input_func_list = "\n".join(f"    <Value>{func_name}</Value>" for func_name in func_names)
@@ -443,14 +443,14 @@ def _rewrite_avr_description(
     return xml_str
 
 
-def description_xml(config: dict, advertise_ip: str) -> str:
+def description_xml(config: dict, advertise_ip: str, runtime_state: RuntimeState) -> str:
     """Minimal UPnP device description XML matching what Home Assistant expects.
-    Uses physical AVR manufacturer/model from _avr_info when available (e.g. after
+    Uses physical AVR manufacturer/model from runtime_state.avr_info when available (e.g. after
     HTTP sync) so UC Remote and other clients can detect Denon vs Marantz correctly."""
-    friendly_name = get_proxy_friendly_name(config)
-    http_port = config.get("ssdp_http_port", 8080)
+    friendly_name = get_proxy_friendly_name(config, runtime_state)
+    http_port = runtime_state.ssdp_http_port if runtime_state.ssdp_http_port is not None else config.get("ssdp_http_port", 8080)
     serial = f"proxy-{advertise_ip.replace('.', '-')}"
-    avr_info = config.get("_avr_info") or {}
+    avr_info = runtime_state.avr_info or {}
     manufacturer = (avr_info.get("manufacturer") or "Denon").strip() or "Denon"
     raw_model = (avr_info.get("model_name") or "").strip()
     model_name = f"{raw_model} Proxy" if raw_model else "AVR-Proxy"
@@ -477,9 +477,9 @@ def parse_ssdp_search_target(msg: str) -> str | None:
     return None
 
 
-def ssdp_response(config: dict, advertise_ip: str, st: str) -> bytes:
+def ssdp_response(config: dict, advertise_ip: str, st: str, runtime_state: RuntimeState) -> bytes:
     """Build SSDP HTTP 200 response for M-SEARCH."""
-    http_port = config.get("ssdp_http_port", 8080)
+    http_port = runtime_state.ssdp_http_port if runtime_state.ssdp_http_port is not None else config.get("ssdp_http_port", 8080)
     location = f"http://{advertise_ip}:{http_port}/description.xml"
     serial = f"proxy-{advertise_ip.replace('.', '-')}"
     usn = f"uuid:denon-proxy-{serial}::{st}"
@@ -509,9 +509,10 @@ class SSDPProtocol(asyncio.DatagramProtocol):
         "urn:schemas-denon-com:device:AiosDevice:1",
     )
 
-    def __init__(self, config: dict, logger: logging.Logger) -> None:
+    def __init__(self, config: dict, logger: logging.Logger, runtime_state: RuntimeState) -> None:
         self.config = config
         self.logger = logger
+        self.runtime_state = runtime_state
         self.transport: asyncio.DatagramTransport | None = None
         self._advertise_ip = get_advertise_ip(config)
 
@@ -529,7 +530,7 @@ class SSDPProtocol(asyncio.DatagramProtocol):
             if not st or not any(m in st for m in self.MATCH_ST):
                 return
             self.logger.debug("SSDP M-SEARCH from %s (ST=%s)", addr, st[:50])
-            resp = ssdp_response(self.config, self._advertise_ip, st)
+            resp = ssdp_response(self.config, self._advertise_ip, st, self.runtime_state)
             if self.transport:
                 self.transport.sendto(resp, addr)
             self.logger.debug("SSDP response sent to %s (ST=%s)", addr, st[:50])
@@ -553,15 +554,17 @@ class DeviceDescriptionHandler(asyncio.Protocol):
         deviceinfo_xml: bytes,
         appcommand_xml: bytes,
         logger: logging.Logger,
-        state: Any = None,
-        config: dict | None = None,
+        avr_state: Any,
+        config: dict,
+        runtime_state: RuntimeState,
     ) -> None:
         self.description_xml = description_xml
         self.deviceinfo_xml = deviceinfo_xml
         self.appcommand_xml = appcommand_xml
         self.logger = logger
-        self.state = state
-        self.config = config or {}
+        self.avr_state = avr_state
+        self.config = config
+        self.runtime_state = runtime_state
         self._buffer = b""
         self.transport: asyncio.BaseTransport | None = None
 
@@ -615,10 +618,10 @@ class DeviceDescriptionHandler(asyncio.Protocol):
                 elif "aios_device.xml" in path_lower or "upnp/desc" in path_lower:
                     body = self.description_xml
                 elif "mainzonexmlstatus" in path_lower or "mainzonexml" in path_lower:
-                    body = mainzone_xml(self.state, self.config)
+                    body = mainzone_xml(self.avr_state, self.config, self.runtime_state)
             elif method == "POST" and "/goform/appcommand.xml" in path_lower:
                 body = appcommand_response_xml(
-                    self.config, self.state, body_bytes, self.logger
+                    self.config, self.avr_state, body_bytes, self.logger, self.runtime_state
                 )
 
             peername = self.transport.get_extra_info("peername") if self.transport else None
@@ -655,12 +658,14 @@ class DeviceDescriptionHandler(asyncio.Protocol):
 async def run_discovery_servers(
     config: dict,
     logger: logging.Logger,
-    state: Any = None,
+    avr_state: Any,
+    runtime_state: RuntimeState,
 ) -> tuple[asyncio.DatagramTransport | None, list | None]:
     """
     Start SSDP (UDP 1900) and HTTP device description servers.
 
     Returns (ssdp_transport, http_servers) or (None, None) if disabled/failed.
+    Resolved port (when config has ssdp_http_port=0) is stored in runtime_state.
     """
     if not config.get("enable_ssdp"):
         return None, None
@@ -678,7 +683,7 @@ async def run_discovery_servers(
             advertise_ip,
         )
 
-    logger.info("SSDP advertising as '%s' at %s", get_proxy_friendly_name(config), advertise_ip)
+    logger.info("SSDP advertising as '%s' at %s", get_proxy_friendly_name(config, runtime_state), advertise_ip)
 
     ssdp_transport = None
     try:
@@ -690,7 +695,7 @@ async def run_discovery_servers(
         sock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
         loop = asyncio.get_running_loop()
         ssdp_transport, _ = await loop.create_datagram_endpoint(
-            lambda: SSDPProtocol(config, logger),
+            lambda: SSDPProtocol(config, logger, runtime_state),
             sock=sock,
         )
         logger.info("SSDP listening on UDP 1900")
@@ -702,7 +707,7 @@ async def run_discovery_servers(
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             s.bind(("0.0.0.0", 0))
             http_port = s.getsockname()[1]
-        config["ssdp_http_port"] = http_port
+        runtime_state.ssdp_http_port = http_port
     avr_host = (config.get("avr_host") or "").strip()
     desc_xml_str = None
     if avr_host:
@@ -711,14 +716,14 @@ async def run_discovery_servers(
             desc_xml_str = _rewrite_avr_description(raw, avr_host, advertise_ip, logger)
             logger.info("Using AVR description.xml from %s (friendlyName + Proxy)", avr_host)
     if desc_xml_str is None:
-        desc_xml_str = description_xml(config, advertise_ip)
+        desc_xml_str = description_xml(config, advertise_ip, runtime_state)
     desc_xml = desc_xml_str.encode("utf-8")
-    devinfo_xml = deviceinfo_xml(config).encode("utf-8")
-    appcmd_xml = appcommand_friendlyname_xml(config).encode("utf-8")
+    devinfo_xml = deviceinfo_xml(config, runtime_state).encode("utf-8")
+    appcmd_xml = appcommand_friendlyname_xml(config, runtime_state).encode("utf-8")
 
     def http_factory():
         return DeviceDescriptionHandler(
-            desc_xml, devinfo_xml, appcmd_xml, logger, state, config
+            desc_xml, devinfo_xml, appcmd_xml, logger, avr_state, config, runtime_state
         )
 
     http_servers = []

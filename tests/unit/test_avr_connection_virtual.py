@@ -33,7 +33,7 @@ async def test_virtual_avr_request_state_pushes_status_dump_lines():
 
     logger = logging.getLogger("test.avr_virtual")
     avr = VirtualAVRConnection(
-        state=state,
+        avr_state=state,
         on_response=on_response,
         on_disconnect=on_disconnect,
         logger=logger,
@@ -72,7 +72,7 @@ async def test_virtual_avr_send_command_when_not_connected_returns_false():
 
     logger = logging.getLogger("test.avr_virtual")
     avr = VirtualAVRConnection(
-        state=state,
+        avr_state=state,
         on_response=on_response,
         on_disconnect=lambda: None,
         logger=logger,
@@ -95,7 +95,7 @@ async def test_virtual_avr_send_command_empty_or_short_returns_true():
 
     logger = logging.getLogger("test.avr_virtual")
     avr = VirtualAVRConnection(
-        state=state,
+        avr_state=state,
         on_response=on_response,
         on_disconnect=lambda: None,
         logger=logger,
@@ -121,7 +121,7 @@ async def test_virtual_avr_send_command_pwon_emits_pw_and_zm():
 
     logger = logging.getLogger("test.avr_virtual")
     avr = VirtualAVRConnection(
-        state=state,
+        avr_state=state,
         on_response=on_response,
         on_disconnect=lambda: None,
         logger=logger,
@@ -145,7 +145,7 @@ async def test_virtual_avr_request_state_when_not_connected_does_nothing():
 
     logger = logging.getLogger("test.avr_virtual")
     avr = VirtualAVRConnection(
-        state=state,
+        avr_state=state,
         on_response=on_response,
         on_disconnect=lambda: None,
         logger=logger,

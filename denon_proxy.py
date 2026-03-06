@@ -43,6 +43,7 @@ from avr_connection import (
     create_avr_connection,
 )
 from avr_discovery import get_advertise_ip, get_proxy_friendly_name, run_discovery_servers
+from runtime_state import RuntimeState
 from runtime_utils import is_docker_internal_ip, is_running_in_docker
 from avr_state import AVRState, volume_to_level, _normalize_smart_select
 from telnet_utils import parse_telnet_lines, telnet_line_to_bytes
@@ -225,20 +226,21 @@ def _client_ip_for_display(client: Any) -> str:
 
 
 def build_json_state(
-    state: AVRState,
+    avr_state: AVRState,
     avr: (AVRConnection | VirtualAVRConnection) | None,
     clients: Iterable[Any],
     config: dict,
+    runtime_state: RuntimeState,
 ) -> dict:
     """
     Build JSON status dict for Web UI / SSE.
 
-    Pure function for testability. Caller passes state, avr, clients, config.
+    Pure function for testability. Caller passes avr_state, avr, clients, config, and runtime_state.
     """
     client_ips = [_client_ip_for_display(c) for c in list(clients)]
     state_dict = {
         k: v
-        for k, v in vars(state).items()
+        for k, v in vars(avr_state).items()
         if not k.startswith("_")
     }
     if "volume" in state_dict and state_dict["volume"] is not None:
@@ -247,25 +249,26 @@ def build_json_state(
     avr_dict = dict(avr.get_details()) if avr else {"type": "none"}
     avr_dict["connected"] = avr.is_connected() if avr else False
     avr_dict["volume_max"] = getattr(avr, "volume_max", 98.0) if avr else 98.0
-    avr_info = config.get("_avr_info") or {}
+    avr_info = runtime_state.avr_info or {}
     if avr_info:
         avr_dict["manufacturer"] = avr_info.get("manufacturer")
         avr_dict["model_name"] = avr_info.get("model_name")
         avr_dict["serial_number"] = avr_info.get("serial_number")
         avr_dict["friendly_name"] = avr_info.get("friendly_name")
-    sources = config.get("_resolved_sources") or config.get("_device_sources")
+    sources = runtime_state.resolved_sources or runtime_state.device_sources
     if sources:
         avr_dict["sources"] = [{"func": func_name, "display_name": display_name} for func_name, display_name in sources]
     proxy_ip = get_advertise_ip(config) or None
+    http_port = runtime_state.ssdp_http_port if runtime_state.ssdp_http_port is not None else config.get("ssdp_http_port", 8080)
     discovery = {
-        "http_port": int(config.get("ssdp_http_port", 8080)),
+        "http_port": int(http_port),
         "enabled": bool(config.get("enable_ssdp", False)),
         "proxy_ip": proxy_ip,
         "proxy_ip_is_internal": is_docker_internal_ip(proxy_ip),
         "is_docker": is_running_in_docker(),
     }
     return {
-        "friendly_name": get_proxy_friendly_name(config),
+        "friendly_name": get_proxy_friendly_name(config, runtime_state),
         "avr": avr_dict,
         "clients": client_ips,
         "client_count": len(client_ips),
@@ -274,28 +277,28 @@ def build_json_state(
     }
 
 
-def apply_payload_to_state(state: AVRState, payload: dict) -> None:
+def apply_payload_to_state(avr_state: AVRState, payload: dict) -> None:
     """
     Apply a JSON payload to AVRState (e.g. from POST /state).
     Only updates fields present in payload. Uses _normalize_smart_select for smart_select.
     """
     if "power" in payload:
         v = payload["power"]
-        state.power = str(v).upper() if v else None
+        avr_state.power = str(v).upper() if v else None
     if "volume" in payload:
         v = payload["volume"]
-        state.volume = str(v) if v is not None else None
+        avr_state.volume = str(v) if v is not None else None
     if "input_source" in payload:
         v = payload["input_source"]
-        state.input_source = str(v) if v is not None else None
+        avr_state.input_source = str(v) if v is not None else None
     if "mute" in payload:
-        state.mute = bool(payload["mute"])
+        avr_state.mute = bool(payload["mute"])
     if "sound_mode" in payload:
         v = payload["sound_mode"]
-        state.sound_mode = str(v) if v is not None else None
+        avr_state.sound_mode = str(v) if v is not None else None
     if "smart_select" in payload:
         v = payload["smart_select"]
-        state.smart_select = _normalize_smart_select(str(v) if v is not None else None)
+        avr_state.smart_select = _normalize_smart_select(str(v) if v is not None else None)
 
 
 def state_and_config_updates_from_denonavr(d: Any) -> tuple[dict[str, Any], dict[str, Any], list[tuple[str, str]]]:
@@ -390,19 +393,24 @@ class ClientHandler(asyncio.Protocol):
     def __init__(
         self,
         avr: AVRConnection | VirtualAVRConnection,
-        state: AVRState,
+        avr_state: AVRState,
         clients: Set["ClientHandler"],
         logger: logging.Logger,
+        runtime_state: RuntimeState,
         config: dict | None = None,
     ) -> None:
         self.avr = avr
-        self.state = state
+        self.avr_state = avr_state
         self.clients = clients
         self.logger = logger
         self.config = config or {}
+        self.runtime_state = runtime_state
         self.transport: asyncio.Transport | None = None
         self._buffer = b""
         self._peername: tuple | None = None
+
+    def _notify_web(self) -> None:
+        self.runtime_state.notify_web_state()
 
     def connection_made(self, transport: asyncio.BaseTransport) -> None:
         """Called when a client connects."""
@@ -410,10 +418,10 @@ class ClientHandler(asyncio.Protocol):
         self._peername = transport.get_extra_info("peername")
         self.clients.add(self)
         self.logger.info("Client connected: %s (total: %d)", self._peername, len(self.clients))
-        self.config.get("_notify_web_state", lambda: None)()
+        self._notify_web()
 
         # Send current state to new client
-        status = self.state.get_status_dump()
+        status = self.avr_state.get_status_dump()
         if status and self.transport:
             self.transport.write(status.encode("utf-8"))
 
@@ -437,7 +445,7 @@ class ClientHandler(asyncio.Protocol):
 
     def _broadcast_state(self) -> None:
         """Broadcast current state to all clients (emulates AVR confirmation)."""
-        status = self.state.get_status_dump()
+        status = self.avr_state.get_status_dump()
         if status:
             for line in status.strip().splitlines():
                 if line.strip():
@@ -452,8 +460,8 @@ class ClientHandler(asyncio.Protocol):
         had_connection = self.avr.is_connected()
 
         if optimistic:
-            snapshot = self.state.snapshot()
-            if not self.state.apply_command(
+            snapshot = self.avr_state.snapshot()
+            if not self.avr_state.apply_command(
                 command,
                 volume_step=float(self.config["volume_step"]),
                 volume_max=self.avr.volume_max,
@@ -466,12 +474,12 @@ class ClientHandler(asyncio.Protocol):
         success = await send_task
 
         if optimistic and snapshot is not None and not success and had_connection:
-            self.state.restore(snapshot)
+            self.avr_state.restore(snapshot)
             self.logger.warning("Reverted optimistic state after failed send")
 
         if optimistic and snapshot is not None:
             self._broadcast_state()
-            self.config.get("_notify_web_state", lambda: None)()
+            self._notify_web()
 
         # When not optimistic, clients get updated when the AVR sends a response.
 
@@ -495,7 +503,7 @@ class ClientHandler(asyncio.Protocol):
         self.clients.discard(self)
         self.transport = None
         self.logger.info("Client disconnected: %s (remaining: %d)", self._peername, len(self.clients))
-        self.config.get("_notify_web_state", lambda: None)()
+        self._notify_web()
 
 
 # -----------------------------------------------------------------------------
@@ -523,10 +531,12 @@ class DenonProxyServer:
             ],
             AVRConnection | VirtualAVRConnection,
         ],
+        runtime_state: RuntimeState,
     ) -> None:
         self.config = config
         self.logger = logger
-        self.state = AVRState()
+        self.runtime_state = runtime_state
+        self.avr_state = AVRState()
         self.clients: Set[ClientHandler] = set()
         self.avr: (AVRConnection | VirtualAVRConnection) | None = None
         self._server: asyncio.Server | None = None
@@ -554,12 +564,12 @@ class DenonProxyServer:
             self.logger.debug("AVR response: %s", message)
         for line in avr_response_broadcast_lines(message):
             self._broadcast(line)
-        self._notify_web_state()
+        self.runtime_state.notify_web_state()
 
     def _on_avr_disconnect(self) -> None:
         """Called when AVR disconnects or send attempted while disconnected - schedule reconnect (idempotent)."""
         # Push updated connection status to Web UI / SSE
-        self._notify_web_state()
+        self.runtime_state.notify_web_state()
         if self._reconnect_task is not None and not self._reconnect_task.done():
             return
         async def reconnect() -> None:
@@ -590,14 +600,14 @@ class DenonProxyServer:
             )
             state_updates, avr_info, device_sources = state_and_config_updates_from_denonavr(d)
             for key, value in state_updates.items():
-                setattr(self.state, key, value)
-            self.config["_avr_info"] = avr_info
+                setattr(self.avr_state, key, value)
+            self.runtime_state.avr_info = avr_info
             if device_sources:
-                self.config["_device_sources"] = device_sources
+                self.runtime_state.device_sources = device_sources
                 self.logger.info("Fetched %d input sources from AVR", len(device_sources))
             self.logger.info("Initial state from HTTP: power=%s vol=%s input=%s mute=%s sound_mode=%s smart_select=%s",
-                             self.state.power, self.state.volume,
-                             self.state.input_source, self.state.mute, self.state.sound_mode, self.state.smart_select)
+                             self.avr_state.power, self.avr_state.volume,
+                             self.avr_state.input_source, self.avr_state.mute, self.avr_state.sound_mode, self.avr_state.smart_select)
         except Exception as e:
             self.logger.debug("Could not sync initial state via HTTP: %s", e)
 
@@ -608,7 +618,7 @@ class DenonProxyServer:
 
         self.avr = self._avr_factory(
             self.config,
-            self.state,
+            self.avr_state,
             self._on_avr_response,
             self._on_avr_disconnect,
             self.logger,
@@ -623,9 +633,10 @@ class DenonProxyServer:
         def factory():
             return ClientHandler(
                 avr=self.avr,
-                state=self.state,
+                avr_state=self.avr_state,
                 clients=self.clients,
                 logger=self.logger,
+                runtime_state=self.runtime_state,
                 config=self.config,
             )
 
@@ -637,21 +648,22 @@ class DenonProxyServer:
             port,
             reuse_address=True,
         )
-        # port=0 means "let the OS pick a free port"; store the chosen port so callers (e.g. tests) can connect
+        # port=0 means "let the OS pick a free port"; store the chosen port in runtime state
         if port == 0 and self._server.sockets:
-            self.config["proxy_port"] = self._server.sockets[0].getsockname()[1]
+            self.runtime_state.proxy_port = self._server.sockets[0].getsockname()[1]
         connect_host = get_advertise_ip(self.config) or (host if host and host != "0.0.0.0" else "localhost")
+        listen_port = (self.runtime_state.proxy_port if self.runtime_state.proxy_port is not None else None) or port
         avr_host = (self.config.get("avr_host") or "").strip()
         if avr_host:
             self.logger.info("Proxy listening on %s:%d (AVR: %s:%d)",
-                             connect_host, port, avr_host, self.config.get("avr_port", 23))
+                             connect_host, listen_port, avr_host, self.config.get("avr_port", 23))
         else:
-            self.logger.info("Proxy listening on %s:%d (virtual AVR)", connect_host, port)
-        self.logger.info("Connect Home Assistant and UC Remote 3 to %s:%d", connect_host, port)
+            self.logger.info("Proxy listening on %s:%d (virtual AVR)", connect_host, listen_port)
+        self.logger.info("Connect Home Assistant and UC Remote 3 to %s:%d", connect_host, listen_port)
 
         # Web UI / JSON status API
         def _get_json_state() -> dict:
-            return build_json_state(self.state, self.avr, self.clients, self.config)
+            return build_json_state(self.avr_state, self.avr, self.clients, self.config, self.runtime_state)
 
         def _send_command_cb(cmd: str) -> None:
             async def _do() -> None:
@@ -679,7 +691,7 @@ class DenonProxyServer:
             )
             if result:
                 self._json_api_server, self._notify_web_state = result
-                self.config["_notify_web_state"] = self._notify_web_state
+                self.runtime_state.notify_web_state = self._notify_web_state
                 api_host = get_advertise_ip(self.config) or "localhost"
                 api_port = int(self.config.get("http_port", 8081))
                 if dashboard_html:
@@ -716,7 +728,8 @@ async def main_async(config: dict) -> None:
     """Run the proxy server."""
     logger = logging.getLogger("denon-proxy")
     logger.debug("Starting proxy with config:\n%s", pprint.pformat(config))
-    proxy = DenonProxyServer(config, logger, create_avr_connection)
+    runtime_state = RuntimeState()
+    proxy = DenonProxyServer(config, logger, create_avr_connection, runtime_state)
 
     # Handle shutdown gracefully - must not block event loop or Ctrl-C won't work
     stop_event = asyncio.Event()
@@ -754,7 +767,7 @@ async def main_async(config: dict) -> None:
     ssdp_transport, http_server = None, None
     if config.get("enable_ssdp"):
         try:
-            ssdp_transport, http_server = await run_discovery_servers(config, logger, proxy.state)
+            ssdp_transport, http_server = await run_discovery_servers(config, logger, proxy.avr_state, runtime_state)
         except Exception as e:
             logger.warning("SSDP failed: %s", e)
 
