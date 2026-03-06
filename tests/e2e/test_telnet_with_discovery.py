@@ -37,6 +37,7 @@ async def test_telnet_command_and_broadcast_on_discovery_stack(discovery_stack):
 
         writer.write(b"PWON\r")
         await writer.drain()
+        await asyncio.sleep(0.15)  # allow broadcast (PWON, ZMON) to be written
         response = await asyncio.wait_for(reader.read(4096), timeout=2.0)
         text = response.decode("utf-8", errors="replace")
         assert "PWON" in text
