@@ -12,9 +12,6 @@ from avr_discovery import run_discovery_servers
 from denon_proxy import DenonProxyServer, load_config_from_dict
 
 
-pytestmark = pytest.mark.e2e
-
-
 @pytest.fixture
 def discovery_config():
     """Config for proxy + discovery only (no JSON API): VirtualAVR + SSDP + discovery HTTP."""

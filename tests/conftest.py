@@ -41,3 +41,22 @@ def pytest_configure(config):
         "markers",
         "e2e: end-to-end tests that run the full application stack, production-like (tests/e2e/).",
     )
+
+
+def pytest_collection_modifyitems(config, items):
+    """Apply unit/integration/e2e marker based on test path so -m unit/integration/e2e works."""
+    tests_dir = Path(__file__).resolve().parent
+    for item in items:
+        try:
+            rel = item.path.relative_to(tests_dir)
+        except ValueError:
+            continue
+        parts = rel.parts
+        if not parts:
+            continue
+        if parts[0] == "unit":
+            item.add_marker(pytest.mark.unit)
+        elif parts[0] == "integration":
+            item.add_marker(pytest.mark.integration)
+        elif parts[0] == "e2e":
+            item.add_marker(pytest.mark.e2e)
