@@ -38,7 +38,7 @@ except ImportError:
     DENONAVR_AVAILABLE = False
 
 from avr_connection import AVRConnection, VirtualAVRConnection, create_avr_connection
-from avr_discovery import get_advertise_ip, get_proxy_friendly_name, run_discovery_servers
+from avr_discovery import get_advertise_ip, run_discovery_servers
 from config import Config, DEFAULT_AVR_PORT, DEFAULT_HTTP_PORT, DEFAULT_PROXY_PORT, DEFAULT_SSDP_HTTP_PORT
 from avr_info import AVRInfo
 from runtime_state import RuntimeState
@@ -209,7 +209,7 @@ def build_json_state(
         "is_docker": is_running_in_docker(),
     }
     return {
-        "friendly_name": get_proxy_friendly_name(config, runtime_state),
+        "friendly_name": runtime_state.get_friendly_name(config),
         "avr": avr_dict,
         "clients": client_ips,
         "client_count": len(client_ips),

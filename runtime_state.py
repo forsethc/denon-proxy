@@ -16,9 +16,6 @@ from runtime_utils import get_resolved_port as _get_resolved_port
 if TYPE_CHECKING:
     from config import Config
 
-__all__ = ["RuntimeState"]
-
-
 class RuntimeState:
     """
     Mutable runtime context for the proxy.

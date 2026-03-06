@@ -48,11 +48,13 @@ except ImportError:
 
 from avr_state import AVRState, volume_to_db
 
-SSDP_MCAST_GRP = "239.255.255.250"
-SSDP_MCAST_PORT = 1900
+_SSDP_MCAST_GRP = "239.255.255.250"
+_SSDP_MCAST_PORT = 1900
 # Discovery HTTP ports: 80 (standard HTTP), 60006 (Denon aios_device.xml)
-DISCOVERY_HTTP_PORT = 80
-DENON_AIOS_HTTP_PORT = 60006
+_DISCOVERY_HTTP_PORT = 80
+_DENON_AIOS_HTTP_PORT = 60006
+
+__all__ = ["get_advertise_ip", "run_discovery_servers"]
 
 _logger = logging.getLogger(__name__)
 
@@ -60,7 +62,7 @@ _logger = logging.getLogger(__name__)
 # Demo sources - matches typical Denon AVR-X inputs for HA integration
 # -----------------------------------------------------------------------------
 
-DEMO_SOURCES = [
+_DEMO_SOURCES = [
     ("CD", "CD"),
     ("DVD", "DVD"),
     ("BD", "Blu-ray"),
@@ -84,14 +86,14 @@ DEMO_SOURCES = [
 ]
 
 
-def get_sources(config: Config, runtime_state: RuntimeState) -> list[tuple[str, str]]:
+def _get_sources(config: Config, runtime_state: RuntimeState) -> list[tuple[str, str]]:
     """
     Return list of (func_name, display_name) for input sources.
     func_name is the Denon code (e.g. CD, BD, HDMI1) used in SI commands.
     display_name is shown in Home Assistant.
     Uses config['sources'] if provided (dict or list of [func, name] pairs).
     If no config mapping and runtime_state.avr_info.raw_sources exist, uses those.
-    Otherwise DEMO_SOURCES. Cache is read/written on runtime_state.
+    Otherwise _DEMO_SOURCES. Cache is read/written on runtime_state.
     """
     if runtime_state.resolved_sources is not None:
         return runtime_state.resolved_sources
@@ -132,13 +134,13 @@ def get_sources(config: Config, runtime_state: RuntimeState) -> list[tuple[str, 
                         func_name, display_name,
                     )
             out = filtered
-        result = out if out else DEMO_SOURCES
+        result = out if out else _DEMO_SOURCES
     else:
         # No user mapping: prefer raw sources (from physical AVR) over defaults
         if raw_sources:
             result = [(str(func).strip(), str(display_name).strip() if display_name else str(func).strip()) for func, display_name in raw_sources if func]
         else:
-            result = DEMO_SOURCES
+            result = _DEMO_SOURCES
 
     runtime_state.resolved_sources = result
     if raw_sources:
@@ -169,17 +171,17 @@ def get_advertise_ip(config: Config) -> str | None:
 # XML builders
 # -----------------------------------------------------------------------------
 
-def get_proxy_friendly_name(config: Config, runtime_state: RuntimeState) -> str:
+def _get_proxy_friendly_name(config: Config, runtime_state: RuntimeState) -> str:
     """Proxy's advertised friendly name: config if set, else physical device name + ' Proxy'. Cached on RuntimeState."""
     return runtime_state.get_friendly_name(config)
 
 
-def deviceinfo_xml(config: Config, runtime_state: RuntimeState) -> str:
+def _deviceinfo_xml(config: Config, runtime_state: RuntimeState) -> str:
     """Deviceinfo.xml - identify as pre-2016 AVR so denonavr uses port 8080/description.xml
     (avoids port 60006 aios_device.xml which can cause HA config flow issues)."""
     sources_xml = "\n".join(
         f'      <Source><FuncName>{func_name}</FuncName><DefaultName>{display_name}</DefaultName></Source>'
-        for func_name, display_name in get_sources(config, runtime_state)
+        for func_name, display_name in _get_sources(config, runtime_state)
     )
     return f"""<?xml version="1.0" encoding="utf-8"?>
 <Device_Info>
@@ -198,9 +200,9 @@ def deviceinfo_xml(config: Config, runtime_state: RuntimeState) -> str:
 </Device_Info>"""
 
 
-def appcommand_friendlyname_xml(config: Config, runtime_state: RuntimeState) -> str:
+def _appcommand_friendlyname_xml(config: Config, runtime_state: RuntimeState) -> str:
     """AppCommand.xml response for GetFriendlyName (denonavr setup)."""
-    name = get_proxy_friendly_name(config, runtime_state)
+    name = _get_proxy_friendly_name(config, runtime_state)
     return f"""<?xml version="1.0" encoding="utf-8"?>
 <rx>
   <cmd id="1">
@@ -209,7 +211,7 @@ def appcommand_friendlyname_xml(config: Config, runtime_state: RuntimeState) -> 
 </rx>"""
 
 
-def parse_appcommand_request(body_bytes: bytes) -> list[tuple[str, str]]:
+def _parse_appcommand_request(body_bytes: bytes) -> list[tuple[str, str]]:
     """
     Parse AppCommand request body. denonavr sends multiple <tx> chunks;
     ET.fromstring fails on multiple roots. Extract each tx and parse.
@@ -239,7 +241,7 @@ def parse_appcommand_request(body_bytes: bytes) -> list[tuple[str, str]]:
     return cmds_requested
 
 
-def appcommand_response_xml(
+def _appcommand_response_xml(
     config: Config,
     avr_state: AVRState,
     body_bytes: bytes,
@@ -255,10 +257,10 @@ def appcommand_response_xml(
     volume = volume_to_db(vol_raw)
     mute_val = "on" if (avr_state and getattr(avr_state, "mute", None)) else "off"
     input_src = (getattr(avr_state, "input_source", None) if avr_state else None) or "CD"
-    friendly_name = get_proxy_friendly_name(config, runtime_state)
+    friendly_name = _get_proxy_friendly_name(config, runtime_state)
     sound_mode = (getattr(avr_state, "sound_mode", None) if avr_state else None) or "STEREO"
 
-    cmds_requested = parse_appcommand_request(body_bytes)
+    cmds_requested = _parse_appcommand_request(body_bytes)
     logger.debug("AppCommand requested: %s", [cmd_text for _, cmd_text in cmds_requested])
     if not cmds_requested:
         cmds_requested = [("1", "GetFriendlyName")]
@@ -344,16 +346,16 @@ def appcommand_response_xml(
     return xml_str.encode("utf-8")
 
 
-def mainzone_xml(avr_state: AVRState, config: Config, runtime_state: RuntimeState) -> bytes:
+def _mainzone_xml(avr_state: AVRState, config: Config, runtime_state: RuntimeState) -> bytes:
     """Build MainZone XML for denonavr status polling."""
-    friendly_name = get_proxy_friendly_name(config, runtime_state)
+    friendly_name = _get_proxy_friendly_name(config, runtime_state)
     power = (getattr(avr_state, "power", None) if avr_state else None) or "ON"
     vol_raw = (getattr(avr_state, "volume", None) if avr_state else None) or "50"
     volume = volume_to_db(vol_raw)
     mute_val = "on" if (avr_state and getattr(avr_state, "mute", None)) else "off"
     input_src = (getattr(avr_state, "input_source", None) if avr_state else None) or "CD"
     sound_mode = (getattr(avr_state, "sound_mode", None) if avr_state else None) or "STEREO"
-    sources = get_sources(config, runtime_state)
+    sources = _get_sources(config, runtime_state)
     func_names = [func_name for func_name, _ in sources]
     display_names = [display_name for _, display_name in sources]
     input_func_list = "\n".join(f"    <Value>{func_name}</Value>" for func_name in func_names)
@@ -426,11 +428,11 @@ def _rewrite_avr_description(
     return xml_str
 
 
-def description_xml(config: Config, advertise_ip: str, runtime_state: RuntimeState) -> str:
+def _description_xml(config: Config, advertise_ip: str, runtime_state: RuntimeState) -> str:
     """Minimal UPnP device description XML matching what Home Assistant expects.
     Uses physical AVR manufacturer/model from runtime_state.avr_info when available (e.g. after
     HTTP sync) so UC Remote and other clients can detect Denon vs Marantz correctly."""
-    friendly_name = get_proxy_friendly_name(config, runtime_state)
+    friendly_name = _get_proxy_friendly_name(config, runtime_state)
     http_port = runtime_state.get_resolved_port(config, "ssdp_http_port", DEFAULT_SSDP_HTTP_PORT)
     serial = runtime_state.avr_info.udn_serial(advertise_ip)
     manufacturer = (runtime_state.avr_info.manufacturer or "Denon").strip() or "Denon"
@@ -451,7 +453,7 @@ def description_xml(config: Config, advertise_ip: str, runtime_state: RuntimeSta
 </root>"""
 
 
-def parse_ssdp_search_target(msg: str) -> str | None:
+def _parse_ssdp_search_target(msg: str) -> str | None:
     """Extract ST (Search Target) from SSDP M-SEARCH request."""
     for line in msg.split("\r\n"):
         if line.upper().startswith("ST:"):
@@ -459,7 +461,7 @@ def parse_ssdp_search_target(msg: str) -> str | None:
     return None
 
 
-def ssdp_response(config: Config, advertise_ip: str, st: str, runtime_state: RuntimeState) -> bytes:
+def _ssdp_response(config: Config, advertise_ip: str, st: str, runtime_state: RuntimeState) -> bytes:
     """Build SSDP HTTP 200 response for M-SEARCH."""
     http_port = runtime_state.get_resolved_port(config, "ssdp_http_port", DEFAULT_SSDP_HTTP_PORT)
     location = f"http://{advertise_ip}:{http_port}/description.xml"
@@ -508,11 +510,11 @@ class SSDPProtocol(asyncio.DatagramProtocol):
             msg = data.decode("utf-8", errors="ignore")
             if "M-SEARCH" not in msg:
                 return
-            st = parse_ssdp_search_target(msg)
+            st = _parse_ssdp_search_target(msg)
             if not st or not any(m in st for m in self.MATCH_ST):
                 return
             self.logger.debug("SSDP M-SEARCH from %s (ST=%s)", addr, st[:50])
-            resp = ssdp_response(self.config, self._advertise_ip, st, self.runtime_state)
+            resp = _ssdp_response(self.config, self._advertise_ip, st, self.runtime_state)
             if self.transport:
                 self.transport.sendto(resp, addr)
             self.logger.debug("SSDP response sent to %s (ST=%s)", addr, st[:50])
@@ -600,9 +602,9 @@ class DeviceDescriptionHandler(asyncio.Protocol):
                 elif "aios_device.xml" in path_lower or "upnp/desc" in path_lower:
                     body = self.description_xml
                 elif "mainzonexmlstatus" in path_lower or "mainzonexml" in path_lower:
-                    body = mainzone_xml(self.avr_state, self.config, self.runtime_state)
+                    body = _mainzone_xml(self.avr_state, self.config, self.runtime_state)
             elif method == "POST" and "/goform/appcommand.xml" in path_lower:
-                body = appcommand_response_xml(
+                body = _appcommand_response_xml(
                     self.config, self.avr_state, body_bytes, self.logger, self.runtime_state
                 )
 
@@ -665,24 +667,24 @@ async def run_discovery_servers(
             advertise_ip,
         )
 
-    logger.info("SSDP advertising as '%s' at %s", get_proxy_friendly_name(config, runtime_state), advertise_ip)
+    logger.info("SSDP advertising as '%s' at %s", _get_proxy_friendly_name(config, runtime_state), advertise_ip)
 
     ssdp_transport = None
     try:
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        sock.bind(("0.0.0.0", SSDP_MCAST_PORT))
+        sock.bind(("0.0.0.0", _SSDP_MCAST_PORT))
         # Join SSDP multicast group to receive M-SEARCH from HA, UC Remote, etc.
-        mreq = struct.pack("=4sI", socket.inet_aton(SSDP_MCAST_GRP), socket.INADDR_ANY)
+        mreq = struct.pack("=4sI", socket.inet_aton(_SSDP_MCAST_GRP), socket.INADDR_ANY)
         sock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
         loop = asyncio.get_running_loop()
         ssdp_transport, _ = await loop.create_datagram_endpoint(
             lambda: SSDPProtocol(config, logger, runtime_state),
             sock=sock,
         )
-        logger.info("SSDP listening on UDP %d", SSDP_MCAST_PORT)
+        logger.info("SSDP listening on UDP %d", _SSDP_MCAST_PORT)
     except OSError as e:
-        logger.warning("SSDP requires port %d (may need root): %s", SSDP_MCAST_PORT, e)
+        logger.warning("SSDP requires port %d (may need root): %s", _SSDP_MCAST_PORT, e)
 
     http_port = config.get("ssdp_http_port", DEFAULT_SSDP_HTTP_PORT)
     if http_port == 0:
@@ -698,10 +700,10 @@ async def run_discovery_servers(
             desc_xml_str = _rewrite_avr_description(raw, avr_host, advertise_ip, logger)
             logger.info("Using AVR description.xml from %s (friendlyName + Proxy)", avr_host)
     if desc_xml_str is None:
-        desc_xml_str = description_xml(config, advertise_ip, runtime_state)
+        desc_xml_str = _description_xml(config, advertise_ip, runtime_state)
     desc_xml = desc_xml_str.encode("utf-8")
-    devinfo_xml = deviceinfo_xml(config, runtime_state).encode("utf-8")
-    appcmd_xml = appcommand_friendlyname_xml(config, runtime_state).encode("utf-8")
+    devinfo_xml = _deviceinfo_xml(config, runtime_state).encode("utf-8")
+    appcmd_xml = _appcommand_friendlyname_xml(config, runtime_state).encode("utf-8")
 
     def http_factory():
         return DeviceDescriptionHandler(
@@ -723,21 +725,21 @@ async def run_discovery_servers(
         return None, None
 
     # Optional: also listen on 80 and 60006 for clients that probe those ports, but only if they're not already listening from above.
-    if http_port != DISCOVERY_HTTP_PORT:
+    if http_port != _DISCOVERY_HTTP_PORT:
         try:
-            server = await loop.create_server(http_factory, "0.0.0.0", DISCOVERY_HTTP_PORT, reuse_address=True)
+            server = await loop.create_server(http_factory, "0.0.0.0", _DISCOVERY_HTTP_PORT, reuse_address=True)
             http_servers.append(server)
-            logger.info("HTTP server on port %d", DISCOVERY_HTTP_PORT)
+            logger.info("HTTP server on port %d", _DISCOVERY_HTTP_PORT)
         except OSError as e:
-            logger.debug("Port %d unavailable (need root): %s", DISCOVERY_HTTP_PORT, e)
+            logger.debug("Port %d unavailable (need root): %s", _DISCOVERY_HTTP_PORT, e)
 
-    if http_port != DENON_AIOS_HTTP_PORT:
+    if http_port != _DENON_AIOS_HTTP_PORT:
         try:
-            server = await loop.create_server(http_factory, "0.0.0.0", DENON_AIOS_HTTP_PORT, reuse_address=True)
+            server = await loop.create_server(http_factory, "0.0.0.0", _DENON_AIOS_HTTP_PORT, reuse_address=True)
             http_servers.append(server)
-            logger.info("HTTP server on port %d", DENON_AIOS_HTTP_PORT)
+            logger.info("HTTP server on port %d", _DENON_AIOS_HTTP_PORT)
         except OSError as e:
-            logger.debug("Port %d unavailable: %s", DENON_AIOS_HTTP_PORT, e)
+            logger.debug("Port %d unavailable: %s", _DENON_AIOS_HTTP_PORT, e)
 
     logger.info("Device description at http://%s:%d/description.xml", advertise_ip, http_port)
     return ssdp_transport, http_servers

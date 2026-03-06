@@ -22,7 +22,6 @@ from config import Config, DEFAULT_HTTP_PORT
 from runtime_state import RuntimeState
 from runtime_utils import resolve_listening_port
 
-
 def parse_http_request(buffer: bytes) -> tuple[str, str, bytes, bytes] | None:
     """
     Parse an HTTP/1.1 request from a byte buffer.
@@ -63,7 +62,7 @@ def parse_command_request(body_bytes: bytes) -> tuple[str | None, dict | None]:
     return cmd, None
 
 
-class HttpServerHandler(asyncio.Protocol):
+class _HttpServerHandler(asyncio.Protocol):
     """HTTP handler: JSON API and SSE; optional HTML dashboard at GET /."""
 
     def __init__(
@@ -256,7 +255,7 @@ async def run_http_server(
 
     try:
         def factory():
-            h = HttpServerHandler(
+            h = _HttpServerHandler(
                 get_state,
                 logger,
                 sse_subscribers,

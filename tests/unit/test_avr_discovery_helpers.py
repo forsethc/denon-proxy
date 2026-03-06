@@ -5,14 +5,14 @@ from avr_info import AVRInfo
 from runtime_state import RuntimeState
 from avr_discovery import (
     get_advertise_ip,
-    get_sources,
-    get_proxy_friendly_name,
-    deviceinfo_xml,
-    appcommand_friendlyname_xml,
-    parse_appcommand_request,
-    mainzone_xml,
-    description_xml,
-    appcommand_response_xml,
+    _get_proxy_friendly_name as get_proxy_friendly_name,
+    _get_sources as get_sources,
+    _deviceinfo_xml as deviceinfo_xml,
+    _appcommand_friendlyname_xml as appcommand_friendlyname_xml,
+    _parse_appcommand_request as parse_appcommand_request,
+    _mainzone_xml as mainzone_xml,
+    _description_xml as description_xml,
+    _appcommand_response_xml as appcommand_response_xml,
     _escape_xml_text,
     _rewrite_avr_description,
 )

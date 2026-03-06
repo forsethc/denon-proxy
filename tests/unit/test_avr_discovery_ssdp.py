@@ -2,7 +2,7 @@
 
 from avr_info import AVRInfo
 from runtime_state import RuntimeState
-from avr_discovery import parse_ssdp_search_target, ssdp_response
+from avr_discovery import _parse_ssdp_search_target as parse_ssdp_search_target, _ssdp_response as ssdp_response
 
 
 # --- parse_ssdp_search_target ---
