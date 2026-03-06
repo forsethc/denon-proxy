@@ -13,7 +13,8 @@ import logging
 
 import pytest
 
-from runtime_state import AVRInfo, RuntimeState
+from avr_info import AVRInfo
+from runtime_state import RuntimeState
 from avr_discovery import run_discovery_servers, SSDP_MCAST_GRP, SSDP_MCAST_PORT
 from avr_state import AVRState
 from denon_proxy import load_config_from_dict

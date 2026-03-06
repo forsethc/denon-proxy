@@ -15,7 +15,7 @@ from avr_info import AVRInfo
 if TYPE_CHECKING:
     from config import Config
 
-__all__ = ["AVRInfo", "RuntimeState"]
+__all__ = ["RuntimeState"]
 
 
 class RuntimeState:

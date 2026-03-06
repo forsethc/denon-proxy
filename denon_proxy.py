@@ -40,7 +40,8 @@ except ImportError:
 from avr_connection import AVRConnection, VirtualAVRConnection, create_avr_connection
 from avr_discovery import get_advertise_ip, get_proxy_friendly_name, run_discovery_servers
 from config import Config, DEFAULT_AVR_PORT, DEFAULT_HTTP_PORT, DEFAULT_SSDP_HTTP_PORT
-from runtime_state import AVRInfo, RuntimeState
+from avr_info import AVRInfo
+from runtime_state import RuntimeState
 from runtime_utils import is_docker_internal_ip, is_running_in_docker
 from avr_state import AVRState, volume_to_level
 from telnet_utils import parse_telnet_lines, telnet_line_to_bytes

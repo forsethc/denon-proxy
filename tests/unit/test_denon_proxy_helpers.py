@@ -1,4 +1,5 @@
-from runtime_state import AVRInfo, RuntimeState
+from avr_info import AVRInfo
+from runtime_state import RuntimeState
 from avr_state import AVRState
 from denon_proxy import (
     _client_ip_for_display,

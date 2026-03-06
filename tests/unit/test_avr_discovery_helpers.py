@@ -1,7 +1,8 @@
 """Unit tests: avr_discovery helpers (get_sources, deviceinfo_xml, description_xml, etc.)."""
 import logging
 
-from runtime_state import AVRInfo, RuntimeState
+from avr_info import AVRInfo
+from runtime_state import RuntimeState
 from avr_discovery import (
     get_advertise_ip,
     get_sources,

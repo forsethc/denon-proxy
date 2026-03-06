@@ -9,7 +9,8 @@ import logging
 import pytest
 
 from avr_state import AVRState
-from runtime_state import AVRInfo, RuntimeState
+from avr_info import AVRInfo
+from runtime_state import RuntimeState
 from denon_proxy import build_json_state, load_config_from_dict
 from http_server import run_http_server
 
