@@ -71,7 +71,7 @@ avr_host: "192.168.1.100"   # Your Denon AVR's IP
 | `ssdp_http_port` | 8080 | Port for device description XML                |
 | `ssdp_advertise_ip` | "" | IP to advertise (empty = auto-detect)      |
 | `sources` | (from AVR or default) | Custom input sources: dict of `func_code: "Display Name"`. Omit to use actual device sources (including custom renames) when a physical AVR is connected |
-| `optimistic_state` | true | Apply changes to internal state immediately when clients send commands; revert only if sending to the AVR fails. When no AVR is configured, keeps optimistic state so you can test the proxy without hardware. |
+| `optimistic_state` | true | Apply changes to internal state immediately when clients send commands; revert only if sending to the AVR fails. When using the virtual AVR (no `avr_host`), the proxy never uses optimistic mode because commands can't fail. |
 | `optimistic_broadcast_delay` | 0.1 | Seconds to wait before broadcasting optimistic state to clients; emulates AVR confirmation and avoids flicker when a send fails. |
 | `volume_step` | 0.5 | Volume increment used for `MVUP`/`MVDOWN` when using optimistic updates or the virtual AVR. `0.5` = half-step; some AVRs use `1.0`. |
 | `volume_query_delay` | 0.15 | Delay after `MVUP`/`MVDOWN` before sending `MV?` so the AVR has time to apply the change before the volume is refreshed. |

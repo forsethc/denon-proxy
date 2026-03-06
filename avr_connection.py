@@ -168,6 +168,9 @@ class VirtualAVRConnection:
     """
     Simulates a Denon AVR in-process. Accepts telnet commands, updates state,
     and emits responses via on_response - so the proxy treats it like a real AVR.
+
+    The proxy never uses optimistic state for VirtualAVRConnection because
+    commands can't fail (there is no hardware to reject them).
     """
 
     def __init__(

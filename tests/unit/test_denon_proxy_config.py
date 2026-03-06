@@ -116,6 +116,36 @@ def test_load_config_merges_file_and_applies_env_overrides():
         path.unlink(missing_ok=True)
 
 
+def test_load_config_sets_optimistic_state_false_when_no_avr_host():
+    """When no avr_host is specified (file + env), optimistic_state is set to False at parse time."""
+    pytest.importorskip("yaml")
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
+        f.write("proxy_port: 2323\noptimistic_state: true\n")
+        path = Path(f.name)
+    try:
+        with patch.dict(os.environ, {}, clear=True):
+            config = load_config(path)
+        assert (config.get("avr_host") or "").strip() == ""
+        assert config["optimistic_state"] is False
+    finally:
+        path.unlink(missing_ok=True)
+
+
+def test_load_config_leaves_optimistic_state_when_avr_host_specified():
+    """When avr_host is set (file or env), optimistic_state is left as configured."""
+    pytest.importorskip("yaml")
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
+        f.write("avr_host: 192.168.1.1\noptimistic_state: true\n")
+        path = Path(f.name)
+    try:
+        with patch.dict(os.environ, {}, clear=True):
+            config = load_config(path)
+        assert (config.get("avr_host") or "").strip() != ""
+        assert config["optimistic_state"] is True
+    finally:
+        path.unlink(missing_ok=True)
+
+
 def test_load_config_dict_from_file_raises_import_error_when_yaml_unavailable():
     """When PyYAML is not installed, loading from file raises ImportError."""
     with patch("denon_proxy.yaml", None):

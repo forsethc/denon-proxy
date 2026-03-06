@@ -179,6 +179,9 @@ def load_config(config_path: Path | None = None) -> dict:
     raw = _load_config_dict_from_file(config_path)
     config = load_config_from_dict(raw)
     _apply_env_overrides(config)
+    # Virtual AVR (no avr_host) is never optimistic — commands can't fail so there's never a need to revert.
+    if not (config.get("avr_host") or "").strip():
+        config["optimistic_state"] = False
     return config
 
 
@@ -463,13 +466,13 @@ class ClientHandler(asyncio.Protocol):
 
         if optimistic and snapshot is not None and not success and had_connection:
             self.state.restore(snapshot)
-            self.logger.debug("Reverted optimistic state after failed send")
+            self.logger.warning("Reverted optimistic state after failed send")
 
         if optimistic and snapshot is not None:
-            # VirtualAVR already sends via on_response; skip duplicate to avoid confusing HA
-            if not isinstance(self.avr, VirtualAVRConnection):
-                self._broadcast_state()
+            self._broadcast_state()
             self.config.get("_notify_web_state", lambda: None)()
+
+        # When not optimistic, clients get updated when the AVR sends a response.
 
         # After relative volume commands, query AVR so we update internal state from its response
         cmd_upper = command.strip().upper()

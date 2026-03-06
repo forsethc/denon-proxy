@@ -57,8 +57,8 @@ ssdp_http_port: 8080
 ssdp_advertise_ip: ""
 
 # Optimistically update internal state when receiving commands, revert only if
-# sending to the physical AVR fails. When no AVR is connected (e.g. testing),
-# keep the optimistic state.
+# sending to the physical AVR fails. With the virtual AVR (no avr_host), the
+# proxy forces this off because commands can't fail.
 optimistic_state: true
 
 # Delay (seconds) before broadcasting optimistic state to clients. Emulates AVR
