@@ -8,9 +8,12 @@ callback, and resolved ports (e.g. when config specifies port 0).
 
 from __future__ import annotations
 
-from typing import Callable
+from typing import TYPE_CHECKING, Callable
 
 from avr_info import AVRInfo
+
+if TYPE_CHECKING:
+    from config import Config
 
 __all__ = ["AVRInfo", "RuntimeState"]
 
@@ -20,8 +23,8 @@ class RuntimeState:
     Mutable runtime context for the proxy.
 
     Holds avr_info (AVR identity and raw_sources), resolved_sources,
-    notify_web_state, and resolved port values. Pass one instance through the
-    proxy and discovery instead of mutating config.
+    notify_web_state, resolved friendly name (cached), and resolved port values.
+    Pass one instance through the proxy and discovery instead of mutating config.
     """
 
     __slots__ = (
@@ -31,6 +34,7 @@ class RuntimeState:
         "ssdp_http_port",
         "proxy_port",
         "http_port",
+        "_cached_friendly_name",
     )
 
     def __init__(self) -> None:
@@ -46,3 +50,24 @@ class RuntimeState:
         self.proxy_port: int | None = None
         # Resolved HTTP API port when config had http_port=0 (OS-chosen port)
         self.http_port: int | None = None
+        # Resolved friendly name (computed on first access; avr_info is set once at startup)
+        self._cached_friendly_name: str | None = None
+
+    def get_friendly_name(self, config: "Config") -> str:
+        """Resolved proxy friendly name: config override, else AVR name + ' Proxy', else default.
+
+        Computed on first access from config + avr_info and cached for the lifetime of this
+        RuntimeState. avr_info is set once at startup and is not refreshed today.
+        """
+        if self._cached_friendly_name is not None:
+            return self._cached_friendly_name
+        configured = (config.get("ssdp_friendly_name") or "").strip() or None
+        if configured:
+            resolved = configured
+        else:
+            avr_raw = None
+            if self.avr_info and self.avr_info.raw_friendly_name:
+                avr_raw = (self.avr_info.raw_friendly_name or "").strip() or None
+            resolved = f"{avr_raw} Proxy" if avr_raw else "Denon AVR Proxy"
+        self._cached_friendly_name = resolved
+        return resolved

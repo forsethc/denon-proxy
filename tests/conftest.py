@@ -19,15 +19,6 @@ if str(_root) not in sys.path:
 import pytest
 
 
-@pytest.fixture(autouse=True)
-def _reset_avr_discovery_friendly_name_cache():
-    """Reset cached friendly name before each test so get_proxy_friendly_name() is deterministic."""
-    import avr_discovery
-    avr_discovery._cached_friendly_name = None
-    yield
-    avr_discovery._cached_friendly_name = None
-
-
 def pytest_configure(config):
     config.addinivalue_line(
         "markers",

@@ -168,29 +168,9 @@ def get_advertise_ip(config: Config) -> str | None:
 # XML builders
 # -----------------------------------------------------------------------------
 
-_cached_friendly_name: str | None = None
-
-
 def get_proxy_friendly_name(config: Config, runtime_state: RuntimeState) -> str:
-    """Proxy's advertised friendly name: config if set, else physical device name + ' Proxy'. Computed once at first use."""
-    global _cached_friendly_name
-    if _cached_friendly_name is not None:
-        return _cached_friendly_name
-    configured = (config.get("ssdp_friendly_name") or "").strip()
-    if configured:
-        _cached_friendly_name = configured
-        _logger.debug("Friendly name from config: %r", _cached_friendly_name)
-        return _cached_friendly_name
-    physical_name = ""
-    if runtime_state.avr_info and runtime_state.avr_info.raw_friendly_name:
-        physical_name = (runtime_state.avr_info.raw_friendly_name or "").strip()
-    if physical_name:
-        _cached_friendly_name = f"{physical_name} Proxy"
-        _logger.debug("Friendly name from physical AVR %r: %r", physical_name, _cached_friendly_name)
-        return _cached_friendly_name
-    _cached_friendly_name = "Denon AVR Proxy"
-    _logger.debug("Friendly name: default Denon AVR Proxy (no config, no physical name)")
-    return _cached_friendly_name
+    """Proxy's advertised friendly name: config if set, else physical device name + ' Proxy'. Cached on RuntimeState."""
+    return runtime_state.get_friendly_name(config)
 
 
 def deviceinfo_xml(config: Config, runtime_state: RuntimeState) -> str:
