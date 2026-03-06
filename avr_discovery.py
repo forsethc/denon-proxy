@@ -47,43 +47,18 @@ except ImportError:
     httpx = None  # type: ignore
 
 from avr_state import AVRState, volume_to_db
-
-_SSDP_MCAST_GRP = "239.255.255.250"
-_SSDP_MCAST_PORT = 1900
-# Discovery HTTP ports: 80 (standard HTTP), 60006 (Denon aios_device.xml)
-_DISCOVERY_HTTP_PORT = 80
-_DENON_AIOS_HTTP_PORT = 60006
+from constants import (
+    DEFAULT_SSDP_HTTP_PORT,
+    DEMO_SOURCES,
+    DENON_AIOS_HTTP_PORT,
+    DISCOVERY_HTTP_PORT,
+    SSDP_MCAST_GRP,
+    SSDP_MCAST_PORT,
+)
 
 __all__ = ["get_advertise_ip", "run_discovery_servers"]
 
 _logger = logging.getLogger(__name__)
-
-# -----------------------------------------------------------------------------
-# Demo sources - matches typical Denon AVR-X inputs for HA integration
-# -----------------------------------------------------------------------------
-
-_DEMO_SOURCES = [
-    ("CD", "CD"),
-    ("DVD", "DVD"),
-    ("BD", "Blu-ray"),
-    ("GAME", "Game"),
-    ("MPLAY", "Media Player"),
-    ("SAT/CBL", "CBL/SAT"),
-    ("TV", "TV Audio"),
-    ("TUNER", "Tuner"),
-    ("PHONO", "Phono"),
-    ("AUX1", "AUX"),
-    ("NET", "Network"),
-    ("BT", "Bluetooth"),
-    ("USB/IPOD", "iPod/USB"),
-    ("HDMI1", "HDMI 1"),
-    ("HDMI2", "HDMI 2"),
-    ("HDMI3", "HDMI 3"),
-    ("HDMI4", "HDMI 4"),
-    ("HDMI5", "HDMI 5"),
-    ("HDMI6", "HDMI 6"),
-    ("HDMI7", "HDMI 7"),
-]
 
 
 def _get_sources(config: Config, runtime_state: RuntimeState) -> list[tuple[str, str]]:
@@ -93,7 +68,7 @@ def _get_sources(config: Config, runtime_state: RuntimeState) -> list[tuple[str,
     display_name is shown in Home Assistant.
     Uses config['sources'] if provided (dict or list of [func, name] pairs).
     If no config mapping and runtime_state.avr_info.raw_sources exist, uses those.
-    Otherwise _DEMO_SOURCES. Cache is read/written on runtime_state.
+    Otherwise DEMO_SOURCES. Cache is read/written on runtime_state.
     """
     if runtime_state.resolved_sources is not None:
         return runtime_state.resolved_sources
@@ -134,13 +109,13 @@ def _get_sources(config: Config, runtime_state: RuntimeState) -> list[tuple[str,
                         func_name, display_name,
                     )
             out = filtered
-        result = out if out else _DEMO_SOURCES
+        result = out if out else DEMO_SOURCES
     else:
         # No user mapping: prefer raw sources (from physical AVR) over defaults
         if raw_sources:
             result = [(str(func).strip(), str(display_name).strip() if display_name else str(func).strip()) for func, display_name in raw_sources if func]
         else:
-            result = _DEMO_SOURCES
+            result = DEMO_SOURCES
 
     runtime_state.resolved_sources = result
     if raw_sources:
@@ -673,18 +648,18 @@ async def run_discovery_servers(
     try:
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        sock.bind(("0.0.0.0", _SSDP_MCAST_PORT))
+        sock.bind(("0.0.0.0", SSDP_MCAST_PORT))
         # Join SSDP multicast group to receive M-SEARCH from HA, UC Remote, etc.
-        mreq = struct.pack("=4sI", socket.inet_aton(_SSDP_MCAST_GRP), socket.INADDR_ANY)
+        mreq = struct.pack("=4sI", socket.inet_aton(SSDP_MCAST_GRP), socket.INADDR_ANY)
         sock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
         loop = asyncio.get_running_loop()
         ssdp_transport, _ = await loop.create_datagram_endpoint(
             lambda: SSDPProtocol(config, logger, runtime_state),
             sock=sock,
         )
-        logger.info("SSDP listening on UDP %d", _SSDP_MCAST_PORT)
+        logger.info("SSDP listening on UDP %d", SSDP_MCAST_PORT)
     except OSError as e:
-        logger.warning("SSDP requires port %d (may need root): %s", _SSDP_MCAST_PORT, e)
+        logger.warning("SSDP requires port %d (may need root): %s", SSDP_MCAST_PORT, e)
 
     http_port = config.get("ssdp_http_port", DEFAULT_SSDP_HTTP_PORT)
     if http_port == 0:
@@ -725,21 +700,21 @@ async def run_discovery_servers(
         return None, None
 
     # Optional: also listen on 80 and 60006 for clients that probe those ports, but only if they're not already listening from above.
-    if http_port != _DISCOVERY_HTTP_PORT:
+    if http_port != DISCOVERY_HTTP_PORT:
         try:
-            server = await loop.create_server(http_factory, "0.0.0.0", _DISCOVERY_HTTP_PORT, reuse_address=True)
+            server = await loop.create_server(http_factory, "0.0.0.0", DISCOVERY_HTTP_PORT, reuse_address=True)
             http_servers.append(server)
-            logger.info("HTTP server on port %d", _DISCOVERY_HTTP_PORT)
+            logger.info("HTTP server on port %d", DISCOVERY_HTTP_PORT)
         except OSError as e:
-            logger.debug("Port %d unavailable (need root): %s", _DISCOVERY_HTTP_PORT, e)
+            logger.debug("Port %d unavailable (need root): %s", DISCOVERY_HTTP_PORT, e)
 
-    if http_port != _DENON_AIOS_HTTP_PORT:
+    if http_port != DENON_AIOS_HTTP_PORT:
         try:
-            server = await loop.create_server(http_factory, "0.0.0.0", _DENON_AIOS_HTTP_PORT, reuse_address=True)
+            server = await loop.create_server(http_factory, "0.0.0.0", DENON_AIOS_HTTP_PORT, reuse_address=True)
             http_servers.append(server)
-            logger.info("HTTP server on port %d", _DENON_AIOS_HTTP_PORT)
+            logger.info("HTTP server on port %d", DENON_AIOS_HTTP_PORT)
         except OSError as e:
-            logger.debug("Port %d unavailable: %s", _DENON_AIOS_HTTP_PORT, e)
+            logger.debug("Port %d unavailable: %s", DENON_AIOS_HTTP_PORT, e)
 
     logger.info("Device description at http://%s:%d/description.xml", advertise_ip, http_port)
     return ssdp_transport, http_servers

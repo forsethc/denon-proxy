@@ -11,13 +11,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 import re
 
-
-# Denon 0–98 scale: 80 = 0 dB reference; (vol - 80) * 0.5 ≈ dB.
-VOLUME_REFERENCE_LEVEL = 80.0
-# Default state/display level when we have no AVR value (e.g. demo, discovery). 50 ≈ -15 dB.
-VOLUME_DEFAULT_LEVEL = 50
-# Default max volume when AVR has not sent MVMAX; many Denon/Marantz use 98.
-DEFAULT_MAX_VOLUME = 98.0
+from constants import DEFAULT_MAX_VOLUME, VOLUME_DEFAULT_LEVEL, VOLUME_REFERENCE_LEVEL
 
 
 def _normalize_smart_select(value: str | None) -> str | None:

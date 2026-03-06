@@ -14,7 +14,7 @@ import asyncio
 
 import pytest
 
-from avr_discovery import _SSDP_MCAST_GRP as SSDP_MCAST_GRP, _SSDP_MCAST_PORT as SSDP_MCAST_PORT
+from constants import SSDP_MCAST_GRP, SSDP_MCAST_PORT
 
 
 async def _http_get(host: str, port: int, path: str) -> tuple[int, bytes]:

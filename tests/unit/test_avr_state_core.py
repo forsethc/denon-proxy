@@ -1,4 +1,5 @@
-from avr_state import AVRState, VOLUME_DEFAULT_LEVEL
+from constants import VOLUME_DEFAULT_LEVEL
+from avr_state import AVRState
 
 
 def test_update_from_message_updates_all_fields():

@@ -6,11 +6,12 @@ from typing import Any, Mapping as TypingMapping
 
 import os
 
-# Default port numbers (single place for config defaults)
-DEFAULT_AVR_PORT = 23
-DEFAULT_PROXY_PORT = 23
-DEFAULT_SSDP_HTTP_PORT = 8080
-DEFAULT_HTTP_PORT = 8081
+from constants import (
+    DEFAULT_AVR_PORT,
+    DEFAULT_HTTP_PORT,
+    DEFAULT_PROXY_PORT,
+    DEFAULT_SSDP_HTTP_PORT,
+)
 
 
 @dataclass
