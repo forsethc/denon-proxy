@@ -6,26 +6,32 @@ from typing import Any, Mapping as TypingMapping
 
 import os
 
+# Default port numbers (single place for config defaults)
+DEFAULT_AVR_PORT = 23
+DEFAULT_PROXY_PORT = 23
+DEFAULT_SSDP_HTTP_PORT = 8080
+DEFAULT_HTTP_PORT = 8081
+
 
 @dataclass
 class Config(Mapping[str, Any]):
     """Typed configuration for denon-proxy."""
 
     avr_host: str = ""
-    avr_port: int = 23
+    avr_port: int = DEFAULT_AVR_PORT
     proxy_host: str = "0.0.0.0"
-    proxy_port: int = 23
+    proxy_port: int = DEFAULT_PROXY_PORT
     log_level: str = "INFO"
     denonavr_log_level: str = "INFO"
     enable_ssdp: bool = True
-    ssdp_http_port: int = 8080
+    ssdp_http_port: int = DEFAULT_SSDP_HTTP_PORT
     ssdp_advertise_ip: str = ""
     optimistic_state: bool = True
     optimistic_broadcast_delay: float = 0.1
     volume_step: float = 0.5
     volume_query_delay: float = 0.15
     enable_http: bool = True
-    http_port: int = 8081
+    http_port: int = DEFAULT_HTTP_PORT
     log_command_groups_info: list[str] = field(default_factory=list)
 
     # Optional/less common config keys

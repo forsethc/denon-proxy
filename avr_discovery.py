@@ -37,7 +37,7 @@ import xml.etree.ElementTree as ET
 from typing import Callable
 
 from avr_info import AVRInfo
-from config import Config
+from config import Config, DEFAULT_SSDP_HTTP_PORT
 from runtime_state import RuntimeState
 from runtime_utils import is_docker_internal_ip
 
@@ -50,6 +50,9 @@ from avr_state import AVRState, volume_to_db
 
 SSDP_MCAST_GRP = "239.255.255.250"
 SSDP_MCAST_PORT = 1900
+# Discovery HTTP ports: 80 (standard HTTP), 60006 (Denon aios_device.xml)
+DISCOVERY_HTTP_PORT = 80
+DENON_AIOS_HTTP_PORT = 60006
 
 _logger = logging.getLogger(__name__)
 
@@ -394,7 +397,7 @@ async def _fetch_avr_description(avr_host: str, logger: logging.Logger) -> str |
     """Fetch description.xml from the physical AVR. Returns None on failure."""
     if not httpx:
         return None
-    for port in (8080, 80, 60006):
+    for port in (DEFAULT_SSDP_HTTP_PORT, DISCOVERY_HTTP_PORT, DENON_AIOS_HTTP_PORT):
         url = f"http://{avr_host}:{port}/description.xml"
         try:
             async with httpx.AsyncClient(timeout=5.0) as client:
@@ -428,7 +431,7 @@ def description_xml(config: Config, advertise_ip: str, runtime_state: RuntimeSta
     Uses physical AVR manufacturer/model from runtime_state.avr_info when available (e.g. after
     HTTP sync) so UC Remote and other clients can detect Denon vs Marantz correctly."""
     friendly_name = get_proxy_friendly_name(config, runtime_state)
-    http_port = runtime_state.ssdp_http_port if runtime_state.ssdp_http_port is not None else config.get("ssdp_http_port", 8080)
+    http_port = runtime_state.ssdp_http_port if runtime_state.ssdp_http_port is not None else config.get("ssdp_http_port", DEFAULT_SSDP_HTTP_PORT)
     serial = runtime_state.avr_info.udn_serial(advertise_ip)
     manufacturer = (runtime_state.avr_info.manufacturer or "Denon").strip() or "Denon"
     raw_model = (runtime_state.avr_info.model_name or "").strip()
@@ -458,7 +461,7 @@ def parse_ssdp_search_target(msg: str) -> str | None:
 
 def ssdp_response(config: Config, advertise_ip: str, st: str, runtime_state: RuntimeState) -> bytes:
     """Build SSDP HTTP 200 response for M-SEARCH."""
-    http_port = runtime_state.ssdp_http_port if runtime_state.ssdp_http_port is not None else config.get("ssdp_http_port", 8080)
+    http_port = runtime_state.ssdp_http_port if runtime_state.ssdp_http_port is not None else config.get("ssdp_http_port", DEFAULT_SSDP_HTTP_PORT)
     location = f"http://{advertise_ip}:{http_port}/description.xml"
     serial = runtime_state.avr_info.udn_serial(advertise_ip)
     usn = f"uuid:denon-proxy-{serial}::{st}"
@@ -668,7 +671,7 @@ async def run_discovery_servers(
     try:
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        sock.bind(("0.0.0.0", 1900))
+        sock.bind(("0.0.0.0", SSDP_MCAST_PORT))
         # Join SSDP multicast group to receive M-SEARCH from HA, UC Remote, etc.
         mreq = struct.pack("=4sI", socket.inet_aton(SSDP_MCAST_GRP), socket.INADDR_ANY)
         sock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
@@ -677,11 +680,11 @@ async def run_discovery_servers(
             lambda: SSDPProtocol(config, logger, runtime_state),
             sock=sock,
         )
-        logger.info("SSDP listening on UDP 1900")
+        logger.info("SSDP listening on UDP %d", SSDP_MCAST_PORT)
     except OSError as e:
-        logger.warning("SSDP requires port 1900 (may need root): %s", e)
+        logger.warning("SSDP requires port %d (may need root): %s", SSDP_MCAST_PORT, e)
 
-    http_port = config.get("ssdp_http_port", 8080)
+    http_port = config.get("ssdp_http_port", DEFAULT_SSDP_HTTP_PORT)
     if http_port == 0:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             s.bind(("0.0.0.0", 0))
@@ -706,26 +709,35 @@ async def run_discovery_servers(
         )
 
     http_servers = []
-    for port in (80, http_port, 60006):
-        if port == http_port and (80 == http_port or 60006 == http_port):
-            continue
-        try:
-            server = await asyncio.get_running_loop().create_server(
-                http_factory, "0.0.0.0", port, reuse_address=True,
-            )
-            http_servers.append(server)
-            logger.info("HTTP server on port %d", port)
-        except OSError as e:
-            if port == 80:
-                logger.debug("Port 80 unavailable (need root): %s", e)
-            elif port == 60006:
-                logger.debug("Port 60006 unavailable: %s", e)
-            else:
-                logger.warning("HTTP port %d unavailable: %s", port, e)
+    loop = asyncio.get_running_loop()
 
-    if not http_servers and ssdp_transport:
-        ssdp_transport.close()
+    # Required: we advertise this port in SSDP LOCATION; binding must succeed.
+    try:
+        server = await loop.create_server(http_factory, "0.0.0.0", http_port, reuse_address=True)
+        http_servers.append(server)
+        logger.info("HTTP server on port %d (advertised)", http_port)
+    except OSError as e:
+        logger.error("Cannot bind ssdp_http_port %d (advertised in discovery): %s", http_port, e)
+        if ssdp_transport:
+            ssdp_transport.close()
         return None, None
+
+    # Optional: also listen on 80 and 60006 for clients that probe those ports, but only if they're not already listening from above.
+    if http_port != DISCOVERY_HTTP_PORT:
+        try:
+            server = await loop.create_server(http_factory, "0.0.0.0", DISCOVERY_HTTP_PORT, reuse_address=True)
+            http_servers.append(server)
+            logger.info("HTTP server on port %d", DISCOVERY_HTTP_PORT)
+        except OSError as e:
+            logger.debug("Port %d unavailable (need root): %s", DISCOVERY_HTTP_PORT, e)
+
+    if http_port != DENON_AIOS_HTTP_PORT:
+        try:
+            server = await loop.create_server(http_factory, "0.0.0.0", DENON_AIOS_HTTP_PORT, reuse_address=True)
+            http_servers.append(server)
+            logger.info("HTTP server on port %d", DENON_AIOS_HTTP_PORT)
+        except OSError as e:
+            logger.debug("Port %d unavailable: %s", DENON_AIOS_HTTP_PORT, e)
 
     logger.info("Device description at http://%s:%d/description.xml", advertise_ip, http_port)
     return ssdp_transport, http_servers

@@ -39,7 +39,7 @@ except ImportError:
 
 from avr_connection import AVRConnection, VirtualAVRConnection, create_avr_connection
 from avr_discovery import get_advertise_ip, get_proxy_friendly_name, run_discovery_servers
-from config import Config
+from config import Config, DEFAULT_AVR_PORT, DEFAULT_HTTP_PORT, DEFAULT_SSDP_HTTP_PORT
 from runtime_state import AVRInfo, RuntimeState
 from runtime_utils import is_docker_internal_ip, is_running_in_docker
 from avr_state import AVRState, volume_to_level
@@ -199,7 +199,7 @@ def build_json_state(
     if sources:
         avr_dict["sources"] = [{"func": func_name, "display_name": display_name} for func_name, display_name in sources]
     proxy_ip = get_advertise_ip(config) or None
-    http_port = runtime_state.ssdp_http_port if runtime_state.ssdp_http_port is not None else config.get("ssdp_http_port", 8080)
+    http_port = runtime_state.ssdp_http_port if runtime_state.ssdp_http_port is not None else config.get("ssdp_http_port", DEFAULT_SSDP_HTTP_PORT)
     discovery = {
         "http_port": int(http_port),
         "enabled": bool(config.get("enable_ssdp", False)),
@@ -572,7 +572,7 @@ class DenonProxyServer:
         avr_host = (self.config.get("avr_host") or "").strip()
         if avr_host:
             self.logger.info("Proxy listening on %s:%d (AVR: %s:%d)",
-                             connect_host, listen_port, avr_host, self.config.get("avr_port", 23))
+                             connect_host, listen_port, avr_host, self.config.get("avr_port", DEFAULT_AVR_PORT))
         else:
             self.logger.info("Proxy listening on %s:%d (virtual AVR)", connect_host, listen_port)
         self.logger.info("Connect Home Assistant and UC Remote 3 to %s:%d", connect_host, listen_port)
@@ -613,7 +613,7 @@ class DenonProxyServer:
                 api_port = (
                     self.runtime_state.http_port
                     if self.runtime_state.http_port is not None
-                    else int(self.config.get("http_port", 8081))
+                    else int(self.config.get("http_port", DEFAULT_HTTP_PORT))
                 )
                 if dashboard_html:
                     self.logger.info(

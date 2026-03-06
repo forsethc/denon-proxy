@@ -18,7 +18,7 @@ import json
 import logging
 from typing import Any, Callable, Set
 
-from config import Config
+from config import Config, DEFAULT_HTTP_PORT
 
 
 def parse_http_request(buffer: bytes) -> tuple[str, str, bytes, bytes] | None:
@@ -230,7 +230,7 @@ async def run_http_server(
     if not bool(config.get("enable_http", True)):
         return None
 
-    port = int(config.get("http_port", 8081))
+    port = int(config.get("http_port", DEFAULT_HTTP_PORT))
     sse_subscribers: Set[asyncio.WriteTransport] = set()
 
     async def _push() -> None:
