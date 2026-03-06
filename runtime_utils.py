@@ -7,7 +7,13 @@ when to show Docker-related UI messages and when the advertised IP is internal.
 
 from __future__ import annotations
 
+import ipaddress
 from pathlib import Path
+
+_DOCKER_NETWORKS = (
+    ipaddress.IPv4Network("172.16.0.0/12"), # typical Docker bridge on Linux
+    ipaddress.IPv4Network("192.168.65.0/24"), # Docker Desktop for Mac/Windows
+)
 
 
 def is_running_in_docker() -> bool:
@@ -27,18 +33,10 @@ def is_docker_internal_ip(ip: str | None) -> bool:
     """
     if not ip or not isinstance(ip, str):
         return False
-    parts = ip.strip().split(".")
-    if len(parts) != 4:
-        return False
     try:
-        a, b, c, d = (int(p) for p in parts)
-        if 0 <= a <= 255 and 0 <= b <= 255 and 0 <= c <= 255 and 0 <= d <= 255:
-            # 172.16.0.0/12 = 172.16.x.x - 172.31.x.x
-            if a == 172 and 16 <= b <= 31:
-                return True
-            # 192.168.65.0/24 = Docker Desktop for Mac/Windows
-            if a == 192 and b == 168 and c == 65:
-                return True
+        addr = ipaddress.ip_address(ip.strip())
     except ValueError:
-        pass
-    return False
+        return False
+    if not isinstance(addr, ipaddress.IPv4Address):
+        return False
+    return any(addr in net for net in _DOCKER_NETWORKS)
