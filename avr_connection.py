@@ -26,6 +26,10 @@ class AVRConnection:
     """
     Maintains a single Telnet connection to a physical Denon AVR.
     Receives responses and forwards them via on_response for broadcasting.
+
+    close(): Releases the connection only; does not call on_disconnect.
+    on_disconnect is invoked when the connection is lost (e.g. socket closed
+    by peer or I/O error), from _handle_disconnect() when the read loop exits.
     """
 
     def __init__(
@@ -132,9 +136,12 @@ class AVRConnection:
             await asyncio.sleep(0.05)
 
     def close(self) -> None:
-        """Close the AVR connection."""
+        """Release the AVR connection. Does not call on_disconnect (see class docstring)."""
         if self.writer:
-            self.writer.close()
+            try:
+                self.writer.close()
+            except Exception:
+                pass
             self.reader = None
             self.writer = None
 
@@ -151,6 +158,11 @@ class VirtualAVRConnection:
 
     The proxy never uses optimistic state for VirtualAVRConnection because
     commands can't fail (there is no hardware to reject them).
+
+    close(): Releases the connection only; does not call on_disconnect.
+    There is no "connection lost" event for a virtual AVR, so on_disconnect
+    is never invoked (same contract as AVRConnection: only connection loss
+    triggers the callback, not explicit close).
     """
 
     def __init__(
@@ -211,13 +223,9 @@ class VirtualAVRConnection:
                 self.on_response(line.strip())
 
     def close(self) -> None:
+        """Release the virtual AVR. Does not call on_disconnect (see class docstring)."""
         self._connected = False
         self.logger.info("Virtual AVR closed")
-        try:
-            self.on_disconnect()
-        except Exception:
-            # Keep shutdown robust; mirror AVRConnection behaviour without failing hard
-            self.logger.debug("Virtual AVR on_disconnect callback raised", exc_info=True)
 
 
 # -----------------------------------------------------------------------------
