@@ -46,8 +46,8 @@ async def discovery_stack(discovery_config, discovery_logger):
         ssdp_transport, http_servers = await run_discovery_servers(
             discovery_config, discovery_logger, proxy.avr_state, runtime_state
         )
-    except Exception:
-        pass
+    except (OSError, asyncio.TimeoutError) as e:
+        discovery_logger.debug("Discovery servers failed to start: %s", e)
     yield proxy, ssdp_transport, http_servers
     if ssdp_transport:
         ssdp_transport.close()
@@ -94,8 +94,8 @@ async def full_stack_http(full_stack_http_config, full_stack_http_logger):
         ssdp_transport, discovery_http_servers = await run_discovery_servers(
             full_stack_http_config, full_stack_http_logger, proxy.avr_state, runtime_state
         )
-    except Exception:
-        pass
+    except (OSError, asyncio.TimeoutError) as e:
+        full_stack_http_logger.debug("Discovery servers failed to start: %s", e)
     yield proxy, ssdp_transport, discovery_http_servers
     if ssdp_transport:
         ssdp_transport.close()

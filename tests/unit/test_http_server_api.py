@@ -519,7 +519,7 @@ async def test_http_get_status_returns_500_when_get_state_raises():
     logger = logging.getLogger("test.http.status.500")
 
     def get_state() -> dict:
-        raise RuntimeError("get_state failed")
+        raise OSError("get_state failed")
 
     result = await run_http_server(config, logger, get_state, runtime_state=RuntimeState())
     assert result is not None
@@ -551,7 +551,7 @@ async def test_http_post_command_returns_500_when_send_command_raises():
         return {}
 
     def send_command(_cmd: str) -> None:
-        raise RuntimeError("send failed")
+        raise OSError("send failed")
 
     result = await run_http_server(config, logger, get_state, send_command=send_command, runtime_state=RuntimeState())
     assert result is not None
@@ -590,7 +590,7 @@ async def test_http_post_refresh_returns_500_when_request_state_raises():
         return {}
 
     def request_state() -> None:
-        raise RuntimeError("request_state failed")
+        raise OSError("request_state failed")
 
     result = await run_http_server(config, logger, get_state, request_state=request_state, runtime_state=RuntimeState())
     assert result is not None

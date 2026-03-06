@@ -37,6 +37,8 @@ try:
 except ImportError:
     DENONAVR_AVAILABLE = False
 
+import httpx
+
 from avr_connection import AVRConnection, VirtualAVRConnection, create_avr_connection
 from avr_discovery import get_advertise_ip, run_discovery_servers
 from config import Config, DEFAULT_AVR_PORT, DEFAULT_HTTP_PORT, DEFAULT_PROXY_PORT, DEFAULT_SSDP_HTTP_PORT
@@ -417,7 +419,7 @@ class ClientHandler(asyncio.Protocol):
         if self.transport and not self.transport.is_closing():
             try:
                 self.transport.write(telnet_line_to_bytes(message))
-            except Exception as e:
+            except OSError as e:
                 self.logger.debug("Broadcast to client failed: %s", e)
 
     def connection_lost(self, exc: Exception | None) -> None:
@@ -528,7 +530,7 @@ class DenonProxyServer:
             self.logger.info("Initial state from HTTP: power=%s vol=%s input=%s mute=%s sound_mode=%s smart_select=%s",
                              self.avr_state.power, self.avr_state.volume,
                              self.avr_state.input_source, self.avr_state.mute, self.avr_state.sound_mode, self.avr_state.smart_select)
-        except Exception as e:
+        except (OSError, asyncio.TimeoutError, httpx.HTTPError) as e:
             self.logger.debug("Could not sync initial state via HTTP: %s", e)
 
     async def start(self) -> None:
@@ -691,7 +693,7 @@ async def main_async(config: Config) -> None:
     if config.get("enable_ssdp"):
         try:
             ssdp_transport, http_server = await run_discovery_servers(config, logger, proxy.avr_state, runtime_state)
-        except Exception as e:
+        except (OSError, asyncio.TimeoutError) as e:
             logger.warning("SSDP failed: %s", e)
 
     await stop_event.wait()

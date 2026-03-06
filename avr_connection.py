@@ -95,7 +95,7 @@ class AVRConnection:
                         self.on_response(msg)
         except asyncio.CancelledError:
             pass
-        except Exception as e:
+        except OSError as e:
             self.logger.warning("AVR read error: %s", e)
         finally:
             self._handle_disconnect()
@@ -106,7 +106,7 @@ class AVRConnection:
             try:
                 self.writer.close()
                 asyncio.create_task(self.writer.wait_closed())
-            except Exception as e:
+            except OSError as e:
                 self.logger.debug("Error closing writer on disconnect: %s", e)
             self.reader = None
             self.writer = None
@@ -126,7 +126,7 @@ class AVRConnection:
             await self.writer.drain()
             self.logger.debug("Sent to AVR: %s", command.strip())
             return True
-        except Exception as e:
+        except OSError as e:
             self.logger.warning("Failed to send command to AVR: %s - %s", command, e)
             return False
 
@@ -141,7 +141,7 @@ class AVRConnection:
         if self.writer:
             try:
                 self.writer.close()
-            except Exception as e:
+            except OSError as e:
                 self.logger.debug("Error closing writer: %s", e)
             self.reader = None
             self.writer = None

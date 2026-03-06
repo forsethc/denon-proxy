@@ -142,7 +142,7 @@ class _HttpServerHandler(asyncio.Protocol):
     def _handle_get_status(self) -> None:
         try:
             body = json.dumps(self.get_state(), indent=2).encode("utf-8")
-        except Exception as e:
+        except (OSError, TypeError, ValueError, RecursionError) as e:
             self.logger.warning("get_state error: %s", e)
             self._send_json(500, {"error": "Internal Server Error"})
             return
@@ -159,7 +159,7 @@ class _HttpServerHandler(asyncio.Protocol):
         try:
             self.send_command(command)
             self._send_json(200, {"ok": True, "command": command})
-        except Exception as e:
+        except OSError as e:
             self.logger.warning("send_command error: %s", e)
             self._send_json(500, {"error": str(e)})
 
@@ -170,7 +170,7 @@ class _HttpServerHandler(asyncio.Protocol):
         try:
             self.request_state()
             self._send_json(200, {"ok": True})
-        except Exception as e:
+        except OSError as e:
             self.logger.warning("request_state error: %s", e)
             self._send_json(500, {"error": str(e)})
 
@@ -241,10 +241,10 @@ async def run_http_server(
             for t in list(sse_subscribers):
                 try:
                     t.write(msg)
-                except Exception as e:
+                except OSError as e:
                     logger.debug("SSE write to subscriber failed, removing: %s", e)
                     sse_subscribers.discard(t)
-        except Exception as e:
+        except (OSError, TypeError, ValueError, RecursionError) as e:
             logger.debug("SSE push error: %s", e)
 
     def notify_state_changed() -> None:

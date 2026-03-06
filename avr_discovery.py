@@ -40,11 +40,7 @@ from avr_info import AVRInfo
 from config import Config, DEFAULT_SSDP_HTTP_PORT
 from runtime_state import RuntimeState
 from runtime_utils import is_docker_internal_ip
-
-try:
-    import httpx
-except ImportError:
-    httpx = None  # type: ignore
+import httpx
 
 from avr_state import AVRState, volume_to_db
 from constants import (
@@ -374,8 +370,6 @@ def _escape_xml_text(s: str) -> str:
 
 async def _fetch_avr_description(avr_host: str, logger: logging.Logger) -> str | None:
     """Fetch description.xml from the physical AVR. Returns None on failure."""
-    if not httpx:
-        return None
     for port in (DEFAULT_SSDP_HTTP_PORT, DISCOVERY_HTTP_PORT, DENON_AIOS_HTTP_PORT):
         url = f"http://{avr_host}:{port}/description.xml"
         try:
@@ -383,7 +377,7 @@ async def _fetch_avr_description(avr_host: str, logger: logging.Logger) -> str |
                 r = await client.get(url)
                 if r.status_code == 200 and r.text:
                     return r.text
-        except Exception as e:
+        except (httpx.HTTPError, OSError) as e:
             logger.debug("Fetch %s: %s", url, e)
     return None
 
@@ -495,7 +489,7 @@ class SSDPProtocol(asyncio.DatagramProtocol):
             if self.transport:
                 self.transport.sendto(resp, addr)
             self.logger.debug("SSDP response sent to %s (ST=%s)", addr, st[:50])
-        except Exception as e:
+        except OSError as e:
             self.logger.debug("SSDP error: %s", e)
 
 
@@ -602,7 +596,7 @@ class DeviceDescriptionHandler(asyncio.Protocol):
                     self.logger.debug("Client %s request: %s %s -> no handler", client_ip, method, path)
                 else:
                     self.logger.warning("Client %s request: %s %s -> no handler", client_ip, method, path)
-        except Exception as e:
+        except OSError as e:
             self.logger.warning("HTTP handler error: %s", e)
         self._close()
 
