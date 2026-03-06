@@ -31,3 +31,33 @@ jobs:
         run: |
           pytest
 
+  docker:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Prepare config for Docker
+        run: cp config.sample.yaml config.yaml
+
+      - name: Build and run (direct)
+        run: |
+          docker build -t denon-proxy .
+          docker run -d --name denon-proxy-run \
+            --cap-add=NET_BIND_SERVICE \
+            -p 23:23 -p 8080:8080 -p 8081:8081 -p 60006:60006 \
+            -v "$(pwd)/config.yaml:/app/config.yaml:ro" \
+            denon-proxy
+          sleep 3
+          curl -sf http://localhost:8081/api/status
+          docker stop denon-proxy-run
+          docker rm denon-proxy-run
+
+      - name: Build and run (docker compose)
+        run: |
+          docker compose up -d --build
+          sleep 3
+          curl -sf http://localhost:8081/api/status
+          docker compose down
+
