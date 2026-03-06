@@ -39,7 +39,7 @@ def discovery_logger():
 async def discovery_stack(discovery_config, discovery_logger):
     """
     Start full stack: DenonProxyServer (VirtualAVR) + run_discovery_servers.
-    Yields (proxy, ssdp_transport, http_servers, config). Teardown closes all.
+    Yields (proxy, ssdp_transport, http_servers). Teardown closes all.
     """
     runtime_state = RuntimeState()
     proxy = DenonProxyServer(discovery_config, discovery_logger, create_avr_connection, runtime_state)
@@ -51,7 +51,7 @@ async def discovery_stack(discovery_config, discovery_logger):
         )
     except Exception:
         pass
-    yield proxy, ssdp_transport, http_servers, discovery_config
+    yield proxy, ssdp_transport, http_servers
     if ssdp_transport:
         ssdp_transport.close()
     if http_servers:
@@ -87,7 +87,7 @@ def full_stack_http_logger():
 async def full_stack_http(full_stack_http_config, full_stack_http_logger):
     """
     Start full stack: DenonProxyServer (VirtualAVR) + HTTP JSON API + run_discovery_servers.
-    Yields (proxy, ssdp_transport, http_servers, config). Teardown closes all.
+    Yields (proxy, ssdp_transport, http_servers). Teardown closes all.
     """
     runtime_state = RuntimeState()
     proxy = DenonProxyServer(full_stack_http_config, full_stack_http_logger, create_avr_connection, runtime_state)
@@ -99,7 +99,7 @@ async def full_stack_http(full_stack_http_config, full_stack_http_logger):
         )
     except Exception:
         pass
-    yield proxy, ssdp_transport, discovery_http_servers, full_stack_http_config
+    yield proxy, ssdp_transport, discovery_http_servers
     if ssdp_transport:
         ssdp_transport.close()
     if discovery_http_servers:

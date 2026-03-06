@@ -19,7 +19,7 @@ async def test_telnet_command_and_broadcast_on_discovery_stack(discovery_stack):
     With proxy + discovery running, connect Telnet client, send PWSTANDBY then PWON;
     assert client receives PWON and ZMON and proxy state becomes ON.
     """
-    proxy, _ssdp, _http_servers, _config = discovery_stack
+    proxy, _ssdp, _http_servers = discovery_stack
     port = proxy.runtime_state.proxy_port or proxy.config["proxy_port"]
     assert port != 0
 

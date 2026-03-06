@@ -80,9 +80,9 @@ async def _http_post(host: str, port: int, path: str, body: bytes) -> tuple[int,
 @pytest.mark.asyncio
 async def test_discovery_description_xml_rendered(discovery_stack):
     """GET /description.xml returns 200 and valid device description with correct port."""
-    proxy, _ssdp, http_servers, config = discovery_stack
+    proxy, _ssdp, http_servers = discovery_stack
     assert http_servers, "HTTP discovery server should start"
-    port = proxy.runtime_state.ssdp_http_port or config.get("ssdp_http_port")
+    port = proxy.runtime_state.ssdp_http_port or proxy.config.get("ssdp_http_port")
     assert port and port != 0, "Dynamic port should be set"
 
     status, body = await _http_get("127.0.0.1", port, "/description.xml")
@@ -98,9 +98,9 @@ async def test_discovery_description_xml_rendered(discovery_stack):
 @pytest.mark.asyncio
 async def test_discovery_root_returns_html(discovery_stack):
     """GET / (root) returns 200 and HTML (description.xml is the XML endpoint)."""
-    proxy, _ssdp, http_servers, config = discovery_stack
+    proxy, _ssdp, http_servers = discovery_stack
     assert http_servers
-    port = proxy.runtime_state.ssdp_http_port or config.get("ssdp_http_port")
+    port = proxy.runtime_state.ssdp_http_port or proxy.config.get("ssdp_http_port")
     status, body = await _http_get("127.0.0.1", port, "/")
     assert status == 200
     text = body.decode("utf-8", errors="replace")
@@ -110,9 +110,9 @@ async def test_discovery_root_returns_html(discovery_stack):
 @pytest.mark.asyncio
 async def test_discovery_alternate_description_paths(discovery_stack):
     """Paths aios_device.xml and upnp/desc also serve description XML."""
-    proxy, _ssdp, http_servers, config = discovery_stack
+    proxy, _ssdp, http_servers = discovery_stack
     assert http_servers
-    port = proxy.runtime_state.ssdp_http_port or config.get("ssdp_http_port")
+    port = proxy.runtime_state.ssdp_http_port or proxy.config.get("ssdp_http_port")
     for path in ("/aios_device.xml", "/upnp/desc"):
         status, body = await _http_get("127.0.0.1", port, path)
         assert status == 200, f"GET {path} should return 200"
@@ -123,9 +123,9 @@ async def test_discovery_alternate_description_paths(discovery_stack):
 @pytest.mark.asyncio
 async def test_discovery_deviceinfo_xml_rendered(discovery_stack):
     """GET /goform/deviceinfo.xml returns 200 and Device_Info XML with sources."""
-    proxy, _ssdp, http_servers, config = discovery_stack
+    proxy, _ssdp, http_servers = discovery_stack
     assert http_servers
-    port = proxy.runtime_state.ssdp_http_port or config.get("ssdp_http_port")
+    port = proxy.runtime_state.ssdp_http_port or proxy.config.get("ssdp_http_port")
     status, body = await _http_get("127.0.0.1", port, "/goform/deviceinfo.xml")
     assert status == 200
     text = body.decode("utf-8", errors="replace")
@@ -137,9 +137,9 @@ async def test_discovery_deviceinfo_xml_rendered(discovery_stack):
 @pytest.mark.asyncio
 async def test_discovery_appcommand_get_friendly_name(discovery_stack):
     """POST /goform/appcommand.xml with GetFriendlyName returns 200 and friendlyname."""
-    proxy, _ssdp, http_servers, config = discovery_stack
+    proxy, _ssdp, http_servers = discovery_stack
     assert http_servers
-    port = proxy.runtime_state.ssdp_http_port or config.get("ssdp_http_port")
+    port = proxy.runtime_state.ssdp_http_port or proxy.config.get("ssdp_http_port")
     body = b'<tx><cmd id="1">GetFriendlyName</cmd></tx>'
     status, resp_body = await _http_post(
         "127.0.0.1", port, "/goform/appcommand.xml", body
@@ -153,9 +153,9 @@ async def test_discovery_appcommand_get_friendly_name(discovery_stack):
 @pytest.mark.asyncio
 async def test_discovery_http_ports_exposed(discovery_stack):
     """Discovery HTTP server listens on the port advertised in description.xml."""
-    proxy, _ssdp, http_servers, config = discovery_stack
+    proxy, _ssdp, http_servers = discovery_stack
     assert http_servers
-    port = proxy.runtime_state.ssdp_http_port or config.get("ssdp_http_port")
+    port = proxy.runtime_state.ssdp_http_port or proxy.config.get("ssdp_http_port")
     status, _ = await _http_get("127.0.0.1", port, "/description.xml")
     assert status == 200
     status2, body = await _http_get("127.0.0.1", port, "/description.xml")
@@ -168,10 +168,10 @@ async def test_discovery_msearch_handled_and_responded(discovery_stack):
     """M-SEARCH (Denon URN) receives HTTP 200 response with LOCATION and ST/USN.
     Skipped when port 1900 is unavailable (e.g. CI without root).
     """
-    proxy, ssdp_transport, http_servers, config = discovery_stack
+    proxy, ssdp_transport, http_servers = discovery_stack
     if ssdp_transport is None:
         pytest.skip("SSDP port 1900 unavailable (need root or run with cap_net_bind_service)")
-    http_port = proxy.runtime_state.ssdp_http_port or config.get("ssdp_http_port")
+    http_port = proxy.runtime_state.ssdp_http_port or proxy.config.get("ssdp_http_port")
     assert http_port and http_port != 0, "Discovery HTTP port should be set"
 
     msearch = (
@@ -216,10 +216,10 @@ async def test_discovery_msearch_all_match_st_receive_response(st_value, discove
     """Each MATCH_ST search target receives a 200 response with LOCATION.
     Skipped when port 1900 is unavailable.
     """
-    proxy, ssdp_transport, http_servers, config = discovery_stack
+    proxy, ssdp_transport, http_servers = discovery_stack
     if ssdp_transport is None:
         pytest.skip("SSDP port 1900 unavailable (need root or run with cap_net_bind_service)")
-    http_port = proxy.runtime_state.ssdp_http_port or config.get("ssdp_http_port")
+    http_port = proxy.runtime_state.ssdp_http_port or proxy.config.get("ssdp_http_port")
     assert http_port and http_port != 0, "Discovery HTTP port should be set"
 
     msearch = (

@@ -21,9 +21,9 @@ async def test_full_stack_api_and_telnet_together(full_stack_http):
     GET /api/status again, connect Telnet client, send MV50, then GET /api/status
     and assert client_count >= 1 and state.volume updated.
     """
-    proxy, _ssdp, _discovery_servers, config = full_stack_http
+    proxy, _ssdp, _discovery_servers = full_stack_http
     # Resolved ports: proxy_port from runtime_state; http_port from config (run_http_server mutates it when 0)
-    http_port = config.get("http_port") or proxy.config.get("http_port")
+    http_port = proxy.config.get("http_port")
     proxy_port = proxy.runtime_state.proxy_port or proxy.config["proxy_port"]
     assert http_port and http_port != 0, "HTTP API port should be set"
     assert proxy_port and proxy_port != 0, "Proxy (telnet) port should be set"
