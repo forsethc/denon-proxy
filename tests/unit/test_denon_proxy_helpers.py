@@ -1,4 +1,4 @@
-from runtime_state import RuntimeState
+from runtime_state import AVRInfo, RuntimeState
 from denon_proxy import (
     _client_ip_for_display,
     _command_group,
@@ -92,12 +92,13 @@ def test_build_json_state_structure_and_volume_conversion():
         "ssdp_http_port": 8080,
     }
     runtime_state = RuntimeState()
-    runtime_state.avr_info = {
-        "manufacturer": "Denon",
-        "model_name": "TestModel",
-        "serial_number": "12345",
-        "friendly_name": "Proxy AVR",
-    }
+    runtime_state.avr_info = AVRInfo(
+        manufacturer="Denon",
+        model_name="TestModel",
+        serial_number="12345",
+        raw_friendly_name="Proxy AVR",
+        raw_sources=[],
+    )
     runtime_state.resolved_sources = [("CD", "CD"), ("HDMI1", "Game Console")]
 
     result = build_json_state(state, avr, clients, config, runtime_state)
@@ -153,17 +154,17 @@ def test_state_and_config_updates_from_denonavr_basic():
         name = "Living Room"
         input = None
 
-    state_updates, avr_info, device_sources = state_and_config_updates_from_denonavr(MockD())
+    state_updates, avr_info = state_and_config_updates_from_denonavr(MockD())
     assert state_updates["power"] == "ON"
     assert state_updates["volume"] == "40"
     assert state_updates["input_source"] == "HDMI1"
     assert state_updates["mute"] is False
     assert state_updates["sound_mode"] == "STEREO"
     assert state_updates["smart_select"] == "SMART1"
-    assert avr_info["manufacturer"] == "Denon"
-    assert avr_info["model_name"] == "AVR-X1600H"
-    assert avr_info["friendly_name"] == "Living Room"
-    assert device_sources == []
+    assert avr_info.manufacturer == "Denon"
+    assert avr_info.model_name == "AVR-X1600H"
+    assert avr_info.raw_friendly_name == "Living Room"
+    assert avr_info.raw_sources == []
 
 
 def test_state_and_config_updates_from_denonavr_smart_select_and_sources():
@@ -186,12 +187,12 @@ def test_state_and_config_updates_from_denonavr_smart_select_and_sources():
         name = None
         input = MockInput()
 
-    state_updates, avr_info, device_sources = state_and_config_updates_from_denonavr(MockD())
+    state_updates, avr_info = state_and_config_updates_from_denonavr(MockD())
     assert state_updates["power"] == "STANDBY"
     assert state_updates["mute"] is True
     assert state_updates["smart_select"] == "SMART1"
     assert state_updates.get("sound_mode") is None
-    assert device_sources == [("CD", "CD Player"), ("HDMI1", "Game")]
+    assert avr_info.raw_sources == [("CD", "CD Player"), ("HDMI1", "Game")]
 
 
 def test_state_and_config_updates_from_denonavr_sound_mode_smart_treated_as_smart_select():
@@ -209,7 +210,7 @@ def test_state_and_config_updates_from_denonavr_sound_mode_smart_treated_as_smar
         name = None
         input = None
 
-    state_updates, _, _ = state_and_config_updates_from_denonavr(MockD())
+    state_updates, _ = state_and_config_updates_from_denonavr(MockD())
     assert state_updates.get("smart_select") == "SMART0"
     assert state_updates.get("sound_mode") is None
 
@@ -229,10 +230,10 @@ def test_state_and_config_updates_from_denonavr_minimal_attributes():
         name = None
         input = None
 
-    state_updates, avr_info, device_sources = state_and_config_updates_from_denonavr(MockD())
+    state_updates, avr_info = state_and_config_updates_from_denonavr(MockD())
     assert state_updates == {}
-    assert avr_info["manufacturer"] is None
-    assert device_sources == []
+    assert avr_info.manufacturer is None
+    assert avr_info.raw_sources == []
 
 
 def test_state_and_config_updates_from_denonavr_volume_conversion():
@@ -253,7 +254,7 @@ def test_state_and_config_updates_from_denonavr_volume_conversion():
         name = None
         input = None
 
-    state_updates, _, _ = state_and_config_updates_from_denonavr(MockD())
+    state_updates, _ = state_and_config_updates_from_denonavr(MockD())
     assert state_updates["volume"] == "80"
 
 

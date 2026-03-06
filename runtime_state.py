@@ -8,21 +8,24 @@ callback, and resolved ports (e.g. when config specifies port 0).
 
 from __future__ import annotations
 
-from typing import Any, Callable
+from typing import Callable
+
+from avr_info import AVRInfo
+
+__all__ = ["AVRInfo", "RuntimeState"]
 
 
 class RuntimeState:
     """
     Mutable runtime context for the proxy.
 
-    Holds avr_info, device_sources, resolved_sources, notify_web_state, and
-    resolved port values. Pass one instance through the proxy and discovery
-    instead of mutating config.
+    Holds avr_info (AVR identity and raw_sources), resolved_sources,
+    notify_web_state, and resolved port values. Pass one instance through the
+    proxy and discovery instead of mutating config.
     """
 
     __slots__ = (
         "avr_info",
-        "device_sources",
         "resolved_sources",
         "notify_web_state",
         "ssdp_http_port",
@@ -31,10 +34,8 @@ class RuntimeState:
     )
 
     def __init__(self) -> None:
-        # From physical AVR (e.g. HTTP sync): manufacturer, model_name, serial_number, friendly_name
-        self.avr_info: dict[str, Any] = {}
-        # Raw (func, display_name) list from AVR
-        self.device_sources: list[tuple[str, str]] | None = None
+        # AVR identity and capabilities (from HTTP sync); None until first sync
+        self.avr_info: AVRInfo | None = None
         # Resolved list used by discovery/API (cached result of get_sources logic)
         self.resolved_sources: list[tuple[str, str]] | None = None
         # Callback to push state to Web UI / SSE when something changes

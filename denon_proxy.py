@@ -40,7 +40,7 @@ except ImportError:
 from avr_connection import AVRConnection, VirtualAVRConnection, create_avr_connection
 from avr_discovery import get_advertise_ip, get_proxy_friendly_name, run_discovery_servers
 from config import Config
-from runtime_state import RuntimeState
+from runtime_state import AVRInfo, RuntimeState
 from runtime_utils import is_docker_internal_ip, is_running_in_docker
 from avr_state import AVRState, volume_to_level, _normalize_smart_select
 from telnet_utils import parse_telnet_lines, telnet_line_to_bytes
@@ -191,13 +191,12 @@ def build_json_state(
     avr_dict = dict(avr.get_details()) if avr else {"type": "none"}
     avr_dict["connected"] = avr.is_connected() if avr else False
     avr_dict["volume_max"] = getattr(avr, "volume_max", 98.0) if avr else 98.0
-    avr_info = runtime_state.avr_info or {}
-    if avr_info:
-        avr_dict["manufacturer"] = avr_info.get("manufacturer")
-        avr_dict["model_name"] = avr_info.get("model_name")
-        avr_dict["serial_number"] = avr_info.get("serial_number")
-        avr_dict["friendly_name"] = avr_info.get("friendly_name")
-    sources = runtime_state.resolved_sources or runtime_state.device_sources
+    if runtime_state.avr_info:
+        avr_dict["manufacturer"] = runtime_state.avr_info.manufacturer
+        avr_dict["model_name"] = runtime_state.avr_info.model_name
+        avr_dict["serial_number"] = runtime_state.avr_info.serial_number
+        avr_dict["friendly_name"] = runtime_state.avr_info.raw_friendly_name
+    sources = runtime_state.resolved_sources or (runtime_state.avr_info.raw_sources if runtime_state.avr_info else None)
     if sources:
         avr_dict["sources"] = [{"func": func_name, "display_name": display_name} for func_name, display_name in sources]
     proxy_ip = get_advertise_ip(config) or None
@@ -243,10 +242,10 @@ def apply_payload_to_state(avr_state: AVRState, payload: dict) -> None:
         avr_state.smart_select = _normalize_smart_select(str(v) if v is not None else None)
 
 
-def state_and_config_updates_from_denonavr(d: Any) -> tuple[dict[str, Any], dict[str, Any], list[tuple[str, str]]]:
+def state_and_config_updates_from_denonavr(d: Any) -> tuple[dict[str, Any], AVRInfo]:
     """
-    Extract state updates, _avr_info, and _device_sources from a denonavr instance.
-    Returns (state_updates, avr_info, device_sources). Caller applies to state and config.
+    Extract state updates and AVR identity/capabilities from a denonavr instance.
+    Returns (state_updates, avr_info). Caller applies to state.
     """
     state_updates: dict[str, Any] = {}
 
@@ -276,21 +275,20 @@ def state_and_config_updates_from_denonavr(d: Any) -> tuple[dict[str, Any], dict
     if getattr(d, "smart_select", None) is not None:
         state_updates["smart_select"] = _normalize_smart_select(str(d.smart_select))
 
-    # --- Device metadata for JSON API and discovery (manufacturer, model, etc.) ---
-    avr_info = {
-        "manufacturer": getattr(d, "manufacturer", None),
-        "model_name": getattr(d, "model_name", None),
-        "serial_number": getattr(d, "serial_number", None),
-        "friendly_name": getattr(d, "name", None),
-    }
-
-    # --- Input source list from denonavr's reversed map (func -> display name) ---
+    # --- Device metadata and input sources for AVRInfo ---
     rev = getattr(getattr(d, "input", None), "_input_func_map_rev", None)
-    device_sources: list[tuple[str, str]] = []
+    raw_sources: list[tuple[str, str]] = []
     if rev and isinstance(rev, dict):
-        device_sources = [(func, str(display_name or func)) for func, display_name in rev.items()]
+        raw_sources = [(func, str(display_name or func)) for func, display_name in rev.items()]
 
-    return state_updates, avr_info, device_sources
+    avr_info = AVRInfo(
+        manufacturer=getattr(d, "manufacturer", None),
+        model_name=getattr(d, "model_name", None),
+        serial_number=getattr(d, "serial_number", None),
+        raw_friendly_name=getattr(d, "name", None),
+        raw_sources=raw_sources,
+    )
+    return state_updates, avr_info
 
 
 def avr_response_broadcast_lines(message: str) -> list[str]:
@@ -540,13 +538,12 @@ class DenonProxyServer:
                 d.async_update(),
                 timeout=10.0,
             )
-            state_updates, avr_info, device_sources = state_and_config_updates_from_denonavr(d)
+            state_updates, avr_info = state_and_config_updates_from_denonavr(d)
             for key, value in state_updates.items():
                 setattr(self.avr_state, key, value)
             self.runtime_state.avr_info = avr_info
-            if device_sources:
-                self.runtime_state.device_sources = device_sources
-                self.logger.info("Fetched %d input sources from AVR", len(device_sources))
+            if avr_info.has_sources():
+                self.logger.info("Fetched %d input sources from AVR", len(avr_info.raw_sources))
             self.logger.info("Initial state from HTTP: power=%s vol=%s input=%s mute=%s sound_mode=%s smart_select=%s",
                              self.avr_state.power, self.avr_state.volume,
                              self.avr_state.input_source, self.avr_state.mute, self.avr_state.sound_mode, self.avr_state.smart_select)

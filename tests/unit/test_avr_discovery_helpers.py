@@ -1,7 +1,7 @@
 """Unit tests: avr_discovery helpers (get_sources, deviceinfo_xml, description_xml, etc.)."""
 import logging
 
-from runtime_state import RuntimeState
+from runtime_state import AVRInfo, RuntimeState
 from avr_discovery import (
     get_advertise_ip,
     get_sources,
@@ -61,7 +61,13 @@ def test_description_xml_structure_and_sources():
     assert "<serialNumber>proxy-192-168-1-1</serialNumber>" in xml
     assert "urn:schemas-upnp-org:device:MediaRenderer:1" in xml
     runtime_state2 = RuntimeState()
-    runtime_state2.avr_info = {"manufacturer": "Denon", "model_name": "AVR-X1600H"}
+    runtime_state2.avr_info = AVRInfo(
+        manufacturer="Denon",
+        model_name="AVR-X1600H",
+        serial_number=None,
+        raw_friendly_name=None,
+        raw_sources=[],
+    )
     xml2 = description_xml(cfg, "10.0.0.5", runtime_state2)
     assert "AVR-X1600H Proxy" in xml2
     assert "Denon" in xml2
@@ -185,21 +191,33 @@ def test_get_sources_from_list_of_dicts():
     assert result == [("CD", "CD Player"), ("HDMI1", "Game")]
 
 
-def test_get_sources_filters_against_device_sources():
+def test_get_sources_filters_against_raw_sources():
     config = {
         "sources": {"CD": "CD Player", "HDMI1": "Game", "UNKNOWN": "Other"},
     }
     runtime_state = RuntimeState()
-    runtime_state.device_sources = [("CD", "CD"), ("HDMI1", "HDMI1")]
+    runtime_state.avr_info = AVRInfo(
+        manufacturer=None,
+        model_name=None,
+        serial_number=None,
+        raw_friendly_name=None,
+        raw_sources=[("CD", "CD"), ("HDMI1", "HDMI1")],
+    )
     result = get_sources(config, runtime_state)
     assert result == [("CD", "CD Player"), ("HDMI1", "Game")]
     assert ("UNKNOWN", "Other") not in result
 
 
-def test_get_sources_uses_device_sources_when_no_user_sources():
+def test_get_sources_uses_raw_sources_when_no_user_sources():
     config = {}
     runtime_state = RuntimeState()
-    runtime_state.device_sources = [("CD", "CD"), ("HDMI1", "Game Console")]
+    runtime_state.avr_info = AVRInfo(
+        manufacturer=None,
+        model_name=None,
+        serial_number=None,
+        raw_friendly_name=None,
+        raw_sources=[("CD", "CD"), ("HDMI1", "Game Console")],
+    )
     result = get_sources(config, runtime_state)
     assert result == [("CD", "CD"), ("HDMI1", "Game Console")]
 

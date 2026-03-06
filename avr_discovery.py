@@ -87,14 +87,14 @@ def get_sources(config: Config, runtime_state: RuntimeState) -> list[tuple[str, 
     func_name is the Denon code (e.g. CD, BD, HDMI1) used in SI commands.
     display_name is shown in Home Assistant.
     Uses config['sources'] if provided (dict or list of [func, name] pairs).
-    If no config mapping and runtime_state.device_sources exist, uses those.
+    If no config mapping and runtime_state.avr_info.raw_sources exist, uses those.
     Otherwise DEMO_SOURCES. Cache is read/written on runtime_state.
     """
     if runtime_state.resolved_sources is not None:
         return runtime_state.resolved_sources
 
     cfg = config.get("sources")
-    device_sources = runtime_state.device_sources
+    raw_sources = runtime_state.avr_info.raw_sources if runtime_state.avr_info else None
 
     if cfg:
         out: list[tuple[str, str]] = []
@@ -117,8 +117,8 @@ def get_sources(config: Config, runtime_state: RuntimeState) -> list[tuple[str, 
                     if func_name:
                         out.append((str(func_name).strip(), str(display_name).strip() if display_name else str(func_name).strip()))
         # Filter out sources that don't exist on the AVR
-        if device_sources:
-            valid_funcs = {str(func).strip() for func, _ in device_sources if func}
+        if raw_sources:
+            valid_funcs = {str(func).strip() for func, _ in raw_sources if func}
             filtered: list[tuple[str, str]] = []
             for func_name, display_name in out:
                 if func_name in valid_funcs:
@@ -131,15 +131,15 @@ def get_sources(config: Config, runtime_state: RuntimeState) -> list[tuple[str, 
             out = filtered
         result = out if out else DEMO_SOURCES
     else:
-        # No user mapping: prefer device sources (from physical AVR) over defaults
-        if device_sources:
-            result = [(str(func).strip(), str(display_name).strip() if display_name else str(func).strip()) for func, display_name in device_sources if func]
+        # No user mapping: prefer raw sources (from physical AVR) over defaults
+        if raw_sources:
+            result = [(str(func).strip(), str(display_name).strip() if display_name else str(func).strip()) for func, display_name in raw_sources if func]
         else:
             result = DEMO_SOURCES
 
     runtime_state.resolved_sources = result
-    if device_sources:
-        _logger.info("Device sources from AVR:\n  %s", "\n  ".join(f"{func} -> {display_name}" for func, display_name in device_sources))
+    if raw_sources:
+        _logger.info("Raw sources from AVR:\n  %s", "\n  ".join(f"{func} -> {display_name}" for func, display_name in raw_sources))
     _logger.info("Resolved input sources:\n  %s", "\n  ".join(f"{func} -> {display_name}" for func, display_name in result))
     return result
 
@@ -181,8 +181,9 @@ def get_proxy_friendly_name(config: Config, runtime_state: RuntimeState) -> str:
         _cached_friendly_name = configured
         _logger.debug("Friendly name from config: %r", _cached_friendly_name)
         return _cached_friendly_name
-    avr_info = runtime_state.avr_info or {}
-    physical_name = (avr_info.get("friendly_name") or "").strip()
+    physical_name = ""
+    if runtime_state.avr_info and runtime_state.avr_info.raw_friendly_name:
+        physical_name = (runtime_state.avr_info.raw_friendly_name or "").strip()
     if physical_name:
         _cached_friendly_name = f"{physical_name} Proxy"
         _logger.debug("Friendly name from physical AVR %r: %r", physical_name, _cached_friendly_name)
@@ -451,9 +452,11 @@ def description_xml(config: Config, advertise_ip: str, runtime_state: RuntimeSta
     friendly_name = get_proxy_friendly_name(config, runtime_state)
     http_port = runtime_state.ssdp_http_port if runtime_state.ssdp_http_port is not None else config.get("ssdp_http_port", 8080)
     serial = f"proxy-{advertise_ip.replace('.', '-')}"
-    avr_info = runtime_state.avr_info or {}
-    manufacturer = (avr_info.get("manufacturer") or "Denon").strip() or "Denon"
-    raw_model = (avr_info.get("model_name") or "").strip()
+    manufacturer = "Denon"
+    raw_model = ""
+    if runtime_state.avr_info:
+        manufacturer = (runtime_state.avr_info.manufacturer or "Denon").strip() or "Denon"
+        raw_model = (runtime_state.avr_info.model_name or "").strip()
     model_name = f"{raw_model} Proxy" if raw_model else "AVR-Proxy"
     return f"""<?xml version="1.0" encoding="utf-8"?>
 <root xmlns="urn:schemas-upnp-org:device-1-0">
