@@ -8,6 +8,8 @@ Volume helpers are used for presentation (JSON, XML).
 
 from __future__ import annotations
 
+from dataclasses import asdict, dataclass
+
 
 # Denon 0–98 scale: 80 = 0 dB reference; (vol - 80) * 0.5 ≈ dB.
 VOLUME_REFERENCE_LEVEL = 80.0
@@ -35,20 +37,19 @@ def _normalize_smart_select(value: str | None) -> str | None:
 # -----------------------------------------------------------------------------
 
 
+@dataclass
 class AVRState:
     """
     Tracks Denon AVR state (power, volume, input, mute, sound_mode, smart_select).
     Used by the connection layer for telnet and by discovery for HTTP/XML.
     """
 
-    def __init__(self) -> None:
-        # Defaults for demo mode / before AVR responds
-        self.power: str | None = "ON"       # ON, STANDBY, OFF
-        self.volume: str | None = str(VOLUME_DEFAULT_LEVEL)  # 0 to AVR max; overwritten by AVR
-        self.input_source: str | None = "CD"  # e.g. "CD", "TUNER", "DVD"
-        self.mute: bool | None = False      # True = muted
-        self.sound_mode: str | None = "STEREO"  # e.g. STEREO, MULTI CH IN, DOLBY DIGITAL
-        self.smart_select: str | None = None   # Smart Select slot, always "SMART{n}" (e.g. SMART0, SMART1)
+    power: str | None = "ON"  # ON, STANDBY, OFF
+    volume: str | None = str(VOLUME_DEFAULT_LEVEL)  # 0 to AVR max; overwritten by AVR
+    input_source: str | None = "CD"  # e.g. "CD", "TUNER", "DVD"
+    mute: bool | None = False  # True = muted
+    sound_mode: str | None = "STEREO"  # e.g. STEREO, MULTI CH IN, DOLBY DIGITAL
+    smart_select: str | None = None  # Smart Select slot, always "SMART{n}" (e.g. SMART0, SMART1)
 
     def update_from_message(self, message: str) -> None:
         """Update state from a Denon telnet response (PW, MV, SI, MU, ZM, MS, MSSMART)."""
@@ -133,14 +134,7 @@ class AVRState:
 
     def snapshot(self) -> dict:
         """Snapshot for optimistic update rollback."""
-        return {
-            "power": self.power,
-            "volume": self.volume,
-            "input_source": self.input_source,
-            "mute": self.mute,
-            "sound_mode": self.sound_mode,
-            "smart_select": self.smart_select,
-        }
+        return asdict(self)
 
     def restore(self, snapshot: dict) -> None:
         """Restore from snapshot after failed send."""
