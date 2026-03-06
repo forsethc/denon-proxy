@@ -360,9 +360,8 @@ def appcommand_response_xml(
     return xml_str.encode("utf-8")
 
 
-def mainzone_xml(avr_state: Any, config: dict | None, runtime_state: RuntimeState) -> bytes:
+def mainzone_xml(avr_state: Any, config: dict, runtime_state: RuntimeState) -> bytes:
     """Build MainZone XML for denonavr status polling."""
-    config = config or {}
     friendly_name = get_proxy_friendly_name(config, runtime_state)
     power = (getattr(avr_state, "power", None) if avr_state else None) or "ON"
     vol_raw = (getattr(avr_state, "volume", None) if avr_state else None) or "50"

@@ -397,13 +397,13 @@ class ClientHandler(asyncio.Protocol):
         clients: Set["ClientHandler"],
         logger: logging.Logger,
         runtime_state: RuntimeState,
-        config: dict | None = None,
+        config: dict,
     ) -> None:
         self.avr = avr
         self.avr_state = avr_state
         self.clients = clients
         self.logger = logger
-        self.config = config or {}
+        self.config = config
         self.runtime_state = runtime_state
         self.transport: asyncio.Transport | None = None
         self._buffer = b""
