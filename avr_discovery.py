@@ -34,7 +34,7 @@ import re
 import socket
 import struct
 import xml.etree.ElementTree as ET
-from typing import Any, Callable
+from typing import Callable
 
 from runtime_state import RuntimeState
 from runtime_utils import is_docker_internal_ip
@@ -257,7 +257,7 @@ def parse_appcommand_request(body_bytes: bytes) -> list[tuple[str, str]]:
 
 def appcommand_response_xml(
     config: dict,
-    avr_state: Any,
+    avr_state: AVRState,
     body_bytes: bytes,
     logger: logging.Logger,
     runtime_state: RuntimeState,
@@ -360,7 +360,7 @@ def appcommand_response_xml(
     return xml_str.encode("utf-8")
 
 
-def mainzone_xml(avr_state: Any, config: dict, runtime_state: RuntimeState) -> bytes:
+def mainzone_xml(avr_state: AVRState, config: dict, runtime_state: RuntimeState) -> bytes:
     """Build MainZone XML for denonavr status polling."""
     friendly_name = get_proxy_friendly_name(config, runtime_state)
     power = (getattr(avr_state, "power", None) if avr_state else None) or "ON"
@@ -553,7 +553,7 @@ class DeviceDescriptionHandler(asyncio.Protocol):
         deviceinfo_xml: bytes,
         appcommand_xml: bytes,
         logger: logging.Logger,
-        avr_state: Any,
+        avr_state: AVRState,
         config: dict,
         runtime_state: RuntimeState,
     ) -> None:
@@ -657,7 +657,7 @@ class DeviceDescriptionHandler(asyncio.Protocol):
 async def run_discovery_servers(
     config: dict,
     logger: logging.Logger,
-    avr_state: Any,
+    avr_state: AVRState,
     runtime_state: RuntimeState,
 ) -> tuple[asyncio.DatagramTransport | None, list | None]:
     """

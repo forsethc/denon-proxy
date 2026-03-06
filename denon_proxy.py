@@ -219,7 +219,7 @@ def _should_log_command_info(config: dict, cmd: str) -> bool:
     return _command_group(cmd) in groups
 
 
-def _client_ip_for_display(client: Any) -> str:
+def _client_ip_for_display(client: ClientHandler) -> str:
     """Return the client's IP string for status display, or '?' if unknown."""
     peername = getattr(client, "_peername", None)
     return peername[0] if peername else "?"
@@ -228,7 +228,7 @@ def _client_ip_for_display(client: Any) -> str:
 def build_json_state(
     avr_state: AVRState,
     avr: (AVRConnection | VirtualAVRConnection) | None,
-    clients: Iterable[Any],
+    clients: Iterable[ClientHandler],
     config: dict,
     runtime_state: RuntimeState,
 ) -> dict:

@@ -66,7 +66,7 @@ class HttpServerHandler(asyncio.Protocol):
         self,
         get_state: Callable[[], dict[str, Any]],
         logger: logging.Logger,
-        sse_subscribers: Set[Any],
+        sse_subscribers: Set[asyncio.WriteTransport],
         send_command: Callable[[str], None] | None = None,
         request_state: Callable[[], None] | None = None,
         dashboard_html: str | None = None,
@@ -228,7 +228,7 @@ async def run_http_server(
         return None
 
     port = int(config.get("http_port", 8081))
-    sse_subscribers: Set[Any] = set()
+    sse_subscribers: Set[asyncio.WriteTransport] = set()
 
     async def _push() -> None:
         try:
