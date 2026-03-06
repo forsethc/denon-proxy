@@ -42,7 +42,7 @@ from avr_discovery import get_advertise_ip, get_proxy_friendly_name, run_discove
 from config import Config, DEFAULT_AVR_PORT, DEFAULT_HTTP_PORT, DEFAULT_SSDP_HTTP_PORT
 from avr_info import AVRInfo
 from runtime_state import RuntimeState
-from runtime_utils import is_docker_internal_ip, is_running_in_docker
+from runtime_utils import is_docker_internal_ip, is_running_in_docker, resolve_listening_port
 from avr_state import AVRState, volume_to_level
 from telnet_utils import parse_telnet_lines, telnet_line_to_bytes
 
@@ -565,9 +565,7 @@ class DenonProxyServer:
             port,
             reuse_address=True,
         )
-        # port=0 means "let the OS pick a free port"; store the chosen port in runtime state
-        if port == 0 and self._server.sockets:
-            self.runtime_state.proxy_port = self._server.sockets[0].getsockname()[1]
+        resolve_listening_port(self._server, port, self.runtime_state, "proxy_port")
         connect_host = get_advertise_ip(self.config) or (host if host and host != "0.0.0.0" else "localhost")
         listen_port = (self.runtime_state.proxy_port if self.runtime_state.proxy_port is not None else None) or port
         avr_host = (self.config.get("avr_host") or "").strip()

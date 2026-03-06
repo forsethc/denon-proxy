@@ -1,8 +1,6 @@
 """
-Runtime / environment helpers: container detection and internal IP classification.
-
-Used by the proxy (build_json_state) and discovery (SSDP warning) to decide
-when to show Docker-related UI messages and when the advertised IP is internal.
+Runtime / environment helpers: container detection, internal IP classification,
+and server port resolution (e.g. record OS-chosen port when binding to 0).
 """
 
 from __future__ import annotations
@@ -40,3 +38,17 @@ def is_docker_internal_ip(ip: str | None) -> bool:
     if not isinstance(addr, ipaddress.IPv4Address):
         return False
     return any(addr in net for net in _DOCKER_NETWORKS)
+
+
+def resolve_listening_port(
+    server: object,
+    requested_port: int,
+    target: object,
+    port_attr: str,
+) -> None:
+    """
+    When requested_port was 0 (OS pick), set target.<port_attr> to the actual bound port.
+    Use after create_server(..., port=requested_port) so callers know the chosen port.
+    """
+    if requested_port == 0 and getattr(server, "sockets", None):
+        setattr(target, port_attr, server.sockets[0].getsockname()[1])

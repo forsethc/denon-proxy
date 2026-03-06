@@ -19,6 +19,8 @@ import logging
 from typing import Any, Callable, Set
 
 from config import Config, DEFAULT_HTTP_PORT
+from runtime_state import RuntimeState
+from runtime_utils import resolve_listening_port
 
 
 def parse_http_request(buffer: bytes) -> tuple[str, str, bytes, bytes] | None:
@@ -271,9 +273,7 @@ async def run_http_server(
             port,
             reuse_address=True,
         )
-        # port=0 means "let the OS pick a free port"; store the chosen port so callers (e.g. tests) can connect
-        if port == 0 and server.sockets:
-            runtime_state.http_port = server.sockets[0].getsockname()[1]
+        resolve_listening_port(server, port, runtime_state, "http_port")
         return server, notify_state_changed
     except OSError as e:
         logger.warning("HTTP server port %d unavailable: %s", port, e)
