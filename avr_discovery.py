@@ -154,12 +154,10 @@ def get_advertise_ip(config: Config) -> str | None:
     if ip:
         return ip
     try:
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.settimeout(2.0)
-        s.connect(("8.8.8.8", 80))
-        ip = s.getsockname()[0]
-        s.close()
-        return ip
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            s.settimeout(2.0)
+            s.connect(("8.8.8.8", 80))
+            return s.getsockname()[0]
     except OSError:
         return None
 
