@@ -128,3 +128,13 @@ def test_ssdp_response_usn_uses_avr_serial_when_set():
     body = ssdp_response(config, "192.168.1.1", "urn:test:1", runtime_state)
     text = body.decode("utf-8")
     assert "USN: uuid:denon-proxy-DEVICE-123::urn:test:1" in text
+
+
+def test_ssdp_response_with_virtual_avr_info_uses_proxy_ip_in_usn():
+    """When avr_info is AVRInfo.virtual(), SSDP USN uses proxy-ip (no device serial)."""
+    config = {"ssdp_http_port": 8080}
+    runtime_state = RuntimeState()
+    runtime_state.avr_info = AVRInfo.virtual()
+    body = ssdp_response(config, "10.0.0.5", "urn:schemas-denon-com:device:AiosDevice:1", runtime_state)
+    text = body.decode("utf-8")
+    assert "USN: uuid:denon-proxy-proxy-10-0-0-5::urn:schemas-denon-com:device:AiosDevice:1" in text

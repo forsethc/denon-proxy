@@ -125,6 +125,21 @@ def test_build_json_state_structure_and_volume_conversion():
     assert state_dict["power"] == "ON"
 
 
+def test_build_json_state_with_virtual_avr_info():
+    """When avr_info is AVRInfo.virtual(), avr dict has Denon / Virtual and no serial."""
+    state = AVRState()
+    state.power = "ON"
+    config = load_config_from_dict({"enable_ssdp": False})
+    runtime_state = RuntimeState()
+    runtime_state.avr_info = AVRInfo.virtual()
+    result = build_json_state(state, None, [], config, runtime_state)
+    avr_dict = result["avr"]
+    assert avr_dict["manufacturer"] == "Denon"
+    assert avr_dict["model_name"] == "Virtual"
+    assert avr_dict["serial_number"] is None
+    assert avr_dict["friendly_name"] is None
+
+
 def test_build_json_state_includes_discovery_info():
     """build_json_state includes discovery section with enabled, http_port, proxy_ip."""
     state = AVRState()

@@ -37,6 +37,17 @@ class AVRInfo:
             return str(self.serial_number).strip()
         return f"proxy-{fallback_advertise_ip.replace('.', '-')}"
 
+    @classmethod
+    def virtual(cls) -> AVRInfo:
+        """Canonical AVRInfo when running without a physical AVR (virtual mode)."""
+        return cls(
+            manufacturer="Denon",
+            model_name="Virtual",
+            serial_number=None,
+            raw_friendly_name=None,
+            raw_sources=[],
+        )
+
     @staticmethod
     def ssdp_serial(avr_info: AVRInfo | None, advertise_ip: str) -> str:
         """Serial for SSDP when avr_info may be None. Use in description_xml and ssdp_response."""

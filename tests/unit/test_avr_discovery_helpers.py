@@ -89,6 +89,18 @@ def test_description_xml_uses_avr_serial_when_set():
     assert "uuid:denon-proxy-DEVICE-SERIAL-99" in xml
 
 
+def test_description_xml_with_virtual_avr_info():
+    """When avr_info is AVRInfo.virtual(), description XML shows Virtual Proxy and proxy-ip serial."""
+    cfg = {"ssdp_http_port": 8080}
+    runtime_state = RuntimeState()
+    runtime_state.avr_info = AVRInfo.virtual()
+    xml = description_xml(cfg, "192.168.1.1", runtime_state)
+    assert "Virtual Proxy" in xml
+    assert "<manufacturer>Denon</manufacturer>" in xml
+    assert "<serialNumber>proxy-192-168-1-1</serialNumber>" in xml
+    assert "uuid:denon-proxy-proxy-192-168-1-1" in xml
+
+
 def test_appcommand_response_xml_get_friendly_name():
     cfg = {"ssdp_friendly_name": "Test AVR"}
     state = _FakeState()

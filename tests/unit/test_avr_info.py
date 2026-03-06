@@ -132,6 +132,54 @@ def test_ssdp_serial_none_avr_info_returns_proxy_ip():
     assert AVRInfo.ssdp_serial(None, "192.168.1.1") == "proxy-192-168-1-1"
 
 
+def test_virtual_returns_canonical_placeholder():
+    """Virtual mode gets a consistent AVRInfo (Denon Virtual, no serial, no sources)."""
+    info = AVRInfo.virtual()
+    assert info.manufacturer == "Denon"
+    assert info.model_name == "Virtual"
+    assert info.serial_number is None
+    assert info.raw_friendly_name is None
+    assert info.raw_sources == []
+    assert info.has_sources() is False
+    assert info.describe() == "Denon Virtual"
+
+
+def test_virtual_udn_serial_different_ips():
+    """Virtual has no device serial; udn_serial always returns proxy-{ip} for any advertise IP."""
+    info = AVRInfo.virtual()
+    assert info.udn_serial("192.168.1.1") == "proxy-192-168-1-1"
+    assert info.udn_serial("10.0.0.5") == "proxy-10-0-0-5"
+    assert info.udn_serial("127.0.0.1") == "proxy-127-0-0-1"
+
+
+def test_virtual_ssdp_serial():
+    """ssdp_serial with virtual AVRInfo uses proxy-ip (same as udn_serial)."""
+    info = AVRInfo.virtual()
+    assert AVRInfo.ssdp_serial(info, "10.0.0.1") == "proxy-10-0-0-1"
+
+
+def test_virtual_distinct_from_physical_with_no_serial():
+    """Virtual placeholder is not equal to a hand-built AVRInfo with same manufacturer/model but no serial."""
+    virtual = AVRInfo.virtual()
+    same_fields = AVRInfo(
+        manufacturer="Denon",
+        model_name="Virtual",
+        serial_number=None,
+        raw_friendly_name=None,
+        raw_sources=[],
+    )
+    assert virtual == same_fields  # same field values => equal
+    # Different model_name => not equal
+    other = AVRInfo(
+        manufacturer="Denon",
+        model_name="AVR-X1600H",
+        serial_number=None,
+        raw_friendly_name=None,
+        raw_sources=[],
+    )
+    assert virtual != other
+
+
 def test_ssdp_serial_with_avr_info_delegates_to_udn_serial():
     info = AVRInfo(
         manufacturer="Denon",

@@ -554,6 +554,8 @@ class DenonProxyServer:
         """Start the proxy server and AVR connection."""
         if (self.config.get("avr_host") or "").strip():
             await self._sync_initial_state()
+        else:
+            self.runtime_state.avr_info = AVRInfo.virtual()
 
         self.avr = self._avr_factory(
             self.config,
