@@ -73,6 +73,22 @@ def test_description_xml_structure_and_sources():
     assert "Denon" in xml2
 
 
+def test_description_xml_uses_avr_serial_when_set():
+    """When avr_info has serial_number, description XML uses it for serialNumber and UDN."""
+    cfg = {"ssdp_http_port": 8080}
+    runtime_state = RuntimeState()
+    runtime_state.avr_info = AVRInfo(
+        manufacturer="Denon",
+        model_name="X1600",
+        serial_number="DEVICE-SERIAL-99",
+        raw_friendly_name=None,
+        raw_sources=[],
+    )
+    xml = description_xml(cfg, "192.168.1.1", runtime_state)
+    assert "<serialNumber>DEVICE-SERIAL-99</serialNumber>" in xml
+    assert "uuid:denon-proxy-DEVICE-SERIAL-99" in xml
+
+
 def test_appcommand_response_xml_get_friendly_name():
     cfg = {"ssdp_friendly_name": "Test AVR"}
     state = _FakeState()

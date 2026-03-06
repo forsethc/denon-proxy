@@ -36,8 +36,8 @@ import struct
 import xml.etree.ElementTree as ET
 from typing import Callable
 
+from avr_info import AVRInfo
 from config import Config
-
 from runtime_state import RuntimeState
 from runtime_utils import is_docker_internal_ip
 
@@ -431,7 +431,7 @@ def description_xml(config: Config, advertise_ip: str, runtime_state: RuntimeSta
     HTTP sync) so UC Remote and other clients can detect Denon vs Marantz correctly."""
     friendly_name = get_proxy_friendly_name(config, runtime_state)
     http_port = runtime_state.ssdp_http_port if runtime_state.ssdp_http_port is not None else config.get("ssdp_http_port", 8080)
-    serial = f"proxy-{advertise_ip.replace('.', '-')}"
+    serial = AVRInfo.ssdp_serial(runtime_state.avr_info, advertise_ip)
     manufacturer = "Denon"
     raw_model = ""
     if runtime_state.avr_info:
@@ -465,7 +465,7 @@ def ssdp_response(config: Config, advertise_ip: str, st: str, runtime_state: Run
     """Build SSDP HTTP 200 response for M-SEARCH."""
     http_port = runtime_state.ssdp_http_port if runtime_state.ssdp_http_port is not None else config.get("ssdp_http_port", 8080)
     location = f"http://{advertise_ip}:{http_port}/description.xml"
-    serial = f"proxy-{advertise_ip.replace('.', '-')}"
+    serial = AVRInfo.ssdp_serial(runtime_state.avr_info, advertise_ip)
     usn = f"uuid:denon-proxy-{serial}::{st}"
     return "\r\n".join([
         "HTTP/1.1 200 OK",

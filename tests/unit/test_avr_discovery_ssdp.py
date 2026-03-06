@@ -1,5 +1,6 @@
 """Unit tests for SSDP helpers: parse_ssdp_search_target, ssdp_response."""
 
+from avr_info import AVRInfo
 from runtime_state import RuntimeState
 from avr_discovery import parse_ssdp_search_target, ssdp_response
 
@@ -111,3 +112,19 @@ def test_ssdp_response_usn_serial_escapes_dots():
     body = ssdp_response(config, "10.0.0.1", "ssdp:all", runtime_state)
     text = body.decode("utf-8")
     assert "denon-proxy-proxy-10-0-0-1" in text
+
+
+def test_ssdp_response_usn_uses_avr_serial_when_set():
+    """When avr_info has serial_number, SSDP UDN/USN use it instead of proxy-ip."""
+    config = {"ssdp_http_port": 8080}
+    runtime_state = RuntimeState()
+    runtime_state.avr_info = AVRInfo(
+        manufacturer="Denon",
+        model_name="AVR-X1600H",
+        serial_number="DEVICE-123",
+        raw_friendly_name=None,
+        raw_sources=[],
+    )
+    body = ssdp_response(config, "192.168.1.1", "urn:test:1", runtime_state)
+    text = body.decode("utf-8")
+    assert "USN: uuid:denon-proxy-DEVICE-123::urn:test:1" in text
