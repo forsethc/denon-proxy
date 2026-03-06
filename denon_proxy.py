@@ -40,6 +40,13 @@ except ImportError:
 from avr_connection import AVRConnection, VirtualAVRConnection, create_avr_connection
 from avr_discovery import get_advertise_ip, run_discovery_servers
 from config import Config, DEFAULT_AVR_PORT, DEFAULT_HTTP_PORT, DEFAULT_PROXY_PORT, DEFAULT_SSDP_HTTP_PORT
+from constants import (
+    DENONAVR_SYNC_TIMEOUT,
+    POST_CONNECT_DELAY,
+    RECONNECT_DELAY,
+    SHUTDOWN_PROXY_WAIT,
+    SHUTDOWN_SERVER_WAIT,
+)
 from avr_info import AVRInfo
 from runtime_state import RuntimeState
 from runtime_utils import is_docker_internal_ip, is_running_in_docker, resolve_listening_port
@@ -489,7 +496,7 @@ class DenonProxyServer:
             return
         async def reconnect() -> None:
             try:
-                await asyncio.sleep(2)
+                await asyncio.sleep(RECONNECT_DELAY)
                 if self.avr:
                     await self.avr.connect()
                     if self.avr.is_connected():
@@ -507,11 +514,11 @@ class DenonProxyServer:
             d = denonavr.DenonAVR(self.config["avr_host"])
             await asyncio.wait_for(
                 d.async_setup(),
-                timeout=10.0,
+                timeout=DENONAVR_SYNC_TIMEOUT,
             )
             await asyncio.wait_for(
                 d.async_update(),
-                timeout=10.0,
+                timeout=DENONAVR_SYNC_TIMEOUT,
             )
             state_updates, avr_info = state_and_config_updates_from_denonavr(d)
             self.avr_state.apply_payload(state_updates)
@@ -543,7 +550,7 @@ class DenonProxyServer:
         )
         connected = await self.avr.connect()
         if connected:
-            await asyncio.sleep(0.3)
+            await asyncio.sleep(POST_CONNECT_DELAY)
             await self.avr.request_state()
 
         # Start proxy server
@@ -698,8 +705,8 @@ async def main_async(config: Config) -> None:
             for srv in servers:
                 srv.close()
             for srv in servers:
-                await asyncio.wait_for(srv.wait_closed(), timeout=2.0)
-        await asyncio.wait_for(proxy.stop(), timeout=5.0)
+                await asyncio.wait_for(srv.wait_closed(), timeout=SHUTDOWN_SERVER_WAIT)
+        await asyncio.wait_for(proxy.stop(), timeout=SHUTDOWN_PROXY_WAIT)
     except asyncio.TimeoutError:
         logger.warning("Shutdown timed out, exiting anyway")
 

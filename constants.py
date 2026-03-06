@@ -1,8 +1,26 @@
 """
 Shared constants for denon-proxy.
 
-Port defaults, volume scale, and discovery/SSDP values in one place.
+Port defaults, volume scale, discovery/SSDP values, and timeouts in one place.
 """
+
+# Timeouts and delays (seconds)
+# Telnet connect to AVR and HTTP fetch of AVR description.xml.
+AVR_NETWORK_TIMEOUT = 5.0
+# Socket timeout when probing for local IP (get_advertise_ip UDP to 8.8.8.8).
+SOCKET_TIMEOUT = 2.0
+# denonavr async_setup and async_update (initial state sync via HTTP).
+DENONAVR_SYNC_TIMEOUT = 10.0
+# Delay before attempting reconnect after AVR disconnect.
+RECONNECT_DELAY = 2.0
+# Delay after AVR connect before sending request_state.
+POST_CONNECT_DELAY = 0.3
+# Delay between individual commands in request_state (PW?, MV?, etc.).
+REQUEST_STATE_INTERVAL = 0.05
+# Max wait for discovery/HTTP servers to close during shutdown.
+SHUTDOWN_SERVER_WAIT = 2.0
+# Max wait for proxy.stop() during shutdown.
+SHUTDOWN_PROXY_WAIT = 5.0
 
 # Default port numbers (config defaults)
 DEFAULT_AVR_PORT = 23

@@ -13,6 +13,7 @@ import logging
 from typing import Any, Callable
 
 from config import Config
+from constants import AVR_NETWORK_TIMEOUT, REQUEST_STATE_INTERVAL
 
 from avr_state import AVRState
 from telnet_utils import parse_telnet_lines, telnet_line_to_bytes
@@ -68,7 +69,7 @@ class AVRConnection:
         try:
             self.reader, self.writer = await asyncio.wait_for(
                 asyncio.open_connection(self.host, self.port),
-                timeout=5.0,
+                timeout=AVR_NETWORK_TIMEOUT,
             )
             self.logger.info("Connected to AVR at %s:%d", self.host, self.port)
             asyncio.create_task(self._read_loop())
@@ -133,7 +134,7 @@ class AVRConnection:
         """Request current state from AVR (power, volume, max volume, input, mute, zone, sound mode, smart select)."""
         for cmd in ("PW?", "MV?", "MVMAX?", "SI?", "MU?", "ZM?", "MS?", "MSSMART ?"):
             await self.send_command(cmd)
-            await asyncio.sleep(0.05)
+            await asyncio.sleep(REQUEST_STATE_INTERVAL)
 
     def close(self) -> None:
         """Release the AVR connection. Does not call on_disconnect (see class docstring)."""

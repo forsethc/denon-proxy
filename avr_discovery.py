@@ -52,6 +52,8 @@ from constants import (
     DEMO_SOURCES,
     DENON_AIOS_HTTP_PORT,
     DISCOVERY_HTTP_PORT,
+    AVR_NETWORK_TIMEOUT,
+    SOCKET_TIMEOUT,
     SSDP_MCAST_GRP,
     SSDP_MCAST_PORT,
 )
@@ -135,7 +137,7 @@ def get_advertise_ip(config: Config) -> str | None:
         return ip
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
-            s.settimeout(2.0)
+            s.settimeout(SOCKET_TIMEOUT)
             s.connect(("8.8.8.8", 80))
             return s.getsockname()[0]
     except OSError:
@@ -377,7 +379,7 @@ async def _fetch_avr_description(avr_host: str, logger: logging.Logger) -> str |
     for port in (DEFAULT_SSDP_HTTP_PORT, DISCOVERY_HTTP_PORT, DENON_AIOS_HTTP_PORT):
         url = f"http://{avr_host}:{port}/description.xml"
         try:
-            async with httpx.AsyncClient(timeout=5.0) as client:
+            async with httpx.AsyncClient(timeout=AVR_NETWORK_TIMEOUT) as client:
                 r = await client.get(url)
                 if r.status_code == 200 and r.text:
                     return r.text
