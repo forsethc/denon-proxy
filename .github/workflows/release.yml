@@ -22,7 +22,7 @@ jobs:
 
     steps:
       - name: Set up deploy key
-        uses: webfactory/ssh-agent@v0.8.1
+        uses: webfactory/ssh-agent@v0.9.1
         with:
           ssh-private-key: ${{ secrets.RELEASE_DEPLOY_KEY }}
 
