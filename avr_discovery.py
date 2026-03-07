@@ -28,6 +28,7 @@ Usage (with denon-proxy):
 
 from __future__ import annotations
 
+import errno
 import asyncio
 import logging
 import re
@@ -655,7 +656,10 @@ async def run_discovery_servers(
         )
         logger.info("SSDP listening on UDP %d", SSDP_MCAST_PORT)
     except OSError as e:
-        logger.warning("SSDP requires port %d (may need root): %s", SSDP_MCAST_PORT, e)
+        if e.errno == errno.EADDRINUSE:
+            logger.error("SSDP port %d already in use: %s", SSDP_MCAST_PORT, e)
+        else:
+            logger.warning("SSDP requires port %d (may need root): %s", SSDP_MCAST_PORT, e)
 
     http_port = config.get("ssdp_http_port", DEFAULT_SSDP_HTTP_PORT)
     if http_port == 0:

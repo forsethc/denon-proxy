@@ -51,3 +51,14 @@ pytest -m integration
 pytest -m e2e
 pytest tests/unit tests/integration   # skip e2e
 ```
+
+## Viewing test logs
+
+By default, pytest captures stdout and logs. To see logs from the application code (e.g. discovery, proxy) during a run:
+
+```bash
+pytest --log-cli-level=INFO tests/e2e/ -v
+pytest --log-cli-level=DEBUG tests/e2e/test_discovery.py -v
+```
+
+Useful when debugging "Address already in use" (Errno 48) or other SSDP/discovery failures.
