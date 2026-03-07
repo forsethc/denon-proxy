@@ -48,10 +48,16 @@ async def discovery_stack(discovery_config, discovery_logger):
         )
     except (OSError, asyncio.TimeoutError) as e:
         discovery_logger.info("Discovery servers failed to start: %s", e)
-    if ssdp_transport is None and http_servers:
-        discovery_logger.warning(
-            "SSDP transport failed to start (HTTP discovery is up). "
-            "M-SEARCH tests will fail. Common cause: port already in use (Errno 48)."
+    if ssdp_transport is None:
+        if http_servers:
+            for srv in http_servers:
+                srv.close()
+            for srv in http_servers:
+                await asyncio.wait_for(srv.wait_closed(), timeout=2.0)
+        await proxy.stop()
+        pytest.fail(
+            "Discovery stack failed: SSDP transport could not start. "
+            "Common cause: port already in use (Errno 48)."
         )
     yield proxy, ssdp_transport, http_servers
     if ssdp_transport:
@@ -101,9 +107,15 @@ async def full_stack_http(full_stack_http_config, full_stack_http_logger):
         )
     except (OSError, asyncio.TimeoutError) as e:
         full_stack_http_logger.info("Discovery servers failed to start: %s", e)
-    if ssdp_transport is None and discovery_http_servers:
-        full_stack_http_logger.warning(
-            "SSDP transport failed to start (HTTP discovery is up). "
+    if ssdp_transport is None:
+        if discovery_http_servers:
+            for srv in discovery_http_servers:
+                srv.close()
+            for srv in discovery_http_servers:
+                await asyncio.wait_for(srv.wait_closed(), timeout=2.0)
+        await proxy.stop()
+        pytest.fail(
+            "Discovery stack failed: SSDP transport could not start. "
             "Common cause: port already in use (Errno 48)."
         )
     yield proxy, ssdp_transport, discovery_http_servers

@@ -165,12 +165,8 @@ async def test_discovery_http_ports_exposed(discovery_stack):
 
 @pytest.mark.asyncio
 async def test_discovery_msearch_handled_and_responded(discovery_stack):
-    """M-SEARCH (Denon URN) receives HTTP 200 response with LOCATION and ST/USN.
-    Skipped when port 1900 is unavailable (e.g. CI without root).
-    """
-    proxy, ssdp_transport, http_servers = discovery_stack
-    if ssdp_transport is None:
-        pytest.skip("SSDP port 1900 unavailable (need root or run with cap_net_bind_service)")
+    """M-SEARCH (Denon URN) receives HTTP 200 response with LOCATION and ST/USN."""
+    proxy, _ssdp_transport, http_servers = discovery_stack
     http_port = proxy.runtime_state.ssdp_http_port or proxy.config.get("ssdp_http_port")
     assert http_port and http_port != 0, "Discovery HTTP port should be set"
 
@@ -213,12 +209,8 @@ async def test_discovery_msearch_handled_and_responded(discovery_stack):
     "urn:schemas-upnp-org:device:MediaServer:1",
 ])
 async def test_discovery_msearch_all_match_st_receive_response(st_value, discovery_stack):
-    """Each MATCH_ST search target receives a 200 response with LOCATION.
-    Skipped when port 1900 is unavailable.
-    """
-    proxy, ssdp_transport, http_servers = discovery_stack
-    if ssdp_transport is None:
-        pytest.skip("SSDP port 1900 unavailable (need root or run with cap_net_bind_service)")
+    """Each MATCH_ST search target receives a 200 response with LOCATION."""
+    proxy, _ssdp_transport, http_servers = discovery_stack
     http_port = proxy.runtime_state.ssdp_http_port or proxy.config.get("ssdp_http_port")
     assert http_port and http_port != 0, "Discovery HTTP port should be set"
 
