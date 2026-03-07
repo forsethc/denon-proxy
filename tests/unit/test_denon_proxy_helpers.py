@@ -104,7 +104,7 @@ def test_build_json_state_structure_and_volume_conversion():
 
     result = build_json_state(state, avr, clients, config, runtime_state)
 
-    assert set(result.keys()) == {"friendly_name", "avr", "clients", "client_count", "state", "discovery"}
+    assert set(result.keys()) == {"friendly_name", "avr", "clients", "client_count", "state", "discovery", "version"}
     assert result["friendly_name"] == "My AVR Proxy"
     assert result["client_count"] == 2
     assert result["clients"] == ["10.0.0.1", "10.0.0.2"]

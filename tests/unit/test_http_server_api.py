@@ -94,6 +94,7 @@ async def test_http_get_status_json_shape():
                 "client_count",
                 "state",
                 "discovery",
+                "version",
             }
             assert data["friendly_name"] == "My AVR Proxy"
             assert isinstance(data["clients"], list)
