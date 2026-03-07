@@ -189,6 +189,9 @@
       <ul class="client-list" id="xml-links"></ul>
     </div>
   </div>
+  <footer class="muted" style="margin-top: 2rem; font-size: 0.75rem;" id="footer">
+    <span id="footer-version"></span>
+  </footer>
   <script>
     // Global UI state for reconnect button
     window._avrReconnectInProgress = false;
@@ -260,6 +263,25 @@
       const title = d.friendly_name || 'Denon AVR Proxy';
       document.getElementById('page-title').textContent = title;
       document.title = title;
+      const footerVersion = document.getElementById('footer-version');
+      const ver = d.version ? String(d.version) : '';
+      const repoUrl = 'https://github.com/forsethc/denon-proxy';
+      if (ver) {
+        let href = '';
+        if (/^v\d+\.\d+.*/.test(ver)) {
+          const tag = ver.replace(/-dirty$/, '').replace(/-\d+-g[a-f0-9]+$/, '');
+          href = repoUrl + '/releases/tag/' + encodeURIComponent(tag);
+        } else if (/^[a-f0-9]{7,}$/.test(ver.replace(/-dirty$/, ''))) {
+          href = repoUrl + '/commit/' + ver.replace(/-dirty$/, '');
+        }
+        if (href) {
+          footerVersion.innerHTML = '<a href="' + href.replace(/"/g, '&quot;') + '" target="_blank" rel="noopener">' + escapeHtml(ver) + '</a>';
+        } else {
+          footerVersion.textContent = ver;
+        }
+      } else {
+        footerVersion.textContent = '';
+      }
       const headerProxyIp = document.getElementById('header-proxy-ip');
       headerProxyIp.textContent = (d.discovery && d.discovery.proxy_ip) ? ('Proxy IP: ' + d.discovery.proxy_ip) : '';
       const proxyIpNote = document.getElementById('proxy-ip-note');

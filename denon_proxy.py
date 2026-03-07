@@ -51,7 +51,7 @@ from constants import (
 )
 from avr_info import AVRInfo
 from runtime_state import RuntimeState
-from runtime_utils import is_docker_internal_ip, is_running_in_docker, resolve_listening_port
+from runtime_utils import get_version, is_docker_internal_ip, is_running_in_docker, resolve_listening_port
 from avr_state import AVRState, volume_to_level
 from telnet_utils import parse_telnet_lines, telnet_line_to_bytes
 
@@ -224,6 +224,7 @@ def build_json_state(
         "client_count": len(client_ips),
         "state": state_dict,
         "discovery": discovery,
+        "version": runtime_state.version,
     }
 
 
@@ -654,6 +655,8 @@ async def main_async(config: Config) -> None:
     logger = logging.getLogger("denon-proxy")
     logger.debug("Starting proxy with config:\n%s", pprint.pformat(config))
     runtime_state = RuntimeState()
+    runtime_state.version = get_version()
+    logger.info("denon-proxy %s", runtime_state.version)
     proxy = DenonProxyServer(config, logger, create_avr_connection, runtime_state)
 
     # Handle shutdown gracefully - must not block event loop or Ctrl-C won't work

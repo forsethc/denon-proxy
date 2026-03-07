@@ -33,6 +33,7 @@ class RuntimeState:
         "proxy_port",
         "http_port",
         "_cached_friendly_name",
+        "version",
     )
 
     def __init__(self) -> None:
@@ -50,6 +51,8 @@ class RuntimeState:
         self.http_port: int | None = None
         # Resolved friendly name (computed on first access; avr_info is set once at startup)
         self._cached_friendly_name: str | None = None
+        # Version from git describe (set at startup; used in JSON API and web UI)
+        self.version: str = "unknown"
 
     def get_resolved_port(self, config: "Config", config_key: str, default: int) -> int:
         """Return effective port: resolved value if set, else config key with default."""

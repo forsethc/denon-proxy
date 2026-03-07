@@ -38,6 +38,17 @@ pytest
 
 See [tests/README.md](../tests/README.md) for details.
 
+## Releasing
+
+1. Go to **Actions → Release → Run workflow**
+2. Enter the version (e.g. `1.0.0`)
+3. The workflow will:
+   - Write `v1.0.0` to the `VERSION` file
+   - Commit and push to the current branch
+   - Create tag `v1.0.0` pointing to that commit
+
+The version is shown in the Web UI footer (linked to the tag on GitHub) and in logs at startup. Docker builds use the `VERSION` file; local runs use `git describe` when in a git repo.
+
 ## Architecture
 
 ```

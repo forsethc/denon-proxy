@@ -1,11 +1,12 @@
 """
 Runtime / environment helpers: container detection, internal IP classification,
-and server port resolution (e.g. record OS-chosen port when binding to 0).
+server port resolution, and version from git.
 """
 
 from __future__ import annotations
 
 import ipaddress
+import subprocess
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -17,6 +18,39 @@ _DOCKER_NETWORKS = (
     ipaddress.IPv4Network("172.16.0.0/12"), # typical Docker bridge on Linux
     ipaddress.IPv4Network("192.168.65.0/24"), # Docker Desktop for Mac/Windows
 )
+
+
+def get_version() -> str:
+    """
+    Get version from git describe when in a git repo, else from VERSION file.
+    Docker builds (no .git) use the VERSION file written by the release workflow.
+    Falls back to 'unknown' when neither is available.
+    """
+    root = Path(__file__).resolve().parent
+    # Prefer git when available (local dev, accurate for current commit)
+    if (root / ".git").exists():
+        try:
+            r = subprocess.run(
+                ["git", "describe", "--tags", "--always", "--dirty"],
+                capture_output=True,
+                text=True,
+                timeout=2,
+                cwd=root,
+            )
+            if r.returncode == 0 and r.stdout.strip():
+                return r.stdout.strip()
+        except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
+            pass
+    # No git (e.g. Docker): use VERSION file
+    version_file = root / "VERSION"
+    try:
+        if version_file.exists():
+            v = version_file.read_text().strip()
+            if v:
+                return v
+    except OSError:
+        pass
+    return "unknown"
 
 
 def is_running_in_docker() -> bool:
