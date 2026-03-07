@@ -62,3 +62,15 @@ jobs:
           curl -sf http://localhost:8081/api/status
           docker compose down
 
+  tests_passed:
+    name: Tests Passed
+    runs-on: ubuntu-latest
+    needs: [docker, tests]
+    if: always()
+    steps:
+      - name: Fail if any dependency failed
+        run: |
+          if [[ "${{ needs.docker.result }}" != "success" || "${{ needs.tests.result }}" != "success" ]]; then
+            echo "One or more jobs failed"
+            exit 1
+          fi
