@@ -21,11 +21,16 @@ jobs:
       contents: write  # create tag and push
 
     steps:
+      - name: Set up deploy key
+        uses: webfactory/ssh-agent@v0.8.1
+        with:
+          ssh-private-key: ${{ secrets.RELEASE_DEPLOY_KEY }}
+
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
+          ssh-key: ${{ secrets.RELEASE_DEPLOY_KEY }}
 
       - name: Write VERSION file
         run: echo "v${{ github.event.inputs.version }}" > VERSION
