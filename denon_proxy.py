@@ -194,13 +194,13 @@ def build_json_state(
     clients: Iterable[ClientHandler],
     config: Config,
     runtime_state: RuntimeState,
-    client_command_log: dict[str, Iterable[tuple[float, str]]] | None = None,
+    client_activity_log: dict[str, Iterable[tuple[float, str]]] | None = None,
 ) -> dict:
     """
     Build JSON status dict for Web UI / SSE.
 
     Pure function for testability. Caller passes avr_state, avr, clients, config, and runtime_state.
-    client_command_log: optional dict client_id -> iterable of (timestamp, command) for UI log.
+    client_activity_log: optional dict client_id -> iterable of (timestamp, command) for UI log.
     """
     client_ips = [_client_ip_for_display(c) for c in list(clients)]
     state_dict = {
@@ -234,11 +234,11 @@ def build_json_state(
     if not isinstance(client_aliases, dict):
         client_aliases = {}
 
-    # Serialize command log for UI: list of [timestamp, command] per client
+    # Serialize activity log for UI: list of [timestamp, command] per client
     log_for_json: dict[str, list[list[float | str]]] = {}
-    hide_queries = bool(config.get("client_command_log_hide_queries", False))
-    if client_command_log:
-        for cid, entries in client_command_log.items():
+    hide_queries = bool(config.get("client_activity_log_hide_queries", False))
+    if client_activity_log:
+        for cid, entries in client_activity_log.items():
             if hide_queries:
                 log_for_json[cid] = [
                     [ts, cmd] for ts, cmd in entries
@@ -247,15 +247,15 @@ def build_json_state(
             else:
                 log_for_json[cid] = [[ts, cmd] for ts, cmd in entries]
 
-    client_log_enabled = bool(config.get("client_command_log", True))
+    activity_log_enabled = bool(config.get("client_activity_log", True))
     return {
         "friendly_name": runtime_state.get_friendly_name(config),
         "avr": avr_dict,
         "clients": client_ips,
         "client_count": len(client_ips),
         "client_aliases": client_aliases,
-        "client_command_log": log_for_json,
-        "client_command_log_enabled": client_log_enabled,
+        "client_activity_log": log_for_json,
+        "client_activity_log_enabled": activity_log_enabled,
         "state": state_dict,
         "discovery": discovery,
         "version": runtime_state.version,
@@ -383,6 +383,8 @@ class ClientHandler(asyncio.Protocol):
             self._peername[0] if self._peername else "?"
         )
         self.logger.info("Client connected: %s (total: %d)", client_display, len(self.clients))
+        client_ip = self._peername[0] if self._peername else "?"
+        self.record_command(client_ip, "[connected]")
         self._notify_web()
 
         # Send current state to new client
@@ -466,11 +468,11 @@ class ClientHandler(asyncio.Protocol):
 
     def connection_lost(self, exc: Exception | None) -> None:
         """Called when client disconnects."""
+        client_ip = self._peername[0] if self._peername else "?"
+        self.record_command(client_ip, "[disconnected]")
         self.clients.discard(self)
         self.transport = None
-        client_display = self.config.client_display_for_log(
-            self._peername[0] if self._peername else "?"
-        )
+        client_display = self.config.client_display_for_log(client_ip)
         self.logger.info("Client disconnected: %s (remaining: %d)", client_display, len(self.clients))
         self._notify_web()
 
@@ -513,19 +515,20 @@ class DenonProxyServer:
         self._notify_web_state: Callable[[], None] = lambda: None
         self._avr_factory = avr_factory
         self._reconnect_task: asyncio.Task[Any] | None = None
-        # Per-client command log for UI: client_id -> deque of (timestamp, command)
-        self._client_command_log: dict[str, deque[tuple[float, str]]] = {}
-        self._client_command_log_max = max(
-            1, int(self.config.get("client_command_log_max_entries", 200))
+        # Per-client activity log for UI: client_id -> deque of (timestamp, command)
+        self._client_activity_log: dict[str, deque[tuple[float, str]]] = {}
+        self._client_activity_log_max = max(
+            1, int(self.config.get("client_activity_log_max_entries", 200))
         )
 
     def record_command(self, client_id: str, command: str) -> None:
-        """Record a command for a client (for UI log). client_id is IP or 'Web UI'. No-op if disabled in config."""
-        if not self.config.get("client_command_log", True):
+        """Record a command or event for a client (for UI activity log). client_id is IP or 'Web UI'. No-op if disabled in config."""
+        if not self.config.get("client_activity_log", True):
             return
-        if client_id not in self._client_command_log:
-            self._client_command_log[client_id] = deque(maxlen=self._client_command_log_max)
-        self._client_command_log[client_id].append((time.time(), command.strip()))
+        if client_id not in self._client_activity_log:
+            self._client_activity_log[client_id] = deque(maxlen=self._client_activity_log_max)
+        msg = command.strip() if isinstance(command, str) else str(command).strip()
+        self._client_activity_log[client_id].append((time.time(), msg))
         self._notify_web_state()
 
     def _broadcast(self, message: str) -> None:
@@ -648,8 +651,8 @@ class DenonProxyServer:
         # Web UI / JSON status API
         def _get_json_state() -> dict:
             log_snapshot = (
-                {cid: list(entries) for cid, entries in self._client_command_log.items()}
-                if self.config.get("client_command_log", True)
+                {cid: list(entries) for cid, entries in self._client_activity_log.items()}
+                if self.config.get("client_activity_log", True)
                 else {}
             )
             return build_json_state(
@@ -658,7 +661,7 @@ class DenonProxyServer:
                 self.clients,
                 self.config,
                 self.runtime_state,
-                client_command_log=log_snapshot,
+                client_activity_log=log_snapshot,
             )
 
         def _send_command_cb(cmd: str) -> None:

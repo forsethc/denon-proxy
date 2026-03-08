@@ -76,13 +76,13 @@ optimistic_broadcast_delay: 0.1
 enable_http: true
 http_port: 8081
 
-# Web UI: per-client command log (which client sent which command, with timestamps)
-# Set to false to disable logging and hide the Client command log section.
-# client_command_log: true
+# Web UI: client activity log (connections, disconnections, and commands per client)
+# Set to false to disable and hide the Client activity section.
+# client_activity_log: true
 # Max entries per client (oldest dropped when exceeded). Min 1.
-# client_command_log_max_entries: 200
-# When true, query commands (e.g. PW?, MV?, SI?) are hidden from the log in the UI.
-# client_command_log_hide_queries: false
+# client_activity_log_max_entries: 200
+# When true, query commands (e.g. PW?, MV?, SI?) are hidden from the activity log.
+# client_activity_log_hide_queries: false
 
 # Optional: friendly names for clients by IP (shown in Web UI and API)
 # client_aliases:
