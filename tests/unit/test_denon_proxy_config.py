@@ -69,6 +69,16 @@ def test_apply_env_overrides_leaves_config_unchanged_when_env_unset():
     assert config["avr_port"] == 23
 
 
+def test_client_display_for_log_uses_alias_when_configured():
+    """Config.client_display_for_log returns 'alias (ip)' when client_aliases set, else ip."""
+    config = load_config_from_dict({"client_aliases": {"192.168.1.5": "Living Room HA"}})
+    assert config.client_display_for_log("192.168.1.5") == "Living Room HA (192.168.1.5)"
+    assert config.client_display_for_log("10.0.0.1") == "10.0.0.1"
+    assert config.client_display_for_log("?") == "?"
+    config_empty = load_config_from_dict({})
+    assert config_empty.client_display_for_log("192.168.1.5") == "192.168.1.5"
+
+
 def test_load_config_dict_from_file_raises_file_not_found_when_missing():
     """Missing config path raises FileNotFoundError with the path in the message."""
     pytest.importorskip("yaml")

@@ -38,6 +38,8 @@ class Config(Mapping[str, Any]):
     # Optional/less common config keys
     ssdp_friendly_name: str | None = None
     sources: Any | None = None
+    # IP -> friendly name for connected clients (e.g. {"192.168.1.5": "Living Room HA"})
+    client_aliases: dict[str, str] = field(default_factory=dict)
 
     # Mapping interface (read-only) --------------------------------------
 
@@ -47,7 +49,7 @@ class Config(Mapping[str, Any]):
             "denonavr_log_level", "enable_ssdp", "ssdp_http_port", "ssdp_advertise_ip",
             "optimistic_state", "optimistic_broadcast_delay", "volume_step", "volume_query_delay",
             "enable_http", "http_port", "log_command_groups_info",
-            "ssdp_friendly_name", "sources",
+            "ssdp_friendly_name", "sources", "client_aliases",
         }
     )
 
@@ -71,7 +73,10 @@ class Config(Mapping[str, Any]):
     def _apply_dict(self, other: Mapping[str, Any]) -> None:
         for k in self._FIELDS:
             if k in other:
-                setattr(self, k, other[k])
+                val = other[k]
+                if k == "client_aliases" and val is not None and not isinstance(val, dict):
+                    val = dict(val) if hasattr(val, "items") else {}
+                setattr(self, k, val)
 
     @classmethod
     def from_dict(cls, raw: TypingMapping[str, Any] | None) -> "Config":
@@ -116,5 +121,12 @@ class Config(Mapping[str, Any]):
         """
         if not (self.avr_host or "").strip():
             self.optimistic_state = False
+
+    def client_display_for_log(self, ip: str) -> str:
+        """Return IP for logging; if config has an alias for this IP, return 'alias (ip)'."""
+        aliases = self.get("client_aliases") or {}
+        if isinstance(aliases, dict) and ip and ip in aliases:
+            return f"{aliases[ip]} ({ip})"
+        return ip or "?"
 
 

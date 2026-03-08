@@ -92,6 +92,7 @@ async def test_http_get_status_json_shape():
                 "avr",
                 "clients",
                 "client_count",
+                "client_aliases",
                 "state",
                 "discovery",
                 "version",

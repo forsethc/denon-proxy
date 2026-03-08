@@ -75,3 +75,8 @@ optimistic_broadcast_delay: 0.1
 # HTTP interface: JSON API and Web UI
 enable_http: true
 http_port: 8081
+
+# Optional: friendly names for clients by IP (shown in Web UI and API)
+# client_aliases:
+#   "192.168.1.5": "Living Room Home Assistant"
+#   "192.168.1.10": "UC Remote 3"

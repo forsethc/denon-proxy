@@ -300,8 +300,14 @@
           proxyIpNote.style.display = 'none';
         }
       }
+      const aliases = d.client_aliases || {};
+      const clientDisplay = (c) => {
+        const ip = typeof c === 'string' ? c : (c && c.ip);
+        const name = ip && aliases[ip] ? (escapeHtml(aliases[ip]) + ' <span class="muted">(' + escapeHtml(ip) + ')</span>') : escapeHtml(ip || '?');
+        return name;
+      };
       document.getElementById('clients').innerHTML = clients.length
-        ? '<ul class="client-list">' + clients.map(c => '<li>' + escapeHtml(c) + '</li>').join('') + '</ul>'
+        ? '<ul class="client-list">' + clients.map(c => '<li>' + clientDisplay(c) + '</li>').join('') + '</ul>'
         : '<span class="muted">No clients connected</span>';
       const dockerClientsNote = document.getElementById('docker-clients-note');
       if (dockerClientsNote) dockerClientsNote.style.display = (d.discovery && d.discovery.is_docker) ? 'block' : 'none';
