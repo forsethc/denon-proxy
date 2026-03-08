@@ -1,7 +1,10 @@
+import logging
+
 from avr_info import AVRInfo
 from runtime_state import RuntimeState
 from avr_state import AVRState
 from denon_proxy import (
+    DenonProxyServer,
     _client_ip_for_display,
     _command_group,
     _is_valid_client_command,
@@ -188,11 +191,62 @@ def test_build_json_state_includes_client_activity_log():
     result3 = build_json_state(state, None, [], config_disabled, runtime_state)
     assert result3["client_activity_log_enabled"] is False
 
-    # client_activity_log_hide_queries: query commands (ending with ?) are excluded from log
+    # build_json_state serializes all entries as-is; query filtering is done at storage time (record_command)
     log_with_queries = {"Web UI": [(1700000000.0, "PW?"), (1700000001.0, "PWON"), (1700000002.0, "MV?")]}
-    config_hide_queries = load_config_from_dict({"client_activity_log_hide_queries": True})
-    result4 = build_json_state(state, None, [], config_hide_queries, runtime_state, client_activity_log=log_with_queries)
-    assert result4["client_activity_log"]["Web UI"] == [[1700000001.0, "PWON"]]
+    result4 = build_json_state(state, None, [], config, runtime_state, client_activity_log=log_with_queries)
+    assert result4["client_activity_log"]["Web UI"] == [
+        [1700000000.0, "PW?"],
+        [1700000001.0, "PWON"],
+        [1700000002.0, "MV?"],
+    ]
+
+
+def test_record_command_does_not_store_queries_when_hide_queries_true():
+    """When client_activity_log_hide_queries is True, query commands (ending with ?) are not stored."""
+    config = load_config_from_dict({
+        "client_activity_log": True,
+        "client_activity_log_hide_queries": True,
+    })
+    logger = logging.getLogger("test")
+    runtime_state = RuntimeState()
+
+    def fake_avr_factory(*args, **kwargs):
+        raise NotImplementedError("not used in this test")
+
+    server = DenonProxyServer(config, logger, fake_avr_factory, runtime_state)
+
+    server.record_command("10.0.0.1", "PW?")
+    assert "10.0.0.1" not in server._client_activity_log or len(server._client_activity_log["10.0.0.1"]) == 0
+
+    server.record_command("10.0.0.1", "PWON")
+    assert "10.0.0.1" in server._client_activity_log
+    assert len(server._client_activity_log["10.0.0.1"]) == 1
+    assert server._client_activity_log["10.0.0.1"][0][1] == "PWON"
+
+    server.record_command("10.0.0.1", "MV?")
+    assert len(server._client_activity_log["10.0.0.1"]) == 1  # still only PWON; query not stored
+
+
+def test_record_command_stores_queries_when_hide_queries_false():
+    """When client_activity_log_hide_queries is False, query commands are stored."""
+    config = load_config_from_dict({
+        "client_activity_log": True,
+        "client_activity_log_hide_queries": False,
+    })
+    logger = logging.getLogger("test")
+    runtime_state = RuntimeState()
+
+    def fake_avr_factory(*args, **kwargs):
+        raise NotImplementedError("not used in this test")
+
+    server = DenonProxyServer(config, logger, fake_avr_factory, runtime_state)
+
+    server.record_command("10.0.0.1", "PW?")
+    server.record_command("10.0.0.1", "PWON")
+    assert "10.0.0.1" in server._client_activity_log
+    assert len(server._client_activity_log["10.0.0.1"]) == 2
+    assert server._client_activity_log["10.0.0.1"][0][1] == "PW?"
+    assert server._client_activity_log["10.0.0.1"][1][1] == "PWON"
 
 
 def test_state_and_config_updates_from_denonavr_basic():

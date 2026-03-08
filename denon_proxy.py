@@ -234,18 +234,12 @@ def build_json_state(
     if not isinstance(client_aliases, dict):
         client_aliases = {}
 
-    # Serialize activity log for UI: list of [timestamp, command] per client
+    # Serialize activity log for UI: list of [timestamp, command] per client.
+    # Query filtering happens at storage time (record_command) when hide_queries is on, not here.
     log_for_json: dict[str, list[list[float | str]]] = {}
-    hide_queries = bool(config.get("client_activity_log_hide_queries", False))
     if client_activity_log:
         for cid, entries in client_activity_log.items():
-            if hide_queries:
-                log_for_json[cid] = [
-                    [ts, cmd] for ts, cmd in entries
-                    if not str(cmd).strip().endswith("?")
-                ]
-            else:
-                log_for_json[cid] = [[ts, cmd] for ts, cmd in entries]
+            log_for_json[cid] = [[ts, cmd] for ts, cmd in entries]
 
     activity_log_enabled = bool(config.get("client_activity_log", True))
     return {
@@ -515,20 +509,26 @@ class DenonProxyServer:
         self._notify_web_state: Callable[[], None] = lambda: None
         self._avr_factory = avr_factory
         self._reconnect_task: asyncio.Task[Any] | None = None
-        # Per-client activity log for UI: client_id -> deque of (timestamp, command)
+        # Per-client activity log for UI: one deque per client (connect, disconnect, commands).
         self._client_activity_log: dict[str, deque[tuple[float, str]]] = {}
         self._client_activity_log_max = max(
             1, int(self.config.get("client_activity_log_max_entries", 200))
         )
 
     def record_command(self, client_id: str, command: str) -> None:
-        """Record a command or event for a client (for UI activity log). client_id is IP or 'Web UI'. No-op if disabled in config."""
+        """Record a command or event for a client (for UI activity log). client_id is IP or 'Web UI'. No-op if disabled in config.
+        When client_activity_log_hide_queries is true, query commands (ending with ?) are not stored so they cannot evict visible entries."""
         if not self.config.get("client_activity_log", True):
             return
-        if client_id not in self._client_activity_log:
-            self._client_activity_log[client_id] = deque(maxlen=self._client_activity_log_max)
+        cid = str(client_id).strip() if client_id else "?"
         msg = command.strip() if isinstance(command, str) else str(command).strip()
-        self._client_activity_log[client_id].append((time.time(), msg))
+        ts = time.time()
+        if msg not in ("[connected]", "[disconnected]"):
+            if self.config.get("client_activity_log_hide_queries", False) and msg.endswith("?"):
+                return  # don't store queries when hide_queries is on; they would only evict visible entries
+        if cid not in self._client_activity_log:
+            self._client_activity_log[cid] = deque(maxlen=self._client_activity_log_max)
+        self._client_activity_log[cid].append((ts, msg))
         self._notify_web_state()
 
     def _broadcast(self, message: str) -> None:
@@ -650,11 +650,13 @@ class DenonProxyServer:
 
         # Web UI / JSON status API
         def _get_json_state() -> dict:
-            log_snapshot = (
-                {cid: list(entries) for cid, entries in self._client_activity_log.items()}
-                if self.config.get("client_activity_log", True)
-                else {}
-            )
+            if not self.config.get("client_activity_log", True):
+                log_snapshot = {}
+            else:
+                log_snapshot = {
+                    cid: list(entries)[-self._client_activity_log_max :]
+                    for cid, entries in self._client_activity_log.items()
+                }
             return build_json_state(
                 self.avr_state,
                 self.avr,
