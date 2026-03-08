@@ -130,6 +130,47 @@
       border: 1px solid var(--border);
     }
     .proxy-ip-note .suggest-line { margin-top: 0.25rem; }
+    .client-log-section { margin-top: 1.5rem; }
+    .client-log-section h2 { margin-bottom: 1rem; }
+    .client-log-panels { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); }
+    .client-log-panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1rem 1.25rem;
+      display: flex;
+      flex-direction: column;
+    }
+    .client-log-panel h3 {
+      font-size: 0.95rem;
+      margin: 0 0 0.5rem 0;
+      color: var(--text);
+      font-weight: 600;
+    }
+    .client-log-entries {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0.5rem 0.75rem;
+      font-family: ui-monospace, monospace;
+      font-size: 0.8rem;
+      max-height: 220px;
+      overflow-y: auto;
+      flex: 1;
+      min-height: 60px;
+    }
+    .client-log-line {
+      display: flex;
+      gap: 0.75rem;
+      padding: 0.2rem 0;
+      border-bottom: 1px solid var(--border);
+      align-items: baseline;
+    }
+    .client-log-line:last-child { border-bottom: none; }
+    .client-log-ts { color: var(--text-muted); flex-shrink: 0; white-space: nowrap; }
+    .client-log-cmd { word-break: break-all; }
+    .client-log-line.event .client-log-cmd { color: var(--text-muted); font-style: italic; }
+    .client-log-empty { color: var(--text-muted); font-style: italic; }
   </style>
 </head>
 <body>
@@ -187,6 +228,10 @@
     <div class="card" id="xml-card" style="display: none;">
       <h2>XML Endpoints</h2>
       <ul class="client-list" id="xml-links"></ul>
+    </div>
+    <div class="client-log-section" id="client-log-section" style="grid-column: 1 / -1;">
+      <h2>Client activity</h2>
+      <div class="client-log-panels" id="client-log-panels"></div>
     </div>
   </div>
   <footer class="muted" style="margin-top: 2rem; font-size: 0.75rem;" id="footer">
@@ -378,6 +423,38 @@
         xmlCard.style.display = 'none';
       }
       document.getElementById('json-state').textContent = JSON.stringify(d, null, 2);
+      // Client activity: one panel per client (only when enabled in config)
+      const logEnabled = d.client_activity_log_enabled !== false;
+      const panelsEl = document.getElementById('client-log-panels');
+      const sectionEl = document.getElementById('client-log-section');
+      if (sectionEl) sectionEl.style.display = logEnabled ? 'block' : 'none';
+      if (logEnabled) {
+        const logData = d.client_activity_log || {};
+        const clientIds = [...new Set([...(d.clients || []), ...Object.keys(logData)])];
+        if (!clientIds.length) {
+          panelsEl.innerHTML = '<p class="muted">No activity yet. Connections and commands from Telnet clients or the Web UI will appear here.</p>';
+        } else {
+          const formatActivity = (cmd) => {
+            const s = String(cmd);
+            if (s === '[connected]') return { text: 'Connected', event: true };
+            if (s === '[disconnected]') return { text: 'Disconnected', event: true };
+            return { text: s, event: false };
+          };
+          panelsEl.innerHTML = clientIds.map(clientId => {
+            const entries = logData[clientId] || [];
+            const displayName = clientId === 'Web UI' ? 'Web UI' : (aliases[clientId] ? (escapeHtml(aliases[clientId]) + ' <span class="muted">(' + escapeHtml(clientId) + ')</span>') : escapeHtml(clientId));
+            const lines = entries.slice().reverse().map(([ts, cmd]) => {
+              const date = new Date(ts * 1000);
+              const tsStr = date.toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'medium' });
+              const { text, event } = formatActivity(cmd);
+              const lineClass = 'client-log-line' + (event ? ' event' : '');
+              return '<div class="' + lineClass + '"><span class="client-log-ts">' + escapeHtml(tsStr) + '</span><span class="client-log-cmd">' + escapeHtml(text) + '</span></div>';
+            }).join('');
+            const body = lines || '<div class="client-log-empty">No activity yet</div>';
+            return '<div class="client-log-panel"><h3>' + displayName + '</h3><div class="client-log-entries">' + body + '</div></div>';
+          }).join('');
+        }
+      }
     }
     function updateReconnectButtonState(connected) {
       const reconnectRow = document.getElementById('avr-reconnect-row');

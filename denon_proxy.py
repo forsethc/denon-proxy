@@ -22,6 +22,8 @@ import os
 import pprint
 import signal
 import sys
+import time
+from collections import deque
 from pathlib import Path
 from typing import Any, Callable, Iterable, Set
 
@@ -192,11 +194,13 @@ def build_json_state(
     clients: Iterable[ClientHandler],
     config: Config,
     runtime_state: RuntimeState,
+    client_activity_log: dict[str, Iterable[tuple[float, str]]] | None = None,
 ) -> dict:
     """
     Build JSON status dict for Web UI / SSE.
 
     Pure function for testability. Caller passes avr_state, avr, clients, config, and runtime_state.
+    client_activity_log: optional dict client_id -> iterable of (timestamp, command) for UI log.
     """
     client_ips = [_client_ip_for_display(c) for c in list(clients)]
     state_dict = {
@@ -230,12 +234,22 @@ def build_json_state(
     if not isinstance(client_aliases, dict):
         client_aliases = {}
 
+    # Serialize activity log for UI: list of [timestamp, command] per client.
+    # Query filtering happens at storage time (record_command) when hide_queries is on, not here.
+    log_for_json: dict[str, list[list[float | str]]] = {}
+    if client_activity_log:
+        for cid, entries in client_activity_log.items():
+            log_for_json[cid] = [[ts, cmd] for ts, cmd in entries]
+
+    activity_log_enabled = bool(config.get("client_activity_log", True))
     return {
         "friendly_name": runtime_state.get_friendly_name(config),
         "avr": avr_dict,
         "clients": client_ips,
         "client_count": len(client_ips),
         "client_aliases": client_aliases,
+        "client_activity_log": log_for_json,
+        "client_activity_log_enabled": activity_log_enabled,
         "state": state_dict,
         "discovery": discovery,
         "version": runtime_state.version,
@@ -338,6 +352,7 @@ class ClientHandler(asyncio.Protocol):
         logger: logging.Logger,
         runtime_state: RuntimeState,
         config: Config,
+        record_command: Callable[[str, str], None] | None = None,
     ) -> None:
         self.avr = avr
         self.avr_state = avr_state
@@ -345,6 +360,7 @@ class ClientHandler(asyncio.Protocol):
         self.logger = logger
         self.config = config
         self.runtime_state = runtime_state
+        self.record_command = record_command or (lambda _cid, _cmd: None)
         self.transport: asyncio.Transport | None = None
         self._buffer = b""
         self._peername: tuple | None = None
@@ -361,6 +377,8 @@ class ClientHandler(asyncio.Protocol):
             self._peername[0] if self._peername else "?"
         )
         self.logger.info("Client connected: %s (total: %d)", client_display, len(self.clients))
+        client_ip = self._peername[0] if self._peername else "?"
+        self.record_command(client_ip, "[connected]")
         self._notify_web()
 
         # Send current state to new client
@@ -380,6 +398,7 @@ class ClientHandler(asyncio.Protocol):
             return
 
         client_ip = self._peername[0] if self._peername else "?"
+        self.record_command(client_ip, command)
         client_display = self.config.client_display_for_log(client_ip)
         if _should_log_command_info(self.config, command):
             self.logger.info("Client %s command: %s", client_display, command)
@@ -443,11 +462,11 @@ class ClientHandler(asyncio.Protocol):
 
     def connection_lost(self, exc: Exception | None) -> None:
         """Called when client disconnects."""
+        client_ip = self._peername[0] if self._peername else "?"
+        self.record_command(client_ip, "[disconnected]")
         self.clients.discard(self)
         self.transport = None
-        client_display = self.config.client_display_for_log(
-            self._peername[0] if self._peername else "?"
-        )
+        client_display = self.config.client_display_for_log(client_ip)
         self.logger.info("Client disconnected: %s (remaining: %d)", client_display, len(self.clients))
         self._notify_web()
 
@@ -490,6 +509,27 @@ class DenonProxyServer:
         self._notify_web_state: Callable[[], None] = lambda: None
         self._avr_factory = avr_factory
         self._reconnect_task: asyncio.Task[Any] | None = None
+        # Per-client activity log for UI: one deque per client (connect, disconnect, commands).
+        self._client_activity_log: dict[str, deque[tuple[float, str]]] = {}
+        self._client_activity_log_max = max(
+            1, int(self.config.get("client_activity_log_max_entries", 200))
+        )
+
+    def record_command(self, client_id: str, command: str) -> None:
+        """Record a command or event for a client (for UI activity log). client_id is IP or 'Web UI'. No-op if disabled in config.
+        When client_activity_log_hide_queries is true, query commands (ending with ?) are not stored so they cannot evict visible entries."""
+        if not self.config.get("client_activity_log", True):
+            return
+        cid = str(client_id).strip() if client_id else "?"
+        msg = command.strip() if isinstance(command, str) else str(command).strip()
+        ts = time.time()
+        if msg not in ("[connected]", "[disconnected]"):
+            if self.config.get("client_activity_log_hide_queries", False) and msg.endswith("?"):
+                return  # don't store queries when hide_queries is on; they would only evict visible entries
+        if cid not in self._client_activity_log:
+            self._client_activity_log[cid] = deque(maxlen=self._client_activity_log_max)
+        self._client_activity_log[cid].append((ts, msg))
+        self._notify_web_state()
 
     def _broadcast(self, message: str) -> None:
         """Broadcast an AVR response to all connected clients."""
@@ -586,6 +626,7 @@ class DenonProxyServer:
                 logger=self.logger,
                 runtime_state=self.runtime_state,
                 config=self.config,
+                record_command=self.record_command,
             )
 
         host = self.config["proxy_host"]
@@ -609,7 +650,21 @@ class DenonProxyServer:
 
         # Web UI / JSON status API
         def _get_json_state() -> dict:
-            return build_json_state(self.avr_state, self.avr, self.clients, self.config, self.runtime_state)
+            if not self.config.get("client_activity_log", True):
+                log_snapshot = {}
+            else:
+                log_snapshot = {
+                    cid: list(entries)[-self._client_activity_log_max :]
+                    for cid, entries in self._client_activity_log.items()
+                }
+            return build_json_state(
+                self.avr_state,
+                self.avr,
+                self.clients,
+                self.config,
+                self.runtime_state,
+                client_activity_log=log_snapshot,
+            )
 
         def _send_command_cb(cmd: str) -> None:
             async def _do() -> None:
@@ -635,6 +690,7 @@ class DenonProxyServer:
                 request_state=_request_state_cb,
                 dashboard_html=dashboard_html,
                 runtime_state=self.runtime_state,
+                on_command_sent=self.record_command,
             )
             if result:
                 self._json_api_server, self._notify_web_state = result
