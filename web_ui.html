@@ -30,8 +30,7 @@
     h2 { font-size: 1rem; margin: 0 0 0.5rem 0; color: var(--text-muted); font-weight: 600; }
     a { color: var(--accent); text-decoration: none; }
     a:hover { text-decoration: underline; }
-    .grid { display: grid; gap: 1.5rem; }
-    @media (min-width: 768px) { .grid { grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); } }
+    .grid { display: flex; flex-wrap: wrap; gap: 1.5rem; align-items: flex-start; }
     .card {
       background: var(--surface);
       border: 1px solid var(--border);
@@ -171,6 +170,91 @@
     .client-log-cmd { word-break: break-all; }
     .client-log-line.event .client-log-cmd { color: var(--text-muted); font-style: italic; }
     .client-log-empty { color: var(--text-muted); font-style: italic; }
+    /* Panel layout & controls */
+    .layout-toolbar { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem; flex-wrap: wrap; }
+    .layout-toolbar .btn { margin: 0; }
+    .panel-wrapper {
+      display: flex;
+      flex-direction: column;
+      min-height: 120px;
+      min-width: 200px;
+      flex: 0 0 auto;
+      position: relative;
+      overflow: hidden;
+    }
+    .panel-wrapper[data-size="small"] { width: 260px; }
+    .panel-wrapper[data-size="medium"] { width: 320px; }
+    .panel-wrapper[data-size="large"] { width: 100%; }
+    @media (max-width: 767px) { .panel-wrapper[data-size="large"] { width: 100%; } }
+    .panel-resize-handle {
+      position: absolute;
+      right: 0;
+      bottom: 0;
+      width: 20px;
+      height: 20px;
+      cursor: nwse-resize;
+      z-index: 2;
+      background: linear-gradient(135deg, transparent 50%, var(--border) 50%, var(--border) 55%, transparent 55%);
+    }
+    .panel-resize-handle:hover { background: linear-gradient(135deg, transparent 50%, var(--accent) 50%, var(--accent) 55%, transparent 55%); }
+    .panel-wrapper[data-panel-id="client-activity"] { width: 100% !important; }
+    .panel-header {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding-bottom: 0.5rem;
+      margin-bottom: 0.5rem;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .panel-drag-handle {
+      cursor: grab;
+      color: var(--text-muted);
+      font-size: 1rem;
+      padding: 0.2rem;
+      user-select: none;
+      line-height: 1;
+    }
+    .panel-drag-handle:active { cursor: grabbing; }
+    .panel-header h2 { margin: 0; flex: 1; }
+    .panel-actions { display: flex; gap: 0.25rem; }
+    .panel-btn {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      padding: 0.25rem 0.4rem;
+      border-radius: 4px;
+      font-size: 1rem;
+      line-height: 1;
+    }
+    .panel-btn:hover { color: var(--text); background: var(--surface-hover); }
+    .panel-body { flex: 1; min-height: 0; overflow: auto; }
+    .panel-body > .state-table { margin-top: 0; }
+    .panel-body > .btn-group:first-of-type { margin-top: 0.5rem; }
+    .restore-dropdown { position: relative; }
+    .restore-dropdown-content {
+      display: none;
+      position: absolute;
+      top: 100%;
+      left: 0;
+      margin-top: 0.25rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.5rem;
+      min-width: 220px;
+      z-index: 100;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+    }
+    .restore-dropdown.open .restore-dropdown-content { display: block; }
+    .restore-dropdown h3 { font-size: 0.75rem; margin: 0.5rem 0 0.25rem 0; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
+    .restore-dropdown h3:first-child { margin-top: 0; }
+    .restore-dropdown button.restore-item { display: block; width: 100%; text-align: left; padding: 0.35rem 0.5rem; margin: 0.1rem 0; border-radius: 4px; }
+    .restore-dropdown button.restore-item:hover { background: var(--surface-hover); }
+    .restore-dropdown .group-actions { display: flex; gap: 0.25rem; margin-bottom: 0.25rem; }
+    .restore-dropdown .group-actions .btn { font-size: 0.75rem; padding: 0.25rem 0.5rem; }
+    .restore-empty { color: var(--text-muted); font-size: 0.875rem; padding: 0.5rem; }
   </style>
 </head>
 <body>
@@ -179,9 +263,29 @@
     <span id="header-proxy-ip" class="muted"></span>
   </div>
   <div id="proxy-ip-note" class="proxy-ip-note" style="display: none;"><span id="proxy-ip-note-msg"></span><div id="proxy-ip-note-suggest" class="suggest-line"></div></div>
-  <div class="grid">
-    <div class="card">
-      <h2>AVR Connection</h2>
+  <div class="layout-toolbar">
+    <div class="restore-dropdown" id="restore-dropdown">
+      <button type="button" class="btn" id="restore-dropdown-toggle" title="Show/hide panels and groups">Panels</button>
+      <div class="restore-dropdown-content" id="restore-dropdown-content">
+        <h3>Hidden panels</h3>
+        <div id="restore-list"></div>
+        <h3>Groups</h3>
+        <div id="group-actions"></div>
+        <h3>Layout</h3>
+        <button type="button" class="btn" id="reset-layout-btn" title="Clear saved layout and show all panels">Reset layout</button>
+      </div>
+    </div>
+  </div>
+  <div class="grid" id="panel-grid">
+    <div class="panel-wrapper card" data-panel-id="avr-connection" data-panel-group="status">
+      <div class="panel-header">
+        <span class="panel-drag-handle" title="Drag to reorder">⋮⋮</span>
+        <h2>AVR Connection</h2>
+        <div class="panel-actions">
+          <button type="button" class="panel-btn" title="Hide panel" data-action="hide">⊗</button>
+        </div>
+      </div>
+      <div class="panel-body">
       <div class="status-row" id="avr-connection-status">
         <span class="status-dot disconnected" id="avr-status-dot"></span>
         <span id="avr-status-text" class="muted">Loading...</span>
@@ -190,21 +294,45 @@
       <div class="btn-group" id="avr-reconnect-row" style="display: none;">
         <button class="btn btn-danger" onclick="reconnectAvr(this)">Reconnect</button>
       </div>
+      </div>
     </div>
-    <div class="card">
-      <h2>AVR State</h2>
+    <div class="panel-wrapper card" data-panel-id="avr-state" data-panel-group="status">
+      <div class="panel-header">
+        <span class="panel-drag-handle" title="Drag to reorder">⋮⋮</span>
+        <h2>AVR State</h2>
+        <div class="panel-actions">
+          <button type="button" class="panel-btn" title="Hide panel" data-action="hide">⊗</button>
+        </div>
+      </div>
+      <div class="panel-body">
       <table class="state-table" id="state-table"></table>
       <div class="btn-group">
         <button class="btn btn-primary" onclick="refreshState()">Refresh from AVR</button>
       </div>
+      </div>
     </div>
-    <div class="card">
-      <h2>Connected Clients</h2>
+    <div class="panel-wrapper card" data-panel-id="connected-clients" data-panel-group="status">
+      <div class="panel-header">
+        <span class="panel-drag-handle" title="Drag to reorder">⋮⋮</span>
+        <h2>Connected Clients</h2>
+        <div class="panel-actions">
+          <button type="button" class="panel-btn" title="Hide panel" data-action="hide">⊗</button>
+        </div>
+      </div>
+      <div class="panel-body">
       <div id="clients">Loading...</div>
       <p id="docker-clients-note" class="muted" style="margin-top: 0.5rem; font-size: 0.8rem; display: none;">When running in Docker, client IPs may all show as the Docker gateway (e.g. 192.168.65.1). Each connection is still separate; only the displayed address is affected.</p>
+      </div>
     </div>
-    <div class="card">
-      <h2>Send Commands</h2>
+    <div class="panel-wrapper card" data-panel-id="send-commands" data-panel-group="control">
+      <div class="panel-header">
+        <span class="panel-drag-handle" title="Drag to reorder">⋮⋮</span>
+        <h2>Send Commands</h2>
+        <div class="panel-actions">
+          <button type="button" class="panel-btn" title="Hide panel" data-action="hide">⊗</button>
+        </div>
+      </div>
+      <div class="panel-body">
       <div class="btn-group">
         <button class="btn" onclick="sendCmd('PWON')">Power On</button>
         <button class="btn" onclick="sendCmd('PWSTANDBY')">Power Off</button>
@@ -219,27 +347,324 @@
         <input type="text" id="custom-cmd" placeholder="e.g. SIHDMI1" onkeydown="if(event.key==='Enter')sendCustomCmd()">
         <button class="btn" onclick="sendCustomCmd()">Send</button>
       </div>
+      </div>
     </div>
-    <div class="card">
-      <h2>Internal State (JSON)</h2>
+    <div class="panel-wrapper card" data-panel-id="internal-state-json" data-panel-group="debug">
+      <div class="panel-header">
+        <span class="panel-drag-handle" title="Drag to reorder">⋮⋮</span>
+        <h2>Internal State (JSON)</h2>
+        <div class="panel-actions">
+          <button type="button" class="panel-btn" title="Hide panel" data-action="hide">⊗</button>
+        </div>
+      </div>
+      <div class="panel-body">
       <pre class="json-block" id="json-state">{}</pre>
       <div class="last-update"><span id="update-status">Connecting...</span></div>
+      </div>
     </div>
-    <div class="card" id="xml-card" style="display: none;">
-      <h2>XML Endpoints</h2>
+    <div class="panel-wrapper card" id="xml-card" data-panel-id="xml-endpoints" data-panel-group="debug" style="display: none;">
+      <div class="panel-header">
+        <span class="panel-drag-handle" title="Drag to reorder">⋮⋮</span>
+        <h2>XML Endpoints</h2>
+        <div class="panel-actions">
+          <button type="button" class="panel-btn" title="Hide panel" data-action="hide">⊗</button>
+        </div>
+      </div>
+      <div class="panel-body">
       <ul class="client-list" id="xml-links"></ul>
+      </div>
     </div>
-    <div class="client-log-section" id="client-log-section" style="grid-column: 1 / -1;">
-      <h2>Client activity</h2>
+    <div class="panel-wrapper client-log-section" id="client-log-section" data-panel-id="client-activity" data-panel-group="activity">
+      <div class="panel-header">
+        <span class="panel-drag-handle" title="Drag to reorder">⋮⋮</span>
+        <h2>Client activity</h2>
+        <div class="panel-actions">
+          <button type="button" class="panel-btn" title="Hide panel" data-action="hide">⊗</button>
+        </div>
+      </div>
+      <div class="panel-body">
       <div class="client-log-panels" id="client-log-panels"></div>
+      </div>
     </div>
   </div>
   <footer class="muted" style="margin-top: 2rem; font-size: 0.75rem;" id="footer">
     <span id="footer-version"></span>
   </footer>
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
   <script>
     // Global UI state for reconnect button
     window._avrReconnectInProgress = false;
+
+    // Panel layout state (persisted to localStorage)
+    var LAYOUT_STORAGE_KEY = 'denon-proxy-ui';
+    var PANEL_LABELS = {
+      'avr-connection': 'AVR Connection',
+      'avr-state': 'AVR State',
+      'connected-clients': 'Connected Clients',
+      'send-commands': 'Send Commands',
+      'internal-state-json': 'Internal State (JSON)',
+      'xml-endpoints': 'XML Endpoints',
+      'client-activity': 'Client activity'
+    };
+    var GROUP_LABELS = { 'status': 'Status', 'control': 'Control', 'debug': 'Debug', 'activity': 'Activity' };
+    var GROUP_PANELS = { 'status': ['avr-connection', 'avr-state', 'connected-clients'], 'control': ['send-commands'], 'debug': ['internal-state-json', 'xml-endpoints'], 'activity': ['client-activity'] };
+    var DEFAULT_PANEL_ORDER = ['avr-connection', 'avr-state', 'connected-clients', 'send-commands', 'internal-state-json', 'xml-endpoints', 'client-activity'];
+    var RESIZE_GRID_STEP = 24;
+    var RESIZE_MIN_W = 200;
+    var RESIZE_MAX_W = 900;
+    var RESIZE_MIN_H = 120;
+    var RESIZE_MAX_H = 600;
+    var RESIZE_DEFAULT_W = 320;
+
+    function getLayoutState() {
+      try {
+        var raw = localStorage.getItem(LAYOUT_STORAGE_KEY);
+        if (raw) {
+          var s = JSON.parse(raw);
+          return {
+            panelOrder: Array.isArray(s.panelOrder) ? s.panelOrder : null,
+            hiddenPanels: Array.isArray(s.hiddenPanels) ? s.hiddenPanels : [],
+            hiddenGroups: Array.isArray(s.hiddenGroups) ? s.hiddenGroups : [],
+            panelSize: (s.panelSize && typeof s.panelSize === 'object') ? s.panelSize : {},
+            panelDimensions: (s.panelDimensions && typeof s.panelDimensions === 'object') ? s.panelDimensions : {}
+          };
+        }
+      } catch (e) {}
+      return { panelOrder: null, hiddenPanels: [], hiddenGroups: [], panelSize: {}, panelDimensions: {} };
+    }
+    function isPanelHidden(panelId) {
+      var s = getLayoutState();
+      if (s.hiddenPanels.indexOf(panelId) !== -1) return true;
+      return s.hiddenGroups.some(function (g) { return (GROUP_PANELS[g] || []).indexOf(panelId) !== -1; });
+    }
+    function setLayoutState(state) {
+      try {
+        localStorage.setItem(LAYOUT_STORAGE_KEY, JSON.stringify(state));
+      } catch (e) {}
+    }
+    function applyLayoutState() {
+      var state = getLayoutState();
+      var grid = document.getElementById('panel-grid');
+      if (!grid) return;
+      var panels = Array.from(grid.querySelectorAll('.panel-wrapper[data-panel-id]'));
+      var order = state.panelOrder;
+      var hidden = state.hiddenPanels.slice();
+      state.hiddenGroups.forEach(function (g) {
+        (GROUP_PANELS[g] || []).forEach(function (id) { if (hidden.indexOf(id) === -1) hidden.push(id); });
+      });
+      var sizeMap = state.panelSize || {};
+      var dims = state.panelDimensions || {};
+      panels.forEach(function (el) {
+        var id = el.getAttribute('data-panel-id');
+        if (!id) return;
+        var isHidden = hidden.indexOf(id) !== -1;
+        el.style.display = isHidden ? 'none' : '';
+        el.setAttribute('data-size', sizeMap[id] || 'medium');
+        var d = dims[id];
+        if (d && typeof d.w === 'number' && typeof d.h === 'number') {
+          el.style.width = d.w + 'px';
+          el.style.height = d.h + 'px';
+        } else if (id === 'client-activity' && d && typeof d.h === 'number') {
+          el.style.width = '';
+          el.style.height = d.h + 'px';
+        } else {
+          el.style.width = '';
+          el.style.height = '';
+        }
+      });
+      var orderToUse = order && order.length ? order : DEFAULT_PANEL_ORDER;
+      var idToEl = {};
+      panels.forEach(function (el) { var id = el.getAttribute('data-panel-id'); if (id) idToEl[id] = el; });
+      var ordered = orderToUse.filter(function (id) { return idToEl[id]; }).map(function (id) { return idToEl[id]; });
+      var rest = panels.filter(function (el) { return ordered.indexOf(el) === -1; });
+      ordered.concat(rest).forEach(function (el) { grid.appendChild(el); });
+    }
+    function snapToGrid(val, minVal, maxVal) {
+      var step = RESIZE_GRID_STEP;
+      var n = Math.round(val / step) * step;
+      if (n < minVal) n = minVal;
+      if (n > maxVal) n = maxVal;
+      return n;
+    }
+    function saveLayoutState() {
+      var grid = document.getElementById('panel-grid');
+      if (!grid) return;
+      var panels = Array.from(grid.querySelectorAll('.panel-wrapper[data-panel-id]'));
+      var state = getLayoutState();
+      state.panelOrder = panels.map(function (el) { return el.getAttribute('data-panel-id'); }).filter(Boolean);
+      var hidden = [];
+      var sizeMap = {};
+      var dims = {};
+      panels.forEach(function (el) {
+        var id = el.getAttribute('data-panel-id');
+        if (el.style.display === 'none') hidden.push(id);
+        var sz = el.getAttribute('data-size'); if (sz && sz !== 'medium') sizeMap[id] = sz;
+        var w = parseInt(el.style.width, 10);
+        var h = parseInt(el.style.height, 10);
+        if (id === 'client-activity') {
+          if (!isNaN(h)) dims[id] = { h: h };
+        } else if (!isNaN(w) && !isNaN(h)) {
+          dims[id] = { w: w, h: h };
+        }
+      });
+      state.hiddenPanels = hidden;
+      state.panelSize = sizeMap;
+      state.panelDimensions = dims;
+      setLayoutState(state);
+    }
+    function hidePanel(panelId) {
+      var state = getLayoutState();
+      if (state.hiddenPanels.indexOf(panelId) === -1) state.hiddenPanels.push(panelId);
+      setLayoutState(state);
+      var el = document.querySelector('.panel-wrapper[data-panel-id="' + panelId + '"]');
+      if (el) el.style.display = 'none';
+      updateRestoreDropdown();
+    }
+    function showPanel(panelId) {
+      var state = getLayoutState();
+      state.hiddenPanels = state.hiddenPanels.filter(function (id) { return id !== panelId; });
+      setLayoutState(state);
+      var el = document.querySelector('.panel-wrapper[data-panel-id="' + panelId + '"]');
+      if (el) el.style.display = '';
+      updateRestoreDropdown();
+    }
+    function hideGroup(groupId) {
+      var state = getLayoutState();
+      if (state.hiddenGroups.indexOf(groupId) === -1) state.hiddenGroups.push(groupId);
+      setLayoutState(state);
+      (GROUP_PANELS[groupId] || []).forEach(function (id) {
+        var el = document.querySelector('.panel-wrapper[data-panel-id="' + id + '"]');
+        if (el) el.style.display = 'none';
+      });
+      updateRestoreDropdown();
+    }
+    function showGroup(groupId) {
+      var state = getLayoutState();
+      state.hiddenGroups = state.hiddenGroups.filter(function (g) { return g !== groupId; });
+      setLayoutState(state);
+      applyLayoutState();
+      updateRestoreDropdown();
+    }
+    function updateRestoreDropdown() {
+      var state = getLayoutState();
+      var hidden = state.hiddenPanels.slice();
+      state.hiddenGroups.forEach(function (g) {
+        (GROUP_PANELS[g] || []).forEach(function (id) { if (hidden.indexOf(id) === -1) hidden.push(id); });
+      });
+      var listEl = document.getElementById('restore-list');
+      var groupEl = document.getElementById('group-actions');
+      if (listEl) {
+        if (hidden.length === 0) {
+          listEl.innerHTML = '<span class="restore-empty">None hidden</span>';
+        } else {
+          listEl.innerHTML = hidden.map(function (id) {
+            return '<button type="button" class="btn restore-item" data-show-panel="' + id + '">Show: ' + (PANEL_LABELS[id] || id) + '</button>';
+          }).join('');
+        }
+      }
+      if (groupEl) {
+        groupEl.innerHTML = Object.keys(GROUP_LABELS).map(function (g) {
+          var isHidden = state.hiddenGroups.indexOf(g) !== -1;
+          return '<div class="group-actions"><span style="margin-right:0.35rem">' + (GROUP_LABELS[g] || g) + '</span>' +
+            (isHidden ? '<button type="button" class="btn" data-show-group="' + g + '">Show group</button>' : '<button type="button" class="btn" data-hide-group="' + g + '">Hide group</button>') + '</div>';
+        }).join('');
+      }
+    }
+    function initResizeHandles() {
+      var grid = document.getElementById('panel-grid');
+      if (!grid) return;
+      var panels = grid.querySelectorAll('.panel-wrapper[data-panel-id]');
+      panels.forEach(function (el) {
+        if (el.querySelector('.panel-resize-handle')) return;
+        var handle = document.createElement('div');
+        handle.className = 'panel-resize-handle';
+        handle.title = 'Drag to resize';
+        el.appendChild(handle);
+        handle.addEventListener('mousedown', function (e) {
+          e.preventDefault();
+          var id = el.getAttribute('data-panel-id');
+          var isFullWidth = id === 'client-activity';
+          var rect = el.getBoundingClientRect();
+          var startX = e.clientX;
+          var startY = e.clientY;
+          var startW = rect.width;
+          var startH = rect.height;
+          function move(e) {
+            var dw = e.clientX - startX;
+            var dh = e.clientY - startY;
+            var newW = startW + dw;
+            var newH = startH + dh;
+            if (!isFullWidth) {
+              newW = snapToGrid(newW, RESIZE_MIN_W, RESIZE_MAX_W);
+              el.style.width = newW + 'px';
+            }
+            newH = snapToGrid(newH, RESIZE_MIN_H, RESIZE_MAX_H);
+            el.style.height = newH + 'px';
+          }
+          function up() {
+            document.removeEventListener('mousemove', move);
+            document.removeEventListener('mouseup', up);
+            document.body.style.cursor = '';
+            document.body.style.userSelect = '';
+            saveLayoutState();
+          }
+          document.body.style.cursor = 'nwse-resize';
+          document.body.style.userSelect = 'none';
+          document.addEventListener('mousemove', move);
+          document.addEventListener('mouseup', up);
+        });
+      });
+    }
+    function initLayout() {
+      applyLayoutState();
+      var grid = document.getElementById('panel-grid');
+      if (grid && typeof Sortable !== 'undefined') {
+        new Sortable(grid, { handle: '.panel-drag-handle', animation: 150, onEnd: function () { saveLayoutState(); } });
+      }
+      initResizeHandles();
+      document.getElementById('panel-grid').addEventListener('click', function (e) {
+        var wrap = e.target.closest('.panel-wrapper');
+        if (!wrap) return;
+        var btn = e.target.closest('.panel-btn[data-action]');
+        if (btn && btn.getAttribute('data-action') === 'hide') {
+          var id = wrap.getAttribute('data-panel-id');
+          if (id) hidePanel(id);
+        }
+      });
+      var toggleBtn = document.getElementById('restore-dropdown-toggle');
+      var dropdown = document.getElementById('restore-dropdown');
+      if (toggleBtn && dropdown) {
+        toggleBtn.addEventListener('click', function () { dropdown.classList.toggle('open'); updateRestoreDropdown(); });
+      }
+      document.addEventListener('click', function (e) {
+        if (dropdown && !dropdown.contains(e.target)) dropdown.classList.remove('open');
+      });
+      document.getElementById('restore-dropdown-content').addEventListener('click', function (e) {
+        var showPanelBtn = e.target.closest('[data-show-panel]');
+        if (showPanelBtn) {
+          showPanel(showPanelBtn.getAttribute('data-show-panel'));
+          return;
+        }
+        var showGroupBtn = e.target.closest('[data-show-group]');
+        if (showGroupBtn) {
+          showGroup(showGroupBtn.getAttribute('data-show-group'));
+          return;
+        }
+        var hideGroupBtn = e.target.closest('[data-hide-group]');
+        if (hideGroupBtn) {
+          hideGroup(hideGroupBtn.getAttribute('data-hide-group'));
+          return;
+        }
+        if (e.target.id === 'reset-layout-btn') {
+          try { localStorage.removeItem(LAYOUT_STORAGE_KEY); } catch (err) {}
+          setLayoutState({ panelOrder: DEFAULT_PANEL_ORDER, hiddenPanels: [], hiddenGroups: [], panelSize: {}, panelDimensions: {} });
+          applyLayoutState();
+          updateRestoreDropdown();
+        }
+      });
+      updateRestoreDropdown();
+    }
+
     function api(path, opts) {
       return fetch(path, { ...opts, headers: { 'Content-Type': 'application/json', ...opts?.headers } });
     }
@@ -418,7 +843,7 @@
           const pills = '<span class="xml-link-pills">' + proxyLink + (hasPhysical ? physicalLink : '') + '</span>';
           return '<li>' + escapeHtml(label) + '<br><span class="muted">' + escapeHtml(desc) + '</span><br>' + pills + '</li>';
         }).join('');
-        xmlCard.style.display = 'block';
+        xmlCard.style.display = isPanelHidden('xml-endpoints') ? 'none' : 'block';
       } else {
         xmlCard.style.display = 'none';
       }
@@ -427,7 +852,7 @@
       const logEnabled = d.client_activity_log_enabled !== false;
       const panelsEl = document.getElementById('client-log-panels');
       const sectionEl = document.getElementById('client-log-section');
-      if (sectionEl) sectionEl.style.display = logEnabled ? 'block' : 'none';
+      if (sectionEl) sectionEl.style.display = (logEnabled && !isPanelHidden('client-activity')) ? '' : 'none';
       if (logEnabled) {
         const logData = d.client_activity_log || {};
         const clientIds = [...new Set([...(d.clients || []), ...Object.keys(logData)])];
@@ -504,6 +929,7 @@
     es.onerror = () => { document.getElementById('update-status').textContent = 'Reconnecting...'; };
     es.onmessage = (e) => { loadFromData(JSON.parse(e.data)); };
     fetch('/api/status').then(r => r.json()).then(loadFromData).catch(() => { document.getElementById('update-status').textContent = 'Initial load failed'; });
+    initLayout();
   </script>
 </body>
 </html>
