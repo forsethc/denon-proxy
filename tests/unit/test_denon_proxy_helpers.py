@@ -104,7 +104,7 @@ def test_build_json_state_structure_and_volume_conversion():
 
     result = build_json_state(state, avr, clients, config, runtime_state)
 
-    assert set(result.keys()) == {"friendly_name", "avr", "clients", "client_count", "state", "discovery", "version"}
+    assert set(result.keys()) == {"friendly_name", "avr", "clients", "client_count", "client_aliases", "state", "discovery", "version"}
     assert result["friendly_name"] == "My AVR Proxy"
     assert result["client_count"] == 2
     assert result["clients"] == ["10.0.0.1", "10.0.0.2"]
@@ -139,6 +139,18 @@ def test_build_json_state_with_virtual_avr_info():
     assert avr_dict["model_name"] == "Virtual"
     assert avr_dict["serial_number"] is None
     assert avr_dict["friendly_name"] is None
+
+
+def test_build_json_state_includes_client_aliases():
+    """build_json_state includes client_aliases from config."""
+    state = AVRState()
+    config = load_config_from_dict({
+        "client_aliases": {"192.168.1.5": "Living Room HA", "10.0.0.1": "Tablet"},
+    })
+    runtime_state = RuntimeState()
+    runtime_state.avr_info = AVRInfo.virtual()
+    result = build_json_state(state, None, [], config, runtime_state)
+    assert result["client_aliases"] == {"192.168.1.5": "Living Room HA", "10.0.0.1": "Tablet"}
 
 
 def test_build_json_state_includes_discovery_info():

@@ -226,11 +226,16 @@ def build_json_state(
         "proxy_ip_is_internal": is_docker_internal_ip(proxy_ip),
         "is_docker": is_running_in_docker(),
     }
+    client_aliases = config.get("client_aliases") or {}
+    if not isinstance(client_aliases, dict):
+        client_aliases = {}
+
     return {
         "friendly_name": runtime_state.get_friendly_name(config),
         "avr": avr_dict,
         "clients": client_ips,
         "client_count": len(client_ips),
+        "client_aliases": client_aliases,
         "state": state_dict,
         "discovery": discovery,
         "version": runtime_state.version,
@@ -352,7 +357,10 @@ class ClientHandler(asyncio.Protocol):
         self.transport = transport
         self._peername = transport.get_extra_info("peername")
         self.clients.add(self)
-        self.logger.info("Client connected: %s (total: %d)", self._peername, len(self.clients))
+        client_display = self.config.client_display_for_log(
+            self._peername[0] if self._peername else "?"
+        )
+        self.logger.info("Client connected: %s (total: %d)", client_display, len(self.clients))
         self._notify_web()
 
         # Send current state to new client
@@ -372,10 +380,11 @@ class ClientHandler(asyncio.Protocol):
             return
 
         client_ip = self._peername[0] if self._peername else "?"
+        client_display = self.config.client_display_for_log(client_ip)
         if _should_log_command_info(self.config, command):
-            self.logger.info("Client %s command: %s", client_ip, command)
+            self.logger.info("Client %s command: %s", client_display, command)
         else:
-            self.logger.debug("Client %s command: %s", client_ip, command)
+            self.logger.debug("Client %s command: %s", client_display, command)
         asyncio.create_task(self._handle_command_async(command))
 
     def _broadcast_state(self) -> None:
@@ -436,7 +445,10 @@ class ClientHandler(asyncio.Protocol):
         """Called when client disconnects."""
         self.clients.discard(self)
         self.transport = None
-        self.logger.info("Client disconnected: %s (remaining: %d)", self._peername, len(self.clients))
+        client_display = self.config.client_display_for_log(
+            self._peername[0] if self._peername else "?"
+        )
+        self.logger.info("Client disconnected: %s (remaining: %d)", client_display, len(self.clients))
         self._notify_web()
 
 
