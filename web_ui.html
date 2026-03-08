@@ -92,6 +92,12 @@
       max-height: 200px;
       overflow: auto;
     }
+    .panel-body > .json-block {
+      flex: 1;
+      min-height: 0;
+      max-height: none;
+      overflow: auto;
+    }
     .xml-link-pills { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.35rem; }
     .xml-link-pills a {
       display: inline-block;
@@ -229,7 +235,7 @@
       line-height: 1;
     }
     .panel-btn:hover { color: var(--text); background: var(--surface-hover); }
-    .panel-body { flex: 1; min-height: 0; overflow: auto; }
+    .panel-body { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: auto; }
     .panel-body > .state-table { margin-top: 0; }
     .panel-body > .btn-group:first-of-type { margin-top: 0.5rem; }
     .restore-dropdown { position: relative; }
