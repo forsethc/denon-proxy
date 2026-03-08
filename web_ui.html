@@ -197,10 +197,7 @@
       position: relative;
       overflow: hidden;
     }
-    .panel-wrapper[data-size="small"] { width: 260px; }
     .panel-wrapper[data-size="medium"] { width: 320px; }
-    .panel-wrapper[data-size="large"] { width: 100%; }
-    @media (max-width: 767px) { .panel-wrapper[data-size="large"] { width: 100%; } }
     .panel-resize-handle {
       position: absolute;
       right: 0;
@@ -454,12 +451,11 @@
             panelOrder: Array.isArray(s.panelOrder) ? s.panelOrder : null,
             hiddenPanels: Array.isArray(s.hiddenPanels) ? s.hiddenPanels : [],
             hiddenGroups: Array.isArray(s.hiddenGroups) ? s.hiddenGroups : [],
-            panelSize: (s.panelSize && typeof s.panelSize === 'object') ? s.panelSize : {},
             panelDimensions: (s.panelDimensions && typeof s.panelDimensions === 'object') ? s.panelDimensions : {}
           };
         }
       } catch (e) {}
-      return { panelOrder: null, hiddenPanels: [], hiddenGroups: [], panelSize: {}, panelDimensions: {} };
+      return { panelOrder: null, hiddenPanels: [], hiddenGroups: [], panelDimensions: {} };
     }
     function isPanelHidden(panelId) {
       var s = getLayoutState();
@@ -481,14 +477,13 @@
       state.hiddenGroups.forEach(function (g) {
         (GROUP_PANELS[g] || []).forEach(function (id) { if (hidden.indexOf(id) === -1) hidden.push(id); });
       });
-      var sizeMap = state.panelSize || {};
       var dims = state.panelDimensions || {};
       panels.forEach(function (el) {
         var id = el.getAttribute('data-panel-id');
         if (!id) return;
         var isHidden = hidden.indexOf(id) !== -1;
         el.style.display = isHidden ? 'none' : '';
-        el.setAttribute('data-size', sizeMap[id] || 'medium');
+        el.setAttribute('data-size', 'medium');
         var d = dims[id];
         if (d && typeof d.w === 'number' && typeof d.h === 'number') {
           el.style.width = d.w + 'px';
@@ -680,7 +675,7 @@
         }
         if (e.target.id === 'reset-layout-btn') {
           try { localStorage.removeItem(LAYOUT_STORAGE_KEY); } catch (err) {}
-          setLayoutState({ panelOrder: DEFAULT_PANEL_ORDER, hiddenPanels: [], hiddenGroups: [], panelSize: {}, panelDimensions: {} });
+          setLayoutState({ panelOrder: DEFAULT_PANEL_ORDER, hiddenPanels: [], hiddenGroups: [], panelDimensions: {} });
           applyLayoutState();
           updateRestoreDropdown();
         }
