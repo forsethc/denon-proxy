@@ -188,6 +188,12 @@ def test_build_json_state_includes_client_command_log():
     result3 = build_json_state(state, None, [], config_disabled, runtime_state)
     assert result3["client_command_log_enabled"] is False
 
+    # client_command_log_hide_queries: query commands (ending with ?) are excluded from log
+    log_with_queries = {"Web UI": [(1700000000.0, "PW?"), (1700000001.0, "PWON"), (1700000002.0, "MV?")]}
+    config_hide_queries = load_config_from_dict({"client_command_log_hide_queries": True})
+    result4 = build_json_state(state, None, [], config_hide_queries, runtime_state, client_command_log=log_with_queries)
+    assert result4["client_command_log"]["Web UI"] == [[1700000001.0, "PWON"]]
+
 
 def test_state_and_config_updates_from_denonavr_basic():
     class MockVol:

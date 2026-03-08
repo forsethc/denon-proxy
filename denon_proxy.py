@@ -236,9 +236,16 @@ def build_json_state(
 
     # Serialize command log for UI: list of [timestamp, command] per client
     log_for_json: dict[str, list[list[float | str]]] = {}
+    hide_queries = bool(config.get("client_command_log_hide_queries", False))
     if client_command_log:
         for cid, entries in client_command_log.items():
-            log_for_json[cid] = [[ts, cmd] for ts, cmd in entries]
+            if hide_queries:
+                log_for_json[cid] = [
+                    [ts, cmd] for ts, cmd in entries
+                    if not str(cmd).strip().endswith("?")
+                ]
+            else:
+                log_for_json[cid] = [[ts, cmd] for ts, cmd in entries]
 
     client_log_enabled = bool(config.get("client_command_log", True))
     return {

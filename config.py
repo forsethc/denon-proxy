@@ -37,6 +37,8 @@ class Config(Mapping[str, Any]):
     # Web UI: per-client command log (enable and max entries per client)
     client_command_log: bool = True
     client_command_log_max_entries: int = 200
+    # When true, query commands (e.g. PW?, MV?, SI?) are excluded from the log in the UI
+    client_command_log_hide_queries: bool = False
 
     # Optional/less common config keys
     ssdp_friendly_name: str | None = None
@@ -52,7 +54,7 @@ class Config(Mapping[str, Any]):
             "denonavr_log_level", "enable_ssdp", "ssdp_http_port", "ssdp_advertise_ip",
             "optimistic_state", "optimistic_broadcast_delay", "volume_step", "volume_query_delay",
             "enable_http", "http_port", "log_command_groups_info",
-            "client_command_log", "client_command_log_max_entries",
+            "client_command_log", "client_command_log_max_entries", "client_command_log_hide_queries",
             "ssdp_friendly_name", "sources", "client_aliases",
         }
     )
