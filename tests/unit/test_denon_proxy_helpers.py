@@ -104,7 +104,7 @@ def test_build_json_state_structure_and_volume_conversion():
 
     result = build_json_state(state, avr, clients, config, runtime_state)
 
-    assert set(result.keys()) == {"friendly_name", "avr", "clients", "client_count", "client_aliases", "client_command_log", "state", "discovery", "version"}
+    assert set(result.keys()) == {"friendly_name", "avr", "clients", "client_count", "client_aliases", "client_command_log", "client_command_log_enabled", "state", "discovery", "version"}
     assert result["friendly_name"] == "My AVR Proxy"
     assert result["client_count"] == 2
     assert result["clients"] == ["10.0.0.1", "10.0.0.2"]
@@ -166,7 +166,7 @@ def test_build_json_state_includes_discovery_info():
 
 
 def test_build_json_state_includes_client_command_log():
-    """build_json_state includes client_command_log when provided."""
+    """build_json_state includes client_command_log and client_command_log_enabled."""
     state = AVRState()
     config = load_config_from_dict({})
     runtime_state = RuntimeState()
@@ -174,6 +174,7 @@ def test_build_json_state_includes_client_command_log():
     result = build_json_state(state, None, [], config, runtime_state)
     assert "client_command_log" in result
     assert result["client_command_log"] == {}
+    assert result["client_command_log_enabled"] is True
 
     log = {"192.168.1.5": [(1700000000.0, "PWON")], "Web UI": [(1700000001.0, "MV50")]}
     result2 = build_json_state(state, None, [], config, runtime_state, client_command_log=log)
@@ -181,6 +182,11 @@ def test_build_json_state_includes_client_command_log():
         "192.168.1.5": [[1700000000.0, "PWON"]],
         "Web UI": [[1700000001.0, "MV50"]],
     }
+    assert result2["client_command_log_enabled"] is True
+
+    config_disabled = load_config_from_dict({"client_command_log": False})
+    result3 = build_json_state(state, None, [], config_disabled, runtime_state)
+    assert result3["client_command_log_enabled"] is False
 
 
 def test_state_and_config_updates_from_denonavr_basic():

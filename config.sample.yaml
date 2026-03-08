@@ -76,6 +76,12 @@ optimistic_broadcast_delay: 0.1
 enable_http: true
 http_port: 8081
 
+# Web UI: per-client command log (which client sent which command, with timestamps)
+# Set to false to disable logging and hide the Client command log section.
+# client_command_log: true
+# Max entries per client (oldest dropped when exceeded). Min 1.
+# client_command_log_max_entries: 200
+
 # Optional: friendly names for clients by IP (shown in Web UI and API)
 # client_aliases:
 #   "192.168.1.5": "Living Room Home Assistant"

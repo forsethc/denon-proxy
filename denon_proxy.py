@@ -240,6 +240,7 @@ def build_json_state(
         for cid, entries in client_command_log.items():
             log_for_json[cid] = [[ts, cmd] for ts, cmd in entries]
 
+    client_log_enabled = bool(config.get("client_command_log", True))
     return {
         "friendly_name": runtime_state.get_friendly_name(config),
         "avr": avr_dict,
@@ -247,6 +248,7 @@ def build_json_state(
         "client_count": len(client_ips),
         "client_aliases": client_aliases,
         "client_command_log": log_for_json,
+        "client_command_log_enabled": client_log_enabled,
         "state": state_dict,
         "discovery": discovery,
         "version": runtime_state.version,
@@ -504,12 +506,16 @@ class DenonProxyServer:
         self._notify_web_state: Callable[[], None] = lambda: None
         self._avr_factory = avr_factory
         self._reconnect_task: asyncio.Task[Any] | None = None
-        # Per-client command log for UI: client_id -> deque of (timestamp, command), max 200 per client
+        # Per-client command log for UI: client_id -> deque of (timestamp, command)
         self._client_command_log: dict[str, deque[tuple[float, str]]] = {}
-        self._client_command_log_max = 200
+        self._client_command_log_max = max(
+            1, int(self.config.get("client_command_log_max_entries", 200))
+        )
 
     def record_command(self, client_id: str, command: str) -> None:
-        """Record a command for a client (for UI log). client_id is IP or 'Web UI'."""
+        """Record a command for a client (for UI log). client_id is IP or 'Web UI'. No-op if disabled in config."""
+        if not self.config.get("client_command_log", True):
+            return
         if client_id not in self._client_command_log:
             self._client_command_log[client_id] = deque(maxlen=self._client_command_log_max)
         self._client_command_log[client_id].append((time.time(), command.strip()))
@@ -634,10 +640,11 @@ class DenonProxyServer:
 
         # Web UI / JSON status API
         def _get_json_state() -> dict:
-            log_snapshot = {
-                cid: list(entries)
-                for cid, entries in self._client_command_log.items()
-            }
+            log_snapshot = (
+                {cid: list(entries) for cid, entries in self._client_command_log.items()}
+                if self.config.get("client_command_log", True)
+                else {}
+            )
             return build_json_state(
                 self.avr_state,
                 self.avr,

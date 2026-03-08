@@ -422,27 +422,30 @@
         xmlCard.style.display = 'none';
       }
       document.getElementById('json-state').textContent = JSON.stringify(d, null, 2);
-      // Client command log: one panel per client (connected IPs + any client_id with log entries)
-      const logData = d.client_command_log || {};
-      const clientIds = [...new Set([...(d.clients || []), ...Object.keys(logData)])];
+      // Client command log: one panel per client (only when enabled in config)
+      const logEnabled = d.client_command_log_enabled !== false;
       const panelsEl = document.getElementById('client-log-panels');
       const sectionEl = document.getElementById('client-log-section');
-      if (!clientIds.length) {
-        panelsEl.innerHTML = '<p class="muted">No clients yet. Commands from Telnet clients or the Web UI will appear here.</p>';
-      } else {
-        panelsEl.innerHTML = clientIds.map(clientId => {
-          const entries = logData[clientId] || [];
-          const displayName = clientId === 'Web UI' ? 'Web UI' : (aliases[clientId] ? (escapeHtml(aliases[clientId]) + ' <span class="muted">(' + escapeHtml(clientId) + ')</span>') : escapeHtml(clientId));
-          const lines = entries.slice().reverse().map(([ts, cmd]) => {
-            const date = new Date(ts * 1000);
-            const tsStr = date.toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'medium' });
-            return '<div class="client-log-line"><span class="client-log-ts">' + escapeHtml(tsStr) + '</span><span class="client-log-cmd">' + escapeHtml(String(cmd)) + '</span></div>';
+      if (sectionEl) sectionEl.style.display = logEnabled ? 'block' : 'none';
+      if (logEnabled) {
+        const logData = d.client_command_log || {};
+        const clientIds = [...new Set([...(d.clients || []), ...Object.keys(logData)])];
+        if (!clientIds.length) {
+          panelsEl.innerHTML = '<p class="muted">No clients yet. Commands from Telnet clients or the Web UI will appear here.</p>';
+        } else {
+          panelsEl.innerHTML = clientIds.map(clientId => {
+            const entries = logData[clientId] || [];
+            const displayName = clientId === 'Web UI' ? 'Web UI' : (aliases[clientId] ? (escapeHtml(aliases[clientId]) + ' <span class="muted">(' + escapeHtml(clientId) + ')</span>') : escapeHtml(clientId));
+            const lines = entries.slice().reverse().map(([ts, cmd]) => {
+              const date = new Date(ts * 1000);
+              const tsStr = date.toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'medium' });
+              return '<div class="client-log-line"><span class="client-log-ts">' + escapeHtml(tsStr) + '</span><span class="client-log-cmd">' + escapeHtml(String(cmd)) + '</span></div>';
+            }).join('');
+            const body = lines || '<div class="client-log-empty">No commands yet</div>';
+            return '<div class="client-log-panel"><h3>' + displayName + '</h3><div class="client-log-entries">' + body + '</div></div>';
           }).join('');
-          const body = lines || '<div class="client-log-empty">No commands yet</div>';
-          return '<div class="client-log-panel"><h3>' + displayName + '</h3><div class="client-log-entries">' + body + '</div></div>';
-        }).join('');
+        }
       }
-      if (sectionEl) sectionEl.style.display = clientIds.length ? 'block' : 'block';
     }
     function updateReconnectButtonState(connected) {
       const reconnectRow = document.getElementById('avr-reconnect-row');

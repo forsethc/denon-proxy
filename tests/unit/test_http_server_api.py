@@ -94,6 +94,7 @@ async def test_http_get_status_json_shape():
                 "client_count",
                 "client_aliases",
                 "client_command_log",
+                "client_command_log_enabled",
                 "state",
                 "discovery",
                 "version",
