@@ -22,6 +22,8 @@ import os
 import pprint
 import signal
 import sys
+import time
+from collections import deque
 from pathlib import Path
 from typing import Any, Callable, Iterable, Set
 
@@ -192,11 +194,13 @@ def build_json_state(
     clients: Iterable[ClientHandler],
     config: Config,
     runtime_state: RuntimeState,
+    client_command_log: dict[str, Iterable[tuple[float, str]]] | None = None,
 ) -> dict:
     """
     Build JSON status dict for Web UI / SSE.
 
     Pure function for testability. Caller passes avr_state, avr, clients, config, and runtime_state.
+    client_command_log: optional dict client_id -> iterable of (timestamp, command) for UI log.
     """
     client_ips = [_client_ip_for_display(c) for c in list(clients)]
     state_dict = {
@@ -230,12 +234,19 @@ def build_json_state(
     if not isinstance(client_aliases, dict):
         client_aliases = {}
 
+    # Serialize command log for UI: list of [timestamp, command] per client
+    log_for_json: dict[str, list[list[float | str]]] = {}
+    if client_command_log:
+        for cid, entries in client_command_log.items():
+            log_for_json[cid] = [[ts, cmd] for ts, cmd in entries]
+
     return {
         "friendly_name": runtime_state.get_friendly_name(config),
         "avr": avr_dict,
         "clients": client_ips,
         "client_count": len(client_ips),
         "client_aliases": client_aliases,
+        "client_command_log": log_for_json,
         "state": state_dict,
         "discovery": discovery,
         "version": runtime_state.version,
@@ -338,6 +349,7 @@ class ClientHandler(asyncio.Protocol):
         logger: logging.Logger,
         runtime_state: RuntimeState,
         config: Config,
+        record_command: Callable[[str, str], None] | None = None,
     ) -> None:
         self.avr = avr
         self.avr_state = avr_state
@@ -345,6 +357,7 @@ class ClientHandler(asyncio.Protocol):
         self.logger = logger
         self.config = config
         self.runtime_state = runtime_state
+        self.record_command = record_command or (lambda _cid, _cmd: None)
         self.transport: asyncio.Transport | None = None
         self._buffer = b""
         self._peername: tuple | None = None
@@ -380,6 +393,7 @@ class ClientHandler(asyncio.Protocol):
             return
 
         client_ip = self._peername[0] if self._peername else "?"
+        self.record_command(client_ip, command)
         client_display = self.config.client_display_for_log(client_ip)
         if _should_log_command_info(self.config, command):
             self.logger.info("Client %s command: %s", client_display, command)
@@ -490,6 +504,16 @@ class DenonProxyServer:
         self._notify_web_state: Callable[[], None] = lambda: None
         self._avr_factory = avr_factory
         self._reconnect_task: asyncio.Task[Any] | None = None
+        # Per-client command log for UI: client_id -> deque of (timestamp, command), max 200 per client
+        self._client_command_log: dict[str, deque[tuple[float, str]]] = {}
+        self._client_command_log_max = 200
+
+    def record_command(self, client_id: str, command: str) -> None:
+        """Record a command for a client (for UI log). client_id is IP or 'Web UI'."""
+        if client_id not in self._client_command_log:
+            self._client_command_log[client_id] = deque(maxlen=self._client_command_log_max)
+        self._client_command_log[client_id].append((time.time(), command.strip()))
+        self._notify_web_state()
 
     def _broadcast(self, message: str) -> None:
         """Broadcast an AVR response to all connected clients."""
@@ -586,6 +610,7 @@ class DenonProxyServer:
                 logger=self.logger,
                 runtime_state=self.runtime_state,
                 config=self.config,
+                record_command=self.record_command,
             )
 
         host = self.config["proxy_host"]
@@ -609,7 +634,18 @@ class DenonProxyServer:
 
         # Web UI / JSON status API
         def _get_json_state() -> dict:
-            return build_json_state(self.avr_state, self.avr, self.clients, self.config, self.runtime_state)
+            log_snapshot = {
+                cid: list(entries)
+                for cid, entries in self._client_command_log.items()
+            }
+            return build_json_state(
+                self.avr_state,
+                self.avr,
+                self.clients,
+                self.config,
+                self.runtime_state,
+                client_command_log=log_snapshot,
+            )
 
         def _send_command_cb(cmd: str) -> None:
             async def _do() -> None:
@@ -635,6 +671,7 @@ class DenonProxyServer:
                 request_state=_request_state_cb,
                 dashboard_html=dashboard_html,
                 runtime_state=self.runtime_state,
+                on_command_sent=self.record_command,
             )
             if result:
                 self._json_api_server, self._notify_web_state = result

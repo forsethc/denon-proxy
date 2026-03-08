@@ -73,6 +73,7 @@ class _HttpServerHandler(asyncio.Protocol):
         send_command: Callable[[str], None] | None = None,
         request_state: Callable[[], None] | None = None,
         dashboard_html: str | None = None,
+        on_command_sent: Callable[[str, str], None] | None = None,
     ) -> None:
         self.get_state = get_state
         self.send_command = send_command
@@ -84,6 +85,7 @@ class _HttpServerHandler(asyncio.Protocol):
         self._buffer = b""
         self._sse_mode = False
         self._dashboard_html = dashboard_html
+        self.on_command_sent = on_command_sent
 
     def connection_made(self, transport: asyncio.BaseTransport) -> None:
         self.transport = transport
@@ -156,6 +158,8 @@ class _HttpServerHandler(asyncio.Protocol):
         if error is not None:
             self._send_json(400, error)
             return
+        if self.on_command_sent:
+            self.on_command_sent("Web UI", command)
         try:
             self.send_command(command)
             self._send_json(200, {"ok": True, "command": command})
@@ -221,6 +225,7 @@ async def run_http_server(
     *,
     dashboard_html: str | None = None,
     runtime_state: RuntimeState,
+    on_command_sent: Callable[[str, str], None] | None = None,
 ) -> tuple[asyncio.Server, Callable[[], None]] | None:
     """
     Start the HTTP server (JSON API, SSE, and optional Web UI).
@@ -263,6 +268,7 @@ async def run_http_server(
                 send_command=send_command,
                 request_state=request_state,
                 dashboard_html=dashboard_html,
+                on_command_sent=on_command_sent,
             )
             h.on_sse_push = notify_state_changed
             return h
