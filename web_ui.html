@@ -522,13 +522,9 @@
       var panels = Array.from(grid.querySelectorAll('.panel-wrapper[data-panel-id]'));
       var state = getLayoutState();
       state.panelOrder = panels.map(function (el) { return el.getAttribute('data-panel-id'); }).filter(Boolean);
-      var hidden = [];
-      var sizeMap = {};
       var dims = {};
       panels.forEach(function (el) {
         var id = el.getAttribute('data-panel-id');
-        if (el.style.display === 'none') hidden.push(id);
-        var sz = el.getAttribute('data-size'); if (sz && sz !== 'medium') sizeMap[id] = sz;
         var w = parseInt(el.style.width, 10);
         var h = parseInt(el.style.height, 10);
         if (id === 'client-activity') {
@@ -537,8 +533,6 @@
           dims[id] = { w: w, h: h };
         }
       });
-      state.hiddenPanels = hidden;
-      state.panelSize = sizeMap;
       state.panelDimensions = dims;
       setLayoutState(state);
     }
