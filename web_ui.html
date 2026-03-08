@@ -261,17 +261,29 @@
     .restore-dropdown .group-actions { display: flex; gap: 0.25rem; margin-bottom: 0.25rem; }
     .restore-dropdown .group-actions .btn { font-size: 0.75rem; padding: 0.25rem 0.5rem; }
     .restore-empty { color: var(--text-muted); font-size: 0.875rem; padding: 0.5rem; }
+    .hamburger-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 2.25rem;
+      height: 2.25rem;
+      padding: 0;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      cursor: pointer;
+      font-size: 1.25rem;
+      line-height: 1;
+    }
+    .hamburger-btn:hover { background: var(--surface-hover); }
+    .hamburger-btn::before { content: '\2630'; }
   </style>
 </head>
 <body>
-  <div style="display: flex; align-items: baseline; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.5rem;">
-    <h1 style="margin: 0;" id="page-title">Denon AVR Proxy</h1>
-    <span id="header-proxy-ip" class="muted"></span>
-  </div>
-  <div id="proxy-ip-note" class="proxy-ip-note" style="display: none;"><span id="proxy-ip-note-msg"></span><div id="proxy-ip-note-suggest" class="suggest-line"></div></div>
-  <div class="layout-toolbar">
-    <div class="restore-dropdown" id="restore-dropdown">
-      <button type="button" class="btn" id="restore-dropdown-toggle" title="Show/hide panels and groups">Panels</button>
+  <div style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.5rem;">
+    <div class="restore-dropdown" id="restore-dropdown" style="position: relative;">
+      <button type="button" class="hamburger-btn" id="restore-dropdown-toggle" title="Show/hide panels and groups" aria-label="Menu"></button>
       <div class="restore-dropdown-content" id="restore-dropdown-content">
         <h3>Hidden panels</h3>
         <div id="restore-list"></div>
@@ -281,7 +293,10 @@
         <button type="button" class="btn" id="reset-layout-btn" title="Clear saved layout and show all panels">Reset layout</button>
       </div>
     </div>
+    <h1 style="margin: 0;" id="page-title">Denon AVR Proxy</h1>
+    <span id="header-proxy-ip" class="muted"></span>
   </div>
+  <div id="proxy-ip-note" class="proxy-ip-note" style="display: none;"><span id="proxy-ip-note-msg"></span><div id="proxy-ip-note-suggest" class="suggest-line"></div></div>
   <div class="grid" id="panel-grid">
     <div class="panel-wrapper card" data-panel-id="avr-connection" data-panel-group="status">
       <div class="panel-header">
