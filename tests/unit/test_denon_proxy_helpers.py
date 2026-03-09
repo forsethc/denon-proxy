@@ -27,13 +27,18 @@ def test_client_ip_for_display_returns_ip_or_question_mark():
 
 
 def test_is_valid_client_command_filters_short_and_control_bytes():
-    assert _is_valid_client_command("PWON") is True
-    assert _is_valid_client_command("SI") is True
-    assert _is_valid_client_command("") is False
-    assert _is_valid_client_command("X") is False
+    ok, err = _is_valid_client_command("PWON")
+    assert ok is True and err is None
+    ok, err = _is_valid_client_command("SI")
+    assert ok is True and err is None
+    ok, err = _is_valid_client_command("")
+    assert ok is False and err is not None
+    ok, err = _is_valid_client_command("X")
+    assert ok is False and err is not None
     # Include a control character (other than CR/LF/TAB) to ensure it is rejected
     bad = "PWON" + chr(1)
-    assert _is_valid_client_command(bad) is False
+    ok, err = _is_valid_client_command(bad)
+    assert ok is False and err is not None
 
 
 def test_command_group_and_should_log_command_info():
