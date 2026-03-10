@@ -1,6 +1,6 @@
 # Configuration Options
 
-Full reference for `config.yaml` options. For minimal setup, see the [README](../README.md#configuration).
+Place `config.yaml` in the project root (the `denon-proxy` directory). Full reference for options below; for minimal setup, see the [README](../README.md#quickstart).
 
 ## Options
 
@@ -41,5 +41,5 @@ You can override `config.yaml` values with environment variables:
 Example:
 
 ```bash
-AVR_HOST=192.168.1.100 PROXY_PORT=2323 python denon_proxy.py
+PYTHONPATH=src AVR_HOST=192.168.1.100 PROXY_PORT=2323 python -m denon_proxy.main
 ```
