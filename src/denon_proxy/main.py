@@ -104,11 +104,12 @@ def _load_config_dict_from_file(config_path: Path | None) -> dict:
             raise FileNotFoundError(f"Config not found: {config_path}")
         path = config_path
     else:
-        path = Path(__file__).parent / "config.yaml"
+        # Default: config.yaml in current working directory (project root when run from there)
+        path = Path.cwd() / "config.yaml"
         if not path.exists():
             raise FileNotFoundError(
                 f"Config not found: {path}\n"
-                "Copy config.sample.yaml to config.yaml and edit as needed."
+                "Copy config.sample.yaml to config.yaml in the project root and edit as needed."
             )
 
     with open(path) as f:
@@ -811,7 +812,7 @@ def main() -> int:
         "--config", "-c",
         type=Path,
         default=None,
-        help="Path to config YAML (default: config.yaml in project dir)",
+        help="Path to config YAML (default: config.yaml in current working directory)",
     )
     args = parser.parse_args()
 

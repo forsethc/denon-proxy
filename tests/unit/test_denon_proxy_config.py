@@ -80,24 +80,23 @@ def test_client_display_for_log_uses_alias_when_configured():
     assert config_empty.client_display_for_log("192.168.1.5") == "192.168.1.5"
 
 
-def test_load_config_dict_from_file_raises_file_not_found_when_missing():
-    """Missing config path raises FileNotFoundError with the path in the message."""
-    pytest.importorskip("yaml")
-    path = Path(__file__).parent / "does_not_exist_config.yaml"
-    with pytest.raises(FileNotFoundError) as exc_info:
-        _load_config_dict_from_file(path)
-    assert "Config not found" in str(exc_info.value)
+def test_load_config_dict_from_file_raises_import_error_when_yaml_unavailable():
+    """When yaml module is not available, _load_config_dict_from_file raises ImportError with PyYAML hint."""
+    with patch("denon_proxy.main.yaml", None):
+        with pytest.raises(ImportError) as exc_info:
+            _load_config_dict_from_file(Path("/any/path.yaml"))
+        assert "PyYAML" in str(exc_info.value) or "pyyaml" in str(exc_info.value).lower()
 
 
-def test_load_config_dict_from_file_raises_file_not_found_when_default_missing():
-    """When config_path is None and default config.yaml does not exist, raises FileNotFoundError."""
+def test_load_config_dict_from_file_raises_file_not_found_when_default_missing(monkeypatch):
+    """When config_path is None and config.yaml is missing in cwd, raises FileNotFoundError."""
     pytest.importorskip("yaml")
-    import denon_proxy
-    default_path = Path(denon_proxy.__file__).parent / "config.yaml"
-    if default_path.exists():
-        pytest.skip("config.yaml exists in project; run without it to cover default-missing path")
-    with pytest.raises(FileNotFoundError) as exc_info:
-        _load_config_dict_from_file(None)
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = Path(tmp)
+        assert not (tmp_path / "config.yaml").exists()
+        monkeypatch.chdir(tmp_path)
+        with pytest.raises(FileNotFoundError) as exc_info:
+            _load_config_dict_from_file(None)
     assert "Config not found" in str(exc_info.value)
     assert "config.yaml" in str(exc_info.value)
 
