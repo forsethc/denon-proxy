@@ -319,7 +319,7 @@ def avr_response_broadcast_lines(message: str) -> list[str]:
     return lines
 
 
-def _is_valid_client_command(command: str) -> bool:
+def _is_valid_client_command(command: str) -> tuple[bool, str | None]:
     """
     Basic validation for Denon telnet commands from clients.
 
@@ -327,11 +327,11 @@ def _is_valid_client_command(command: str) -> bool:
     Filters out telnet negotiation bytes and obviously invalid input.
     """
     if len(command) < 2:
-        return False
+        return False, "Command too short"
     # Filter out telnet negotiation bytes if any leak through
     if any(ord(c) < 32 and c not in "\r\n\t" for c in command):
-        return False
-    return True
+        return False, "Command contains telnet negotiation bytes"
+    return True, None
 
 
 # -----------------------------------------------------------------------------
@@ -394,7 +394,16 @@ class ClientHandler(asyncio.Protocol):
 
     def _handle_command(self, command: str) -> None:
         """Process and forward a client command to the AVR."""
-        if not _is_valid_client_command(command):
+        valid, err = _is_valid_client_command(command)
+        if not valid:
+            client_ip = self._peername[0] if self._peername else "?"
+            client_display = self.config.client_display_for_log(client_ip)
+            self.logger.debug(
+                "Rejected invalid command from %s: %r (%s)",
+                client_display,
+                command,
+                err,
+            )
             return
 
         client_ip = self._peername[0] if self._peername else "?"
