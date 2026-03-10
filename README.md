@@ -125,11 +125,12 @@ docker run -d --name denon-proxy \
 3. Enter the proxy's IP address when prompted
 4. The Home Assistant integration does not support custom ports — the proxy must run on port 23.
 
-### UC Remote 3
+### Unfolded Circle Remote 3
 
 1. Add a new device
 2. Select Denon AVR
 3. Enter the proxy's IP address (and port if not 23)
+>>  **Note:** I recommend selecting .5 as the volume step (the default is 1). If it's not .5, the remote always sends an exact volume to go to, instead of just MVUP or MVDOWN.  This means that when the remote first wakes up and doesn't know what volume the AVR is at, it will default to 65.  If you press either the volume up or down buttons, it will go to 66 or 64, which can be a large jump in volume at once (mine is generally between 45-50).
 
 ### Telnet
 
