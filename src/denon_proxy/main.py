@@ -120,12 +120,12 @@ def _load_config_dict_from_file(config_path: Path | None) -> dict:
 
 def _load_dashboard_html(path: Path | None = None) -> str | None:
     """
-    Load the Web UI HTML dashboard from web_ui.html next to this file.
+    Load the Web UI HTML dashboard from http/web_ui.html.
 
     Returns the HTML string, or None if the file is missing or unreadable.
-    path: optional path for tests; when None, uses web_ui.html next to this file.
+    path: optional path for tests; when None, uses http/web_ui.html in this package.
     """
-    html_path = path if path is not None else Path(__file__).with_name("web_ui.html")
+    html_path = path if path is not None else Path(__file__).parent / "http" / "web_ui.html"
     try:
         return html_path.read_text(encoding="utf-8")
     except OSError:
