@@ -8,9 +8,9 @@ integration and UC Remote 3.
 Can be used standalone (discovery + HTTP API for testing) or wired to a proxy.
 
 Usage (standalone):
-    from runtime_state import RuntimeState
-    from avr_state import AVRState
-    from avr_discovery import run_discovery_servers
+    from denon_proxy.runtime.state import RuntimeState
+    from denon_proxy.avr.state import AVRState
+    from denon_proxy.avr.discovery import run_discovery_servers
 
     async def main():
         avr_state = AVRState()
@@ -20,8 +20,8 @@ Usage (standalone):
         await run_discovery_servers(config, logger, avr_state, runtime_state)
 
 Usage (with denon-proxy):
-    from avr_connection import create_avr_connection
-    from avr_discovery import run_discovery_servers
+    from denon_proxy.avr.connection import create_avr_connection
+    from denon_proxy.avr.discovery import run_discovery_servers
     avr = create_avr_connection(config, avr_state, on_response, on_disconnect, logger)
     # Returns AVRConnection (physical) or VirtualAVRConnection (no avr_host) - opaque to caller
 """
@@ -37,14 +37,14 @@ import struct
 import xml.etree.ElementTree as ET
 from typing import Callable
 
-from avr_info import AVRInfo
-from config import Config, DEFAULT_SSDP_HTTP_PORT
-from runtime_state import RuntimeState
-from runtime_utils import is_docker_internal_ip
+from denon_proxy.avr.info import AVRInfo
+from denon_proxy.runtime.config import Config, DEFAULT_SSDP_HTTP_PORT
+from denon_proxy.runtime.state import RuntimeState
+from denon_proxy.utils.utils import is_docker_internal_ip
 import httpx
 
-from avr_state import AVRState, volume_to_db
-from constants import (
+from denon_proxy.avr.state import AVRState, volume_to_db
+from denon_proxy.constants import (
     DEFAULT_SSDP_HTTP_PORT,
     DEMO_SOURCES,
     DENON_AIOS_HTTP_PORT,

@@ -10,11 +10,13 @@ Run by class:
 import sys
 from pathlib import Path
 
-# Ensure project root is on sys.path so root-level modules (avr_connection,
-# denon_proxy, http_server, etc.) import regardless of pytest cwd.
+# Ensure project root and src/ are on sys.path so modules import regardless of pytest cwd.
 _root = Path(__file__).resolve().parent.parent
-if str(_root) not in sys.path:
-    sys.path.insert(0, str(_root))
+_src = _root / "src"
+for p in (_root, _src):
+    s = str(p)
+    if s not in sys.path:
+        sys.path.insert(0, s)
 
 import pytest
 

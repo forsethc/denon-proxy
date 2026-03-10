@@ -14,7 +14,7 @@ import asyncio
 
 import pytest
 
-from constants import SSDP_MCAST_GRP, SSDP_MCAST_PORT
+from denon_proxy.constants import SSDP_MCAST_GRP, SSDP_MCAST_PORT
 
 
 async def _http_get(host: str, port: int, path: str) -> tuple[int, bytes]:

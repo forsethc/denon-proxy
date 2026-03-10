@@ -1,19 +1,19 @@
 import logging
 
-from avr_info import AVRInfo
-from runtime_state import RuntimeState
-from avr_state import AVRState
-from denon_proxy import (
+from denon_proxy.avr.info import AVRInfo
+from denon_proxy.avr.state import AVRState
+from denon_proxy.main import (
     DenonProxyServer,
     _client_ip_for_display,
     _command_group,
     _is_valid_client_command,
     _should_log_command_info,
-    load_config_from_dict,
     avr_response_broadcast_lines,
     build_json_state,
+    load_config_from_dict,
     state_and_config_updates_from_denonavr,
 )
+from denon_proxy.runtime.state import RuntimeState
 
 
 def test_client_ip_for_display_returns_ip_or_question_mark():

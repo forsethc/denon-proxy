@@ -12,11 +12,11 @@ import asyncio
 import logging
 from typing import Any, Callable
 
-from config import Config
-from constants import AVR_NETWORK_TIMEOUT, REQUEST_STATE_INTERVAL
+from denon_proxy.runtime.config import Config
+from denon_proxy.constants import AVR_NETWORK_TIMEOUT, REQUEST_STATE_INTERVAL
 
-from avr_state import AVRState
-from telnet_utils import parse_telnet_lines, telnet_line_to_bytes
+from denon_proxy.avr.state import AVRState
+from denon_proxy.avr.telnet_utils import parse_telnet_lines, telnet_line_to_bytes
 
 # -----------------------------------------------------------------------------
 # AVR Connection - telnet connection to physical AVR

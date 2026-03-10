@@ -1,6 +1,6 @@
 """Unit tests for AVRInfo: describe, has_sources, raw_sources coercion, udn_serial."""
 
-from avr_info import AVRInfo
+from denon_proxy.avr.info import AVRInfo
 
 
 # --- describe() ---

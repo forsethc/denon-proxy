@@ -11,7 +11,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 import re
 
-from constants import DEFAULT_MAX_VOLUME, VOLUME_DEFAULT_LEVEL, VOLUME_REFERENCE_LEVEL
+from denon_proxy.constants import DEFAULT_MAX_VOLUME, VOLUME_DEFAULT_LEVEL, VOLUME_REFERENCE_LEVEL
 
 
 def _normalize_smart_select(value: str | None) -> str | None:

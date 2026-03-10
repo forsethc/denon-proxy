@@ -8,8 +8,8 @@ from unittest.mock import patch
 
 import pytest
 
-from avr_connection import AVRConnection
-from avr_state import AVRState
+from denon_proxy.avr.connection import AVRConnection
+from denon_proxy.avr.state import AVRState
 
 
 def _make_avr(host: str, port: int):
@@ -60,9 +60,11 @@ async def test_avr_connection_connect_fails_when_nothing_listening():
     avr, _state, _r, _d = _make_avr("127.0.0.1", 31999)
     # Cap connect timeout at 1s so test stays fast (production uses 5s)
     real_wait_for = asyncio.wait_for
+
     def capped_wait_for(aw, timeout=5.0):
         return real_wait_for(aw, timeout=min(timeout, 1.0))
-    with patch("avr_connection.asyncio.wait_for", capped_wait_for):
+
+    with patch("denon_proxy.avr.connection.asyncio.wait_for", capped_wait_for):
         result = await avr.connect()
     assert result is False
     assert avr.is_connected() is False

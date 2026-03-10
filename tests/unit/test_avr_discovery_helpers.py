@@ -1,9 +1,9 @@
 """Unit tests: avr_discovery helpers (get_sources, deviceinfo_xml, description_xml, etc.)."""
 import logging
 
-from avr_info import AVRInfo
-from runtime_state import RuntimeState
-from avr_discovery import (
+from denon_proxy.avr.info import AVRInfo
+from denon_proxy.runtime.state import RuntimeState
+from denon_proxy.avr.discovery import (
     get_advertise_ip,
     _get_proxy_friendly_name as get_proxy_friendly_name,
     _get_sources as get_sources,

@@ -1,4 +1,4 @@
-from http_server import parse_http_request
+from denon_proxy.http.server import parse_http_request
 
 
 def test_parse_http_request_incomplete_returns_none():

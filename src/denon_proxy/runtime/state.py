@@ -10,11 +10,11 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Callable
 
-from avr_info import AVRInfo
-from runtime_utils import get_resolved_port as _get_resolved_port
+from denon_proxy.avr.info import AVRInfo
+from denon_proxy.utils.utils import get_resolved_port as _get_resolved_port
 
 if TYPE_CHECKING:
-    from config import Config
+    from denon_proxy.runtime.config import Config
 
 class RuntimeState:
     """

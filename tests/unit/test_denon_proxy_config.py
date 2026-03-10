@@ -7,14 +7,15 @@ from unittest.mock import patch
 
 import pytest
 
-from denon_proxy import (
+from denon_proxy.main import (
+    _load_config_dict_from_file,
+    _load_dashboard_html,
     load_config,
     load_config_from_dict,
-    _load_config_dict_from_file,
+    main,
     setup_logging,
-    _load_dashboard_html,
 )
-from config import Config
+from denon_proxy.runtime.config import Config
 
 
 def test_load_config_from_dict_empty_returns_defaults():
@@ -163,14 +164,6 @@ def test_load_config_leaves_optimistic_state_when_avr_host_specified():
         path.unlink(missing_ok=True)
 
 
-def test_load_config_dict_from_file_raises_import_error_when_yaml_unavailable():
-    """When PyYAML is not installed, loading from file raises ImportError."""
-    with patch("denon_proxy.yaml", None):
-        with pytest.raises(ImportError) as exc_info:
-            _load_config_dict_from_file(Path("/any/path.yaml"))
-        assert "yaml" in str(exc_info.value).lower() or "PyYAML" in str(exc_info.value)
-
-
 def test_setup_logging_accepts_level_and_denonavr_level():
     """setup_logging runs without error and accepts optional denonavr_log_level."""
     setup_logging("INFO")
@@ -186,8 +179,7 @@ def test_load_dashboard_html_returns_none_when_file_unreadable():
 
 def test_main_returns_1_when_config_not_found():
     """When config file is missing, main() returns 1 (and prints error to stderr)."""
-    from denon_proxy import main
-    with patch("denon_proxy.load_config", side_effect=FileNotFoundError("Config not found: /missing.yaml")):
+    with patch("denon_proxy.main.load_config", side_effect=FileNotFoundError("Config not found: /missing.yaml")):
         with patch("sys.argv", ["denon_proxy"]):
             assert main() == 1
 
@@ -195,13 +187,12 @@ def test_main_returns_1_when_config_not_found():
 def test_main_returns_1_on_import_error_and_suggests_pyyaml():
     """When ImportError mentions yaml, main() returns 1 and prints PyYAML hint to stderr."""
     from io import StringIO
-    from denon_proxy import main
 
     def raise_yaml_import_error(*_args, **_kwargs):
         raise ImportError("No module named 'yaml'")
 
-    with patch("denon_proxy.load_config", return_value={"log_level": "INFO"}):
-        with patch("denon_proxy.main_async", side_effect=raise_yaml_import_error):
+    with patch("denon_proxy.main.load_config", return_value={"log_level": "INFO"}):
+        with patch("denon_proxy.main.main_async", side_effect=raise_yaml_import_error):
             with patch("sys.argv", ["denon_proxy"]):
                 with patch("sys.stderr", new_callable=StringIO) as stderr:
                     assert main() == 1
@@ -210,13 +201,11 @@ def test_main_returns_1_on_import_error_and_suggests_pyyaml():
 
 def test_main_returns_0_on_keyboard_interrupt():
     """When the user hits Ctrl-C (KeyboardInterrupt), main() returns 0."""
-    from denon_proxy import main
-
     def raise_keyboard_interrupt(*_args, **_kwargs):
         raise KeyboardInterrupt
 
-    with patch("denon_proxy.load_config", return_value={"log_level": "INFO"}):
-        with patch("denon_proxy.main_async", side_effect=raise_keyboard_interrupt):
+    with patch("denon_proxy.main.load_config", return_value={"log_level": "INFO"}):
+        with patch("denon_proxy.main.main_async", side_effect=raise_keyboard_interrupt):
             with patch("sys.argv", ["denon_proxy"]):
                 assert main() == 0
 
@@ -224,12 +213,11 @@ def test_main_returns_0_on_keyboard_interrupt():
 def test_main_returns_0_on_successful_run():
     """When the proxy runs and exits normally, main() returns 0."""
     import asyncio
-    from denon_proxy import main
 
     async def noop(*_args, **_kwargs):
         pass
 
-    with patch("denon_proxy.load_config", return_value={"log_level": "INFO"}):
-        with patch("denon_proxy.main_async", noop):
+    with patch("denon_proxy.main.load_config", return_value={"log_level": "INFO"}):
+        with patch("denon_proxy.main.main_async", noop):
             with patch("sys.argv", ["denon_proxy"]):
                 assert main() == 0

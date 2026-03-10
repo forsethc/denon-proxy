@@ -18,9 +18,9 @@ import json
 import logging
 from typing import Any, Callable, Set
 
-from config import Config, DEFAULT_HTTP_PORT
-from runtime_state import RuntimeState
-from runtime_utils import resolve_listening_port
+from denon_proxy.runtime.config import Config, DEFAULT_HTTP_PORT
+from denon_proxy.runtime.state import RuntimeState
+from denon_proxy.utils.utils import resolve_listening_port
 
 def parse_http_request(buffer: bytes) -> tuple[str, str, bytes, bytes] | None:
     """

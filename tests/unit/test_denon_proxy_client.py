@@ -7,9 +7,9 @@ import logging
 
 import pytest
 
-from runtime_state import RuntimeState
-from avr_state import AVRState
-from denon_proxy import ClientHandler
+from denon_proxy.runtime.state import RuntimeState
+from denon_proxy.avr.state import AVRState
+from denon_proxy.main import ClientHandler
 
 
 @pytest.mark.asyncio

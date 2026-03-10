@@ -1,5 +1,5 @@
-from constants import VOLUME_DEFAULT_LEVEL
-from avr_state import AVRState
+from denon_proxy.constants import VOLUME_DEFAULT_LEVEL
+from denon_proxy.avr.state import AVRState
 
 
 def test_update_from_message_updates_all_fields():

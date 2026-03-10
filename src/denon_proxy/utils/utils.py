@@ -11,8 +11,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from config import Config
-    from runtime_state import RuntimeState
+    from denon_proxy.runtime.config import Config
+    from denon_proxy.runtime.state import RuntimeState
 
 _DOCKER_NETWORKS = (
     ipaddress.IPv4Network("172.16.0.0/12"), # typical Docker bridge on Linux
