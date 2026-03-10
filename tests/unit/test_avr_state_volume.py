@@ -1,4 +1,4 @@
-from avr_state import volume_to_level, volume_to_db, _format_volume
+from denon_proxy.avr.state import volume_to_level, volume_to_db, _format_volume
 
 
 def test_volume_to_level_basic_and_half_steps():

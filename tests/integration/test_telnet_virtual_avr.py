@@ -7,9 +7,9 @@ import logging
 
 import pytest
 
-from runtime_state import RuntimeState
-from avr_connection import create_avr_connection
-from denon_proxy import DenonProxyServer, load_config_from_dict
+from denon_proxy.runtime.state import RuntimeState
+from denon_proxy.avr.connection import create_avr_connection
+from denon_proxy.main import DenonProxyServer, load_config_from_dict
 
 
 @pytest.fixture

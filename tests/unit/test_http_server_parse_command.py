@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from http_server import parse_command_request
+from denon_proxy.http.server import parse_command_request
 
 
 def test_parse_command_request_valid_returns_command_and_none():

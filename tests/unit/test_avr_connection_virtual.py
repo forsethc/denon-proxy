@@ -5,8 +5,8 @@ from __future__ import annotations
 import logging
 import pytest
 
-from avr_connection import VirtualAVRConnection
-from avr_state import AVRState
+from denon_proxy.avr.connection import VirtualAVRConnection
+from denon_proxy.avr.state import AVRState
 
 
 @pytest.mark.asyncio

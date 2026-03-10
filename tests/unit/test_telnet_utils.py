@@ -1,6 +1,6 @@
 """Unit tests for telnet_utils."""
 
-from telnet_utils import parse_telnet_lines, telnet_line_to_bytes
+from denon_proxy.avr.telnet_utils import parse_telnet_lines, telnet_line_to_bytes
 
 
 def test_telnet_line_to_bytes():

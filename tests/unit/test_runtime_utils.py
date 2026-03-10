@@ -1,7 +1,7 @@
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from runtime_utils import (
+from denon_proxy.utils.utils import (
     get_resolved_port,
     is_docker_internal_ip,
     is_running_in_docker,

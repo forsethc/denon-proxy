@@ -1,3 +1,5 @@
+"""Configuration model and loading for denon-proxy."""
+
 from __future__ import annotations
 
 from collections.abc import Iterator, Mapping
@@ -6,7 +8,7 @@ from typing import Any, Mapping as TypingMapping
 
 import os
 
-from constants import (
+from denon_proxy.constants import (
     DEFAULT_AVR_PORT,
     DEFAULT_HTTP_PORT,
     DEFAULT_PROXY_PORT,
