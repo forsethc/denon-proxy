@@ -40,16 +40,16 @@ pip install -r requirements.txt
 
 ### Running — config file (recommended)
 
-Create `config.yaml` at the project root:
+Create `config.yaml` in the **project root** (the `denon-proxy` directory—same folder as `requirements.txt` and `src/`):
 
 ```yaml
 avr_host: "192.168.1.100"   # Your Denon AVR's IP
 ```
 
-Then run (activate venv first if using one):
+Then run from the project root (activate venv first if using one). The app runs as a module; ensure `src` is on `PYTHONPATH`. The `--config` path is relative to your current directory:
 
 ```bash
-python denon_proxy.py
+PYTHONPATH=src python -m denon_proxy.main --config config.yaml
 ```
 
 ### Running — environment override
@@ -57,7 +57,7 @@ python denon_proxy.py
 Run without a config file:
 
 ```bash
-AVR_HOST=192.168.1.100 python denon_proxy.py
+PYTHONPATH=src AVR_HOST=192.168.1.100 python -m denon_proxy.main
 ```
 
 For more options (ports, SSDP, logging, etc.), see [CONFIG.md](docs/CONFIG.md).
@@ -77,7 +77,7 @@ For more, see [Connecting Clients](#connecting-clients).
 
 ## Docker
 
-Create a `config.yaml` from `config.sample.yaml` (recommended), then edit it with your AVR host and other settings.
+Put `config.yaml` in the project root (or the directory you run `docker compose` from). Create it from the sample (recommended), then edit with your AVR host and other settings.
 You can still override individual values with environment variables by:
 
 - Updating the `environment:` section in `docker-compose.yml`, or

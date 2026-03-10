@@ -4,13 +4,15 @@ This document covers project structure, architecture, testing, and releasing for
 
 ## Project Structure
 
-- [**`denon_proxy.py`**](../denon_proxy.py) – Main proxy: Telnet multiplexer, client handling, AVR connection
-- [**`http_server.py`**](../http_server.py) – Optional HTTP server: JSON API + SSE (status, commands) and Web UI wiring; only used when the HTTP interface is enabled
-- [**`web_ui.html`**](../web_ui.html) – HTML dashboard for the browser UI, served only when the HTTP interface is enabled
-- [**`avr_state.py`**](../avr_state.py) – Canonical Denon state model (`AVRState`) and volume presentation helpers; used by proxy, connection, and discovery
-- [**`avr_connection.py`**](../avr_connection.py) – AVR I/O: physical Telnet connection or in-process virtual AVR (same interface for the proxy)
-- [**`avr_discovery.py`**](../avr_discovery.py) – AVR discovery: HTTP/SSDP (device discovery, Deviceinfo, AppCommand, MainZone XML). Used by the proxy when SSDP is enabled; can also be used standalone for testing
-- [**`runtime_utils.py`**](../runtime_utils.py) – Runtime/environment helpers: container detection (`is_running_in_docker`), internal IP classification (`is_docker_internal_ip`), version from git
+Source code lives under **`src/denon_proxy/`**. Run from the project root with `PYTHONPATH=src python -m denon_proxy.main`.
+
+- [**`main.py`**](../src/denon_proxy/main.py) – Entry point and main proxy: Telnet multiplexer, client handling, AVR connection
+- [**`http/server.py`**](../src/denon_proxy/http/server.py) – Optional HTTP server: JSON API + SSE (status, commands) and Web UI wiring; only used when the HTTP interface is enabled
+- [**`http/web_ui.html`**](../src/denon_proxy/http/web_ui.html) – HTML dashboard for the browser UI, served only when the HTTP interface is enabled
+- [**`avr/state.py`**](../src/denon_proxy/avr/state.py) – Canonical Denon state model (`AVRState`) and volume presentation helpers; used by proxy, connection, and discovery
+- [**`avr/connection.py`**](../src/denon_proxy/avr/connection.py) – AVR I/O: physical Telnet connection or in-process virtual AVR (same interface for the proxy)
+- [**`avr/discovery.py`**](../src/denon_proxy/avr/discovery.py) – AVR discovery: HTTP/SSDP (device discovery, Deviceinfo, AppCommand, MainZone XML). Used by the proxy when SSDP is enabled; can also be used standalone for testing
+- [**`utils/utils.py`**](../src/denon_proxy/utils/utils.py) – Runtime/environment helpers: container detection (`is_running_in_docker`), internal IP classification (`is_docker_internal_ip`), version from git
 
 ## State and configuration
 
@@ -18,10 +20,10 @@ The proxy keeps configuration and runtime data in four distinct layers. Keeping 
 
 | Class | Module | Role |
 |-------|--------|------|
-| **Config** | `config.py` | User- and environment-driven inputs (avr_host, proxy_port, sources override, etc.). Immutable after parse; read via mapping interface. |
-| **AVRInfo** | `avr_info.py` | AVR identity and capabilities discovered at runtime (manufacturer, model, serial, friendly name, raw input sources). Frozen dataclass; set once at startup from HTTP sync (or `unknown`/`virtual` placeholders). |
-| **RuntimeState** | `runtime_state.py` | Resolved, cached views derived from Config + AVRInfo: resolved sources, resolved friendly name, chosen ports (when config uses 0), and callbacks (e.g. notify Web UI). Single mutable instance passed through proxy and discovery. |
-| **AVRState** | `avr_state.py` | Live AVR state (power, volume, input, mute, sound mode, smart select). Updated from Telnet responses; used by proxy, connection, and discovery for JSON/XML and optimistic updates. |
+| **Config** | `runtime.config` | User- and environment-driven inputs (avr_host, proxy_port, sources override, etc.). Immutable after parse; read via mapping interface. |
+| **AVRInfo** | `avr.info` | AVR identity and capabilities discovered at runtime (manufacturer, model, serial, friendly name, raw input sources). Frozen dataclass; set once at startup from HTTP sync (or `unknown`/`virtual` placeholders). |
+| **RuntimeState** | `runtime.state` | Resolved, cached views derived from Config + AVRInfo: resolved sources, resolved friendly name, chosen ports (when config uses 0), and callbacks (e.g. notify Web UI). Single mutable instance passed through proxy and discovery. |
+| **AVRState** | `avr.state` | Live AVR state (power, volume, input, mute, sound mode, smart select). Updated from Telnet responses; used by proxy, connection, and discovery for JSON/XML and optimistic updates. |
 
 - **Config** → never mutated after load; overrides come from env vars at startup.
 - **AVRInfo** → immutable value; the reference in RuntimeState is set once after discovery (or virtual/unknown).
