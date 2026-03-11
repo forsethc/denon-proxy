@@ -6,10 +6,9 @@ server port resolution, and version from git.
 from __future__ import annotations
 
 import ipaddress
-import subprocess
+from importlib import metadata
 from pathlib import Path
 from typing import TYPE_CHECKING
-from importlib import metadata
 
 if TYPE_CHECKING:
     from denon_proxy.runtime.config import Config
@@ -23,45 +22,12 @@ _DOCKER_NETWORKS = (
 
 def get_version() -> str:
     """
-    Get version from git describe when in a git repo, else from installed package metadata.
+    Get version from installed package metadata provided by setuptools-scm.
 
-    Preferred behaviour:
-    - If we can see a .git directory, run `git describe --tags --always --dirty`
-      from the repository root so local dev builds show the current commit and
-      dirty state.
-    - Otherwise, or if git is unavailable, fall back to the installed package
-      metadata (importlib.metadata.version).
-    - If neither is available, return 'unknown'.
+    setuptools-scm derives the version from Git tags and the current state
+    (including local version information such as commits since tag and
+    dirty status), and exposes it via importlib.metadata.
     """
-    path = Path(__file__).resolve()
-    root: Path | None = None
-
-    # Walk upwards to find a plausible project root: a git repo if available.
-    for candidate in (path, *path.parents):
-        if (candidate / ".git").exists():
-            root = candidate
-            break
-    if root is None:
-        root = path.parent
-
-    # Prefer git when available (local dev, accurate and includes dirty state)
-    git_dir = root / ".git"
-    if git_dir.exists() and git_dir.is_dir():
-        try:
-            r = subprocess.run(
-                ["git", "describe", "--tags", "--always", "--dirty"],
-                capture_output=True,
-                text=True,
-                timeout=2,
-                cwd=root,
-            )
-            if r.returncode == 0 and r.stdout.strip():
-                return r.stdout.strip()
-        except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
-            # Ignore git issues and fall back to VERSION.
-            pass
-
-    # Fallback: package metadata (works for normal pip installs)
     try:
         return metadata.version("denon-proxy")
     except metadata.PackageNotFoundError:
