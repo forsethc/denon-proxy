@@ -23,6 +23,12 @@ test = [
   "PyYAML>=6.0",
 ]
 
+[project.urls]
+Homepage = "https://github.com/forsethc/denon-proxy"
+Repository = "https://github.com/forsethc/denon-proxy"
+Documentation = "https://github.com/forsethc/denon-proxy#readme"
+Issues = "https://github.com/forsethc/denon-proxy/issues"
+
 [project.scripts]
 denon-proxy = "denon_proxy.cli:main"
 
