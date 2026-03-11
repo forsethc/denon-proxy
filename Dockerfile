@@ -14,9 +14,10 @@ COPY src /app/src
 COPY config.sample.yaml config.yaml
 
 # Mount .git so setuptools-scm can infer version from tags (no copy into image).
+# SOURCE_DATE_EPOCH pins the local-scheme timestamp so wheel filename matches metadata; otherwise pip fails the build.
 # Requires Docker BuildKit (default in Docker 23+).
 RUN --mount=source=.git,target=.git,type=bind \
-    pip install --no-cache-dir .
+    SOURCE_DATE_EPOCH=$(date +%s) pip install --no-cache-dir .
 
 EXPOSE 23 8080 8081 80 60006 1900/udp
 
