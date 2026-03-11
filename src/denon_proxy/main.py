@@ -741,7 +741,10 @@ class DenonProxyServer:
 async def main_async(config: Config) -> None:
     """Run the proxy server."""
     logger = logging.getLogger("denon-proxy")
-    logger.debug("Starting proxy with config:\n%s", pprint.pformat(config))
+    logger.debug(
+        "Starting proxy with config:\n%s",
+        pprint.pformat(dict(config), width=88, sort_dicts=True),
+    )
     runtime_state = RuntimeState()
     runtime_state.version = get_version()
     logger.info("denon-proxy %s", runtime_state.version)
