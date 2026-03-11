@@ -43,6 +43,7 @@ import httpx
 
 from denon_proxy.avr.connection import AVRConnection, VirtualAVRConnection, create_avr_connection
 from denon_proxy.avr.discovery import get_advertise_ip, run_discovery_servers
+from pydantic import ValidationError
 from denon_proxy.runtime.config import Config, DEFAULT_AVR_PORT, DEFAULT_HTTP_PORT, DEFAULT_PROXY_PORT, DEFAULT_SSDP_HTTP_PORT
 from denon_proxy.constants import (
     DENONAVR_SYNC_TIMEOUT,
@@ -821,6 +822,18 @@ def main() -> int:
     except FileNotFoundError as e:
         print(str(e), file=sys.stderr)
         return 1
+    except ValidationError as e:
+        print("Config validation failed:", file=sys.stderr)
+        for err in e.errors():
+            loc = ".".join(str(x) for x in err["loc"])
+            msg = err.get("msg", "")
+            print(f"  {loc}: {msg}", file=sys.stderr)
+        return 1
+    except Exception as e:
+        if yaml is not None and isinstance(e, yaml.YAMLError):
+            print("Invalid YAML in config file:", str(e), file=sys.stderr)
+            return 1
+        raise
     setup_logging(config["log_level"], config.get("denonavr_log_level"))
 
     try:
