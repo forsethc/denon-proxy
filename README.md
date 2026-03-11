@@ -146,6 +146,16 @@ python -m denon_proxy.cli <command> [options]
 
 Common commands:
 
+- **`run`**: start the proxy server (same behavior as `python -m denon_proxy.main`).
+
+  ```bash
+  # Use config.yaml in the current directory
+  python -m denon_proxy.cli run
+
+  # Or specify a config file explicitly
+  python -m denon_proxy.cli run --config /path/to/config.yaml
+  ```
+
 - **`version`**: print the installed denon-proxy version.
 
   ```bash

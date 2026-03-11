@@ -6,7 +6,7 @@ from pathlib import Path
 
 from pydantic import ValidationError
 
-from denon_proxy.main import _load_config_and_report_errors
+from denon_proxy.main import _load_config_and_report_errors, run_proxy
 from denon_proxy.utils.utils import get_version
 
 
@@ -35,6 +35,22 @@ def _add_check_config_subcommand(subparsers: argparse._SubParsersAction) -> None
     parser.set_defaults(func=_cmd_check_config)
 
 
+def _add_run_subcommand(subparsers: argparse._SubParsersAction) -> None:
+    parser = subparsers.add_parser(
+        "run",
+        help="Start the proxy server",
+        description="Start the Denon AVR proxy server.",
+    )
+    parser.add_argument(
+        "--config",
+        "-c",
+        type=Path,
+        default=None,
+        help="Path to config YAML (default: config.yaml in current working directory)",
+    )
+    parser.set_defaults(func=_cmd_run)
+
+
 def _cmd_version(args: argparse.Namespace) -> int:  # noqa: ARG001
     """Print the current denon-proxy version."""
     print(get_version())
@@ -49,6 +65,11 @@ def _cmd_check_config(args: argparse.Namespace) -> int:
 
     print("Configuration is valid.")
     return 0
+
+
+def _cmd_run(args: argparse.Namespace) -> int:
+    """Start the proxy server (same behavior as python -m denon_proxy.main)."""
+    return run_proxy(args.config)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -69,6 +90,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     _add_version_subcommand(subparsers)
     _add_check_config_subcommand(subparsers)
+    _add_run_subcommand(subparsers)
 
     return parser
 

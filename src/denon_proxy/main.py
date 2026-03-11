@@ -838,6 +838,31 @@ def _load_config_and_report_errors(config_path: Path | None) -> Config | None:
     return None
 
 
+def run_proxy(config_path: Path | None) -> int:
+    """
+    Run the proxy server given an optional config path.
+
+    Shared by the module entrypoint (__main__) and the CLI 'run' subcommand.
+    """
+    config = _load_config_and_report_errors(config_path)
+    if config is None:
+        return 1
+
+    setup_logging(config["log_level"], config.get("denonavr_log_level"))
+
+    try:
+        asyncio.run(main_async(config))
+    except KeyboardInterrupt:
+        return 0
+    except ImportError as e:
+        if "yaml" in str(e).lower():
+            print("Install PyYAML: pip install pyyaml", file=sys.stderr)
+        else:
+            print(f"Import error: {e}", file=sys.stderr)
+        return 1
+    return 0
+
+
 def main() -> int:
     """Parse arguments and run the proxy."""
     parser = argparse.ArgumentParser(
@@ -851,23 +876,7 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    config = _load_config_and_report_errors(args.config)
-    if config is None:
-        return 1
-
-    setup_logging(config["log_level"], config.get("denonavr_log_level"))
-
-    try:
-        asyncio.run(main_async(config))
-    except KeyboardInterrupt:
-        pass
-    except ImportError as e:
-        if "yaml" in str(e).lower():
-            print("Install PyYAML: pip install pyyaml", file=sys.stderr)
-        else:
-            print(f"Import error: {e}", file=sys.stderr)
-        return 1
-    return 0
+    return run_proxy(args.config)
 
 
 if __name__ == "__main__":

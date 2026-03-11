@@ -52,6 +52,16 @@ def test_cli_check_config_invalid(monkeypatch: pytest.MonkeyPatch) -> None:
     assert "avr_port" in out
 
 
+def test_cli_run_uses_helper_and_runs_server(monkeypatch: pytest.MonkeyPatch) -> None:
+    """run subcommand delegates to main.run_proxy and returns its code."""
+    import denon_proxy.cli as cli_mod
+
+    monkeypatch.setattr(cli_mod, "run_proxy", lambda path: 7)
+
+    rc = cli_main(["run"])
+    assert rc == 7
+
+
 def test_cli_version_subcommand_prints_version(monkeypatch: pytest.MonkeyPatch) -> None:
     """version subcommand prints version and exits 0."""
     import denon_proxy.cli as cli_mod
