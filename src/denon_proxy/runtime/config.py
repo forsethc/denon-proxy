@@ -189,10 +189,12 @@ class Config(BaseModel, Mapping[str, Any]):
         env: TypingMapping[str, str] | None = None,
     ) -> "Config":
         """
-        Build Config from raw dict (e.g. from YAML) with optional env overrides.
+        Build Config from a raw dict (e.g. from YAML) and apply env overrides.
 
-        This is a convenience wrapper used by load_config/load_config_from_dict
-        so tests can exercise pure dict + env behavior without file I/O.
+        This helper is used by load_config, which expects environment-variable
+        overrides to be applied via _apply_env_to_dict(). Callers that must avoid
+        env overrides (e.g. load_config_from_dict) should instead call
+        Config.model_validate(...) directly on the raw dict.
         """
         d: dict[str, Any] = dict(raw) if raw else {}
         _apply_env_to_dict(d, env)
