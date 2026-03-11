@@ -65,7 +65,7 @@ def _get_sources(config: Config, runtime_state: RuntimeState) -> list[tuple[str,
     Return list of (func_name, display_name) for input sources.
     func_name is the Denon code (e.g. CD, BD, HDMI1) used in SI commands.
     display_name is shown in Home Assistant.
-    Uses config['sources'] if provided (dict or list of [func, name] pairs).
+    Uses config['sources'] if provided (dict of func_code -> display_name).
     If no config mapping and runtime_state.avr_info.raw_sources exist, uses those.
     Otherwise DEMO_SOURCES. Cache is read/written on runtime_state.
     """
@@ -77,24 +77,11 @@ def _get_sources(config: Config, runtime_state: RuntimeState) -> list[tuple[str,
 
     if cfg:
         out: list[tuple[str, str]] = []
-        if isinstance(cfg, dict):
-            for func_name, display_name in cfg.items():
-                func_str = str(func_name).strip()
-                display_str = str(display_name).strip() if display_name else func_str
-                if func_str:
-                    out.append((func_str, display_str))
-        elif isinstance(cfg, (list, tuple)):
-            for item in cfg:
-                if isinstance(item, (list, tuple)) and len(item) >= 2:
-                    func_str = str(item[0]).strip()
-                    display_str = str(item[1]).strip() if item[1] else func_str
-                    if func_str:
-                        out.append((func_str, display_str))
-                elif isinstance(item, dict):
-                    func_name = item.get("func") or item.get("func_name") or item.get("source")
-                    display_name = item.get("name") or item.get("display_name") or func_name
-                    if func_name:
-                        out.append((str(func_name).strip(), str(display_name).strip() if display_name else str(func_name).strip()))
+        for func_name, display_name in cfg.items():
+            func_str = str(func_name).strip()
+            display_str = str(display_name).strip() if display_name else func_str
+            if func_str:
+                out.append((func_str, display_str))
         # Filter out sources that don't exist on the AVR
         if raw_sources:
             valid_funcs = {str(func).strip() for func, _ in raw_sources if func}

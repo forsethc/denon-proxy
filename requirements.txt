@@ -9,3 +9,6 @@ PyYAML>=6.0
 
 # Async HTTP (dependency of denonavr, explicit for clarity)
 httpx>=0.24.0
+
+# Config validation
+pydantic>=2.0

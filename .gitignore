@@ -7,8 +7,8 @@ __pycache__/
 *$py.class
 *.so
 .Python
-*.egg-info/
 build/
+*.egg-info/
 venv/
 .venv/
 env/
