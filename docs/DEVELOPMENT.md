@@ -17,10 +17,10 @@ Source code lives under **`src/denon_proxy/`**.
 
 For local development, you can either:
 
-- Install the package in editable mode and use the CLI:
+- Install the package in editable mode (with test extras) and use the CLI:
 
   ```bash
-  pip install -e .
+  pip install -e '.[test]'
   denon-proxy run --config config.yaml
   ```
 

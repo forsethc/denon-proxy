@@ -15,6 +15,20 @@ dependencies = [
   "pydantic>=2.0",
 ]
 
+[project.optional-dependencies]
+test = [
+  "pytest>=8.0.0",
+  "pytest-asyncio>=0.23.0",
+  "pytest-cov>=5.0.0",
+  "PyYAML>=6.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/forsethc/denon-proxy"
+Repository = "https://github.com/forsethc/denon-proxy"
+Documentation = "https://github.com/forsethc/denon-proxy#readme"
+Issues = "https://github.com/forsethc/denon-proxy/issues"
+
 [project.scripts]
 denon-proxy = "denon_proxy.cli:main"
 
@@ -29,5 +43,10 @@ package-dir = {"" = "src"}
 where = ["src"]
 
 [tool.setuptools.package-data]
-denon_proxy = ["http/web_ui.html"]
+denon_proxy = ["http/web_ui.html", "py.typed"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+asyncio_default_fixture_loop_scope = "function"
 
