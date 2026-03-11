@@ -45,7 +45,7 @@ INVALID_CONFIGS = [
     ),
     pytest.param(
         {"avr_port": 65536},
-        ["avr_port", "65535"] if "65535" in str((1, 65535)) else ["avr_port"],
+        ["avr_port", "65535"],
         id="avr_port_over_max",
     ),
     pytest.param(
@@ -85,7 +85,7 @@ INVALID_CONFIGS = [
     ),
     pytest.param(
         {"ssdp_advertise_ip": "not.an.ip"},
-        ["ssdp_advertise_ip", "ip", "address"] or ["Invalid"],
+        ["ssdp_advertise_ip", "ip", "address"],
         id="ssdp_advertise_ip_invalid",
     ),
     pytest.param(
@@ -115,7 +115,7 @@ INVALID_CONFIGS = [
     ),
     pytest.param(
         {"log_command_groups_info": ["power", "invalid_group"]},
-        ["invalid", "group"] or ["power", "volume", "input"],
+        ["invalid", "group"],
         id="log_command_groups_info_invalid_group",
     ),
     pytest.param(
@@ -135,7 +135,7 @@ INVALID_CONFIGS = [
     ),
     pytest.param(
         {"typo_key": "value"},
-        ["extra", "forbidden"] or ["typo_key"],
+        ["extra", "forbidden"],
         id="extra_key_forbidden",
     ),
     pytest.param(
