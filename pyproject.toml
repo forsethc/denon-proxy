@@ -43,7 +43,7 @@ package-dir = {"" = "src"}
 where = ["src"]
 
 [tool.setuptools.package-data]
-denon_proxy = ["http/web_ui.html"]
+denon_proxy = ["http/web_ui.html", "py.typed"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
