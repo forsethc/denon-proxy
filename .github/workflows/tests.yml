@@ -38,6 +38,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # full clone + tags so setuptools-scm can derive version in Docker build
 
       - name: Prepare config for Docker
         run: cp config.sample.yaml config.yaml
