@@ -274,5 +274,5 @@ def test_maximal_valid_config_accepted() -> None:
 def test_extra_key_forbidden() -> None:
     """Unknown top-level keys are rejected (extra='forbid')."""
     with pytest.raises(ValidationError) as exc_info:
-        Config.load_from_dict({"avr_host": "", "unknown_field": "x"})
+        Config.load_from_dict({"avr_host": "", "unknown_field": "x"}, env={})
     assert "extra" in str(exc_info.value).lower() or "unknown_field" in str(exc_info.value).lower()

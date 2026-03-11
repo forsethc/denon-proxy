@@ -141,11 +141,14 @@ class Config(BaseModel, Mapping[str, Any]):
                 )
         return v
 
-    @field_validator("sources")
+    @field_validator("sources", mode="before")
     @classmethod
-    def _sources_dict_str_str(cls, v: dict[str, str] | None):
+    def _sources_dict_str_str(cls, v: Any):
         """Ensure sources is a dict with string keys and string values."""
         if v is None:
+            return v
+        if not isinstance(v, dict):
+            # Let Pydantic's own type validation handle non-dict inputs.
             return v
         for k, val in v.items():
             if not isinstance(k, str) or not isinstance(val, str):
