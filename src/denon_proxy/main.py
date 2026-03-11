@@ -821,7 +821,7 @@ def _load_config_and_report_errors(config_path: Path | None) -> Config | None:
     except ImportError as e:
         # Handle missing PyYAML (or other imports) during config load.
         if "yaml" in str(e).lower():
-            print("PyYAML dependency missing; fix with: pip install -r requirements.txt", file=sys.stderr)
+            print("Install PyYAML: pip install pyyaml", file=sys.stderr)
         else:
             print(f"Import error while loading config: {e}", file=sys.stderr)
     except ValidationError as e:

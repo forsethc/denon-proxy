@@ -20,10 +20,9 @@ def test_cli_shows_help_when_no_command(capsys: pytest.CaptureFixture[str]) -> N
 
 def test_cli_check_config_valid(monkeypatch: pytest.MonkeyPatch) -> None:
     """check-config exits 0 and prints success for a valid config."""
-    import denon_proxy.main as main_mod
     import denon_proxy.cli as cli_mod
 
-    monkeypatch.setattr(main_mod, "_load_config_and_report_errors", lambda path: Config(log_level="INFO"))
+    monkeypatch.setattr(cli_mod, "_load_config_and_report_errors", lambda path: Config(log_level="INFO"))
     stdout = StringIO()
     with pytest.MonkeyPatch().context() as m:
         m.setattr("sys.stdout", stdout, raising=True)

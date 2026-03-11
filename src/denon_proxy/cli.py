@@ -4,8 +4,6 @@ import argparse
 import sys
 from pathlib import Path
 
-from pydantic import ValidationError
-
 from denon_proxy.main import _load_config_and_report_errors, run_proxy
 from denon_proxy.utils.utils import get_version
 
