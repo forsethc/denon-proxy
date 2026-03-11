@@ -53,8 +53,8 @@ class Config(BaseModel, Mapping[str, Any]):
     proxy_host: str = Field("0.0.0.0", min_length=1)
     # Ports may be 0 to allow OS-assigned ports in tests (bind to 0).
     proxy_port: int = Field(DEFAULT_PROXY_PORT, ge=0, le=65535)
-    log_level: str = Field("INFO", pattern="^(?i)(DEBUG|INFO|WARNING|ERROR)$")
-    denonavr_log_level: str = Field("INFO", pattern="^(?i)(DEBUG|INFO|WARNING|ERROR)$")
+    log_level: str = Field("INFO", pattern="(?i)^(DEBUG|INFO|WARNING|ERROR)$")
+    denonavr_log_level: str = Field("INFO", pattern="(?i)^(DEBUG|INFO|WARNING|ERROR)$")
     enable_ssdp: bool = True
     ssdp_http_port: int = Field(DEFAULT_SSDP_HTTP_PORT, ge=0, le=65535)
     ssdp_advertise_ip: str = ""
