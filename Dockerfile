@@ -1,23 +1,34 @@
-FROM python:3.12-slim
+# Stage 1: build with .git copied (writable) so we can git reset --hard and get a clean tree for setuptools-scm.
+FROM python:3.12-slim AS builder
 
 WORKDIR /app
 
-# Build deps for packages with C extensions (e.g. cryptography) and git for setuptools-scm
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     python3-dev \
     git \
     && rm -rf /var/lib/apt/lists/*
 
+COPY .git /app/.git
 COPY pyproject.toml README.md /app/
 COPY src /app/src
 COPY config.sample.yaml config.yaml
 
-# Mount .git so setuptools-scm can infer version from tags (no copy into image).
-# SOURCE_DATE_EPOCH pins the local-scheme timestamp so wheel filename matches metadata; otherwise pip fails the build.
-# Requires Docker BuildKit (default in Docker 23+).
-RUN --mount=source=.git,target=.git,type=bind \
-    SOURCE_DATE_EPOCH=$(date +%s) pip install --no-cache-dir .
+# Match working tree to HEAD so setuptools-scm does not see a dirty tree (COPY can change mtime/mode).
+RUN git reset --hard HEAD
+
+RUN SOURCE_DATE_EPOCH=$(date +%s) pip install --no-cache-dir --target /opt/app .
+
+# Stage 2: runtime image without .git.
+FROM python:3.12-slim
+
+WORKDIR /app
+
+COPY --from=builder /opt/app /opt/app
+COPY config.sample.yaml config.yaml
+
+ENV PATH="/opt/app/bin:$PATH" \
+    PYTHONPATH="/opt/app"
 
 EXPOSE 23 8080 8081 80 60006 1900/udp
 

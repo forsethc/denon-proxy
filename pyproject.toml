@@ -55,8 +55,8 @@ testpaths = ["tests"]
 asyncio_default_fixture_loop_scope = "function"
 
 [tool.setuptools_scm]
-version_scheme = "release-branch-semver"
-local_scheme = "node-and-timestamp"
+version_scheme = "guess-next-dev"
+local_scheme = "dirty-tag"
 
 [tool.ruff]
 target-version = "py310"
