@@ -1,7 +1,0 @@
-pytest>=8.0.0
-pytest-asyncio>=0.23.0
-pytest-cov>=5.0.0
-
-# For config file unit tests (load_config, _load_config_dict_from_file)
-PyYAML>=6.0
-

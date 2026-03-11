@@ -4,10 +4,10 @@ This project uses **pytest** (with `pytest-asyncio` for async tests and `pytest-
 
 ## Install test dependencies
 
-After installing runtime deps from `requirements.txt`:
+Install the project in editable mode with the `test` extra (this installs pytest and related tools):
 
 ```bash
-pip install -r tests/requirements.txt
+pip install -e '.[test]'
 ```
 
 ## Running tests
