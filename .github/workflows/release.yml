@@ -32,6 +32,24 @@ jobs:
           fetch-depth: 0
           ssh-key: ${{ secrets.RELEASE_DEPLOY_KEY }}
 
+      - name: Update pyproject.toml version
+        run: |
+          python - << 'PY'
+          from pathlib import Path
+          import re
+
+          path = Path("pyproject.toml")
+          text = path.read_text(encoding="utf-8")
+          version = "${{ github.event.inputs.version }}"
+          new_text = re.sub(
+              r'^version\s*=\s*".*"$',
+              f'version = "{version}"',
+              text,
+              flags=re.MULTILINE,
+          )
+          path.write_text(new_text, encoding="utf-8")
+          PY
+
       - name: Write VERSION file
         run: echo "v${{ github.event.inputs.version }}" > VERSION
 
@@ -39,7 +57,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add VERSION
+          git add VERSION pyproject.toml
           git diff --staged --quiet || git commit -m "Release v${{ github.event.inputs.version }}"
           git push
 

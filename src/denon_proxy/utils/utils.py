@@ -9,6 +9,7 @@ import ipaddress
 import subprocess
 from pathlib import Path
 from typing import TYPE_CHECKING
+from importlib import metadata
 
 if TYPE_CHECKING:
     from denon_proxy.runtime.config import Config
@@ -69,9 +70,13 @@ def get_version() -> str:
             if v:
                 return v
     except OSError:
-        # As a last resort, report unknown.
         pass
-    return "unknown"
+
+    # Final fallback: package metadata (works for normal pip installs)
+    try:
+        return metadata.version("denon-proxy")
+    except metadata.PackageNotFoundError:
+        return "unknown"
 
 
 def is_running_in_docker() -> bool:
