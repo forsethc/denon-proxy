@@ -23,15 +23,15 @@ log_level: "INFO"
 # denonavr library log level (used for initial HTTP state sync). Independent of log_level.
 denonavr_log_level: "INFO"
 
-# Command groups to log at INFO (others stay DEBUG when log_level is DEBUG)
-# Groups: power (PW, ZM), volume (MV), input (SI), mute (MU), sound_mode (MS)
-# log_command_groups_info: [power, volume]
+# Command groups to log at INFO (others stay DEBUG when log_level is DEBUG).
+# Groups: power, volume, input, mute, sound_mode, smart_select, other. Default: none (all DEBUG when log_level is DEBUG).
+log_command_groups_info: []
 
 # Custom input sources: map Denon function codes to display names in Home Assistant.
 # Use this if you only use certain inputs and want names to match your AVR's custom names.
-# Format: dict (func_code: "Display Name"). func_code is what the AVR expects (e.g. CD, BD, HDMI1); display_name appears in HA.
-# Omit or leave empty: with a physical AVR, sources are fetched from the device
-# (including custom names); otherwise the default list is used.
+# Format: dict (func_code: "Display Name"). Set to null to use device/default list.
+sources: null
+# Example override:
 # sources:
 #   CD: "CD"
 #   BD: "PlayStation"
@@ -65,25 +65,23 @@ optimistic_state: true
 optimistic_broadcast_delay: 0.1
 
 # Volume step for MVUP/MVDOWN optimistic update (when optimistic_state is true, or virtual AVR). 0.5 = half-step;
-# some Denon/Marantz AVRs use 1.0. With a physical AVR, the real level is always set from its response (e.g. MV?).
-# volume_step: 0.5
+# some Denon/Marantz AVRs use 1.0. Must be in 0.5 increments. With a physical AVR, the real level is always set from its response (e.g. MV?).
+volume_step: 0.5
 
 # Seconds to wait after MVUP/MVDOWN before sending MV? so the AVR has time to apply the change.
-# volume_query_delay: 0.15
+volume_query_delay: 0.15
 
 # HTTP interface: JSON API and Web UI
 enable_http: true
 http_port: 8081
 
-# Web UI: client activity log (connections, disconnections, and commands per client)
+# Web UI: client activity log (connections, disconnections, and commands per client).
 # Set to false to disable and hide the Client activity section.
-# client_activity_log: true
+client_activity_log: true
 # Max entries per client (oldest dropped when exceeded). Min 1.
-# client_activity_log_max_entries: 200
+client_activity_log_max_entries: 200
 # When true, query commands (e.g. PW?, MV?, SI?) are hidden from the activity log.
-# client_activity_log_hide_queries: false
+client_activity_log_hide_queries: false
 
-# Optional: friendly names for clients by IP (shown in Web UI and API)
-# client_aliases:
-#   "192.168.1.5": "Living Room Home Assistant"
-#   "192.168.1.10": "UC Remote 3"
+# Optional: friendly names for clients by IP (shown in Web UI and API). Omit or leave empty for none.
+client_aliases: {}
