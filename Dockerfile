@@ -8,15 +8,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3-dev \
     && rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-
+COPY pyproject.toml README.md /app/
 COPY src /app/src
 COPY config.sample.yaml config.yaml
-COPY VERSION /app/VERSION
 
-ENV PYTHONPATH=/app/src
+RUN pip install --no-cache-dir .
 
 EXPOSE 23 8080 8081 80 60006 1900/udp
 
-CMD ["python", "-m", "denon_proxy.main", "--config", "/app/config.yaml"]
+CMD ["denon-proxy", "run", "--config", "/app/config.yaml"]

@@ -23,23 +23,22 @@ _DOCKER_NETWORKS = (
 
 def get_version() -> str:
     """
-    Get version from git describe when in a git repo, else from VERSION file.
+    Get version from git describe when in a git repo, else from installed package metadata.
 
     Preferred behaviour:
     - If we can see a .git directory, run `git describe --tags --always --dirty`
       from the repository root so local dev builds show the current commit and
       dirty state.
-    - Otherwise, or if git is unavailable, fall back to a VERSION file written
-      at build/release time.
+    - Otherwise, or if git is unavailable, fall back to the installed package
+      metadata (importlib.metadata.version).
     - If neither is available, return 'unknown'.
     """
     path = Path(__file__).resolve()
     root: Path | None = None
 
-    # Walk upwards to find a plausible project root: either a git repo or a
-    # directory that contains a VERSION file.
+    # Walk upwards to find a plausible project root: a git repo if available.
     for candidate in (path, *path.parents):
-        if (candidate / ".git").exists() or (candidate / "VERSION").exists():
+        if (candidate / ".git").exists():
             root = candidate
             break
     if root is None:
@@ -62,17 +61,7 @@ def get_version() -> str:
             # Ignore git issues and fall back to VERSION.
             pass
 
-    # Fallback: VERSION file at the located root
-    version_file = root / "VERSION"
-    try:
-        if version_file.exists():
-            v = version_file.read_text().strip()
-            if v:
-                return v
-    except OSError:
-        pass
-
-    # Final fallback: package metadata (works for normal pip installs)
+    # Fallback: package metadata (works for normal pip installs)
     try:
         return metadata.version("denon-proxy")
     except metadata.PackageNotFoundError:
