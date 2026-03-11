@@ -210,16 +210,9 @@ def test_get_sources_from_dict():
     assert runtime_state.resolved_sources == result
 
 
-def test_get_sources_from_list_of_tuples():
-    config = {"sources": [("CD", "CD Player"), ("HDMI1", "Game")]}
-    runtime_state = RuntimeState()
-    runtime_state.avr_info = AVRInfo.virtual()
-    result = get_sources(config, runtime_state)
-    assert result == [("CD", "CD Player"), ("HDMI1", "Game")]
-
-
-def test_get_sources_from_list_of_dicts():
-    config = {"sources": [{"func": "CD", "display_name": "CD Player"}, {"func": "HDMI1", "name": "Game"}]}
+def test_get_sources_from_dict():
+    """sources is a dict of func_code -> display_name."""
+    config = {"sources": {"CD": "CD Player", "HDMI1": "Game"}}
     runtime_state = RuntimeState()
     runtime_state.avr_info = AVRInfo.virtual()
     result = get_sources(config, runtime_state)

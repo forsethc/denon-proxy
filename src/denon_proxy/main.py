@@ -135,20 +135,20 @@ def _load_dashboard_html(path: Path | None = None) -> str | None:
 
 def load_config_from_dict(raw: dict | None) -> Config:
     """
-    Merge defaults with a raw config dict (no file I/O or env).
+    Merge defaults with a raw config dict (no file I/O).
 
     This is pure and easy to unit-test.
+    Environment overrides are not applied here; tests can control env explicitly
+    via Config.load_from_dict if needed.
     """
-    return Config.from_dict(raw)
+    return Config.load_from_dict(raw)
 
 
 def load_config(config_path: Path | None = None) -> Config:
     """Load configuration from YAML file with environment overrides."""
     raw = _load_config_dict_from_file(config_path)
-    config = load_config_from_dict(raw)
-    config.apply_env_overrides()
-    config.finalize()
-    return config
+    # Apply environment overrides during model construction
+    return Config.load_from_dict(raw)
 
 
 # Denon telnet command groups for configurable logging
