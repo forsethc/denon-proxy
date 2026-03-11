@@ -142,7 +142,8 @@ def load_config_from_dict(raw: dict | None) -> Config:
     Environment overrides are not applied here; tests can control env explicitly
     via Config.load_from_dict if needed.
     """
-    return Config.load_from_dict(raw)
+    # Use the model directly so no environment overrides are applied.
+    return Config.model_validate(raw or {})
 
 
 def load_config(config_path: Path | None = None) -> Config:

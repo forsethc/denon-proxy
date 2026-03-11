@@ -23,7 +23,8 @@ _VALID_COMMAND_GROUPS = frozenset(
 
 def _apply_env_to_dict(raw: dict[str, Any], env: TypingMapping[str, str] | None = None) -> None:
     """Mutate raw config dict with environment variable overrides."""
-    env = env or os.environ
+    if env is None:
+        env = os.environ
 
     if (v := env.get("AVR_HOST")) is not None:
         raw["avr_host"] = v

@@ -162,7 +162,8 @@ def test_invalid_config_rejected(raw_overrides: dict, expected_substrings: list[
     """Invalid configs must raise ValidationError with a message identifying the problem."""
     raw = dict(raw_overrides)
     with pytest.raises(ValidationError) as exc_info:
-        Config.load_from_dict(raw)
+        # Use empty env mapping so contract tests are independent of process environment.
+        Config.load_from_dict(raw, env={})
     assert _error_matches(exc_info.value, expected_substrings), (
         f"Expected error to contain all of {expected_substrings!r}; got: {exc_info.value!s}"
     )
@@ -219,7 +220,8 @@ VALID_BOUNDARY_CONFIGS = [
 @pytest.mark.parametrize("raw_overrides", VALID_BOUNDARY_CONFIGS)
 def test_valid_config_accepted(raw_overrides: dict) -> None:
     """Valid configs (including boundary values) must be accepted without raising."""
-    config = Config.load_from_dict(raw_overrides)
+    # Use empty env mapping so contract tests are independent of process environment.
+    config = Config.load_from_dict(raw_overrides, env={})
     assert config is not None
     # Spot-check: overrides we passed are reflected (with normalizations the model applies)
     for key, value in raw_overrides.items():
@@ -263,7 +265,7 @@ def test_maximal_valid_config_accepted() -> None:
         "sources": {"CD": "CD", "HDMI1": "Apple TV"},
         "client_aliases": {"192.168.1.5": "HA"},
     }
-    config = Config.load_from_dict(maximal)
+    config = Config.load_from_dict(maximal, env={})
     assert config["avr_host"] == "192.168.1.1"
     assert config["ssdp_friendly_name"] == "My Denon Proxy"
     assert config["sources"] == {"CD": "CD", "HDMI1": "Apple TV"}
