@@ -6,7 +6,7 @@ from io import StringIO
 
 import pytest
 
-from denon_proxy.cli import build_parser, main as cli_main
+from denon_proxy.cli import main as cli_main
 from denon_proxy.runtime.config import Config
 
 
