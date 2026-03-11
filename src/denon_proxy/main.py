@@ -40,6 +40,7 @@ except ImportError:
     DENONAVR_AVAILABLE = False
 
 import httpx
+from pydantic import ValidationError
 
 from denon_proxy.avr.connection import AVRConnection, VirtualAVRConnection, create_avr_connection
 from denon_proxy.avr.discovery import get_advertise_ip, run_discovery_servers
@@ -135,20 +136,21 @@ def _load_dashboard_html(path: Path | None = None) -> str | None:
 
 def load_config_from_dict(raw: dict | None) -> Config:
     """
-    Merge defaults with a raw config dict (no file I/O or env).
+    Merge defaults with a raw config dict (no file I/O).
 
     This is pure and easy to unit-test.
+    Environment overrides are not applied here; tests can control env explicitly
+    via Config.load_from_dict if needed.
     """
-    return Config.from_dict(raw)
+    # Use the model directly so no environment overrides are applied.
+    return Config.model_validate(raw or {})
 
 
 def load_config(config_path: Path | None = None) -> Config:
     """Load configuration from YAML file with environment overrides."""
     raw = _load_config_dict_from_file(config_path)
-    config = load_config_from_dict(raw)
-    config.apply_env_overrides()
-    config.finalize()
-    return config
+    # Apply environment overrides during model construction
+    return Config.load_from_dict(raw)
 
 
 # Denon telnet command groups for configurable logging
@@ -740,7 +742,10 @@ class DenonProxyServer:
 async def main_async(config: Config) -> None:
     """Run the proxy server."""
     logger = logging.getLogger("denon-proxy")
-    logger.debug("Starting proxy with config:\n%s", pprint.pformat(config))
+    logger.debug(
+        "Starting proxy with config:\n%s",
+        pprint.pformat(dict(config), width=88, sort_dicts=True),
+    )
     runtime_state = RuntimeState()
     runtime_state.version = get_version()
     logger.info("denon-proxy %s", runtime_state.version)
@@ -821,6 +826,25 @@ def main() -> int:
     except FileNotFoundError as e:
         print(str(e), file=sys.stderr)
         return 1
+    except ImportError as e:
+        # Handle missing PyYAML (or other imports) during config load.
+        if "yaml" in str(e).lower():
+            print("PyYAML dependency missing; fix with: pip install -r requirements.txt", file=sys.stderr)
+        else:
+            print(f"Import error while loading config: {e}", file=sys.stderr)
+        return 1
+    except ValidationError as e:
+        print("Config validation failed:", file=sys.stderr)
+        for err in e.errors():
+            loc = ".".join(str(x) for x in err["loc"])
+            msg = err.get("msg", "")
+            print(f"  {loc}: {msg}", file=sys.stderr)
+        return 1
+    except Exception as e:
+        if yaml is not None and isinstance(e, yaml.YAMLError):
+            print("Invalid YAML in config file:", str(e), file=sys.stderr)
+            return 1
+        raise
     setup_logging(config["log_level"], config.get("denonavr_log_level"))
 
     try:
