@@ -4,7 +4,7 @@ __pycache__/
 *.pyc
 .git/
 .gitignore
-*.md
+docs/*.md
 .env
 .env.*
 config.yaml

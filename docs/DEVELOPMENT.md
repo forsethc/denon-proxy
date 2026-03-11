@@ -76,12 +76,12 @@ Only run this when you change dependencies in `pyproject.toml`, and commit the u
 2. Enter the version (e.g. `1.0.0`)
 3. The workflow will:
    - Run tests and Docker build (from `.github/workflows/tests.yml`)
-   - Write `v1.0.0` to the `VERSION` file
+   - Update `pyproject.toml` with the new version
    - Commit and push to the current branch
    - Create tag `v1.0.0` pointing to that commit
    - Create a GitHub Release for the tag (with auto-generated release notes)
 
-The version is shown in the Web UI footer (linked to the tag on GitHub) and in logs at startup. Docker builds use the `VERSION` file; local runs use `git describe` when in a git repo.
+The version is shown in the Web UI footer (linked to the tag on GitHub) and in logs at startup. Local/dev runs prefer `git describe` when in a git repo; installed packages (including Docker images built via `pip install .`) use the version from package metadata.
 
 ## Architecture
 
