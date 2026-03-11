@@ -40,10 +40,10 @@ except ImportError:
     DENONAVR_AVAILABLE = False
 
 import httpx
+from pydantic import ValidationError
 
 from denon_proxy.avr.connection import AVRConnection, VirtualAVRConnection, create_avr_connection
 from denon_proxy.avr.discovery import get_advertise_ip, run_discovery_servers
-from pydantic import ValidationError
 from denon_proxy.runtime.config import Config, DEFAULT_AVR_PORT, DEFAULT_HTTP_PORT, DEFAULT_PROXY_PORT, DEFAULT_SSDP_HTTP_PORT
 from denon_proxy.constants import (
     DENONAVR_SYNC_TIMEOUT,
