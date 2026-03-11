@@ -4,15 +4,31 @@ This document covers project structure, architecture, testing, and releasing for
 
 ## Project Structure
 
-Source code lives under **`src/denon_proxy/`**. Run from the project root with `PYTHONPATH=src python -m denon_proxy.main`.
+Source code lives under **`src/denon_proxy/`**.
 
 - [**`main.py`**](../src/denon_proxy/main.py) – Entry point and main proxy: Telnet multiplexer, client handling, AVR connection
+- [**`cli.py`**](../src/denon_proxy/cli.py) – Command-line interface: `denon-proxy run`, `denon-proxy check-config`, `denon-proxy version`
 - [**`http/server.py`**](../src/denon_proxy/http/server.py) – Optional HTTP server: JSON API + SSE (status, commands) and Web UI wiring; only used when the HTTP interface is enabled
 - [**`http/web_ui.html`**](../src/denon_proxy/http/web_ui.html) – HTML dashboard for the browser UI, served only when the HTTP interface is enabled
 - [**`avr/state.py`**](../src/denon_proxy/avr/state.py) – Canonical Denon state model (`AVRState`) and volume presentation helpers; used by proxy, connection, and discovery
 - [**`avr/connection.py`**](../src/denon_proxy/avr/connection.py) – AVR I/O: physical Telnet connection or in-process virtual AVR (same interface for the proxy)
 - [**`avr/discovery.py`**](../src/denon_proxy/avr/discovery.py) – AVR discovery: HTTP/SSDP (device discovery, Deviceinfo, AppCommand, MainZone XML). Used by the proxy when SSDP is enabled; can also be used standalone for testing
 - [**`utils/utils.py`**](../src/denon_proxy/utils/utils.py) – Runtime/environment helpers: container detection (`is_running_in_docker`), internal IP classification (`is_docker_internal_ip`), version from git
+
+For local development, you can either:
+
+- Install the package in editable mode and use the CLI:
+
+  ```bash
+  pip install -e .
+  denon-proxy run --config config.yaml
+  ```
+
+- Or run the module directly from the project root (with `src` on `PYTHONPATH`):
+
+  ```bash
+  PYTHONPATH=src python -m denon_proxy.main --config config.yaml
+  ```
 
 ## State and configuration
 
@@ -39,6 +55,20 @@ pytest
 ```
 
 See [tests/README.md](../tests/README.md) for details.
+
+## Dependencies and requirements.txt
+
+Runtime dependencies are declared in `pyproject.toml` under `[project.dependencies]`. This is the single source of truth for what `pip install .` should install.
+
+If you need a pinned `requirements.txt` (for CI, Docker, or deployment), generate it from `pyproject.toml` using `pip-tools`:
+
+```bash
+pip install pip-tools
+
+pip-compile pyproject.toml -o requirements.txt
+```
+
+Only run this when you change dependencies in `pyproject.toml`, and commit the updated `requirements.txt` if it is used by CI or other tooling. Normal feature work should not require touching `requirements.txt`.
 
 ## Releasing
 
