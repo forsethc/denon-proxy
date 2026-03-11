@@ -808,6 +808,61 @@ async def main_async(config: Config) -> None:
         logger.warning("Shutdown timed out, exiting anyway")
 
 
+def _load_config_and_report_errors(config_path: Path | None) -> Config | None:
+    """
+    Helper for CLI/server entrypoints: load config and print user-facing errors.
+
+    Returns Config on success, or None on error (after printing to stderr).
+    """
+    try:
+        return load_config(config_path)
+    except FileNotFoundError as e:
+        print(str(e), file=sys.stderr)
+    except ImportError as e:
+        # Handle missing PyYAML (or other imports) during config load.
+        if "yaml" in str(e).lower():
+            print("Install PyYAML: pip install pyyaml", file=sys.stderr)
+        else:
+            print(f"Import error while loading config: {e}", file=sys.stderr)
+    except ValidationError as e:
+        print("Config validation failed:", file=sys.stderr)
+        for err in e.errors():
+            loc = ".".join(str(x) for x in err["loc"])
+            msg = err.get("msg", "")
+            print(f"  {loc}: {msg}", file=sys.stderr)
+    except Exception as e:
+        if yaml is not None and isinstance(e, yaml.YAMLError):
+            print("Invalid YAML in config file:", str(e), file=sys.stderr)
+        else:
+            raise
+    return None
+
+
+def run_proxy(config_path: Path | None) -> int:
+    """
+    Run the proxy server given an optional config path.
+
+    Shared by the module entrypoint (__main__) and the CLI 'run' subcommand.
+    """
+    config = _load_config_and_report_errors(config_path)
+    if config is None:
+        return 1
+
+    setup_logging(config["log_level"], config.get("denonavr_log_level"))
+
+    try:
+        asyncio.run(main_async(config))
+    except KeyboardInterrupt:
+        return 0
+    except ImportError as e:
+        if "yaml" in str(e).lower():
+            print("Install PyYAML: pip install pyyaml", file=sys.stderr)
+        else:
+            print(f"Import error: {e}", file=sys.stderr)
+        return 1
+    return 0
+
+
 def main() -> int:
     """Parse arguments and run the proxy."""
     parser = argparse.ArgumentParser(
@@ -821,43 +876,7 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    try:
-        config = load_config(args.config)
-    except FileNotFoundError as e:
-        print(str(e), file=sys.stderr)
-        return 1
-    except ImportError as e:
-        # Handle missing PyYAML (or other imports) during config load.
-        if "yaml" in str(e).lower():
-            print("PyYAML dependency missing; fix with: pip install -r requirements.txt", file=sys.stderr)
-        else:
-            print(f"Import error while loading config: {e}", file=sys.stderr)
-        return 1
-    except ValidationError as e:
-        print("Config validation failed:", file=sys.stderr)
-        for err in e.errors():
-            loc = ".".join(str(x) for x in err["loc"])
-            msg = err.get("msg", "")
-            print(f"  {loc}: {msg}", file=sys.stderr)
-        return 1
-    except Exception as e:
-        if yaml is not None and isinstance(e, yaml.YAMLError):
-            print("Invalid YAML in config file:", str(e), file=sys.stderr)
-            return 1
-        raise
-    setup_logging(config["log_level"], config.get("denonavr_log_level"))
-
-    try:
-        asyncio.run(main_async(config))
-    except KeyboardInterrupt:
-        pass
-    except ImportError as e:
-        if "yaml" in str(e).lower():
-            print("Install PyYAML: pip install pyyaml", file=sys.stderr)
-        else:
-            print(f"Import error: {e}", file=sys.stderr)
-        return 1
-    return 0
+    return run_proxy(args.config)
 
 
 if __name__ == "__main__":

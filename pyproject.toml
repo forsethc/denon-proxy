@@ -1,0 +1,33 @@
+[project]
+name = "denon-proxy"
+version = "0.0.0"
+description = "Virtual Denon AVR proxy for multiple clients."
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [
+  { name = "Cory Forseth" },
+]
+license = { text = "MIT" }
+dependencies = [
+  "denonavr>=0.10.0",
+  "PyYAML>=6.0",
+  "httpx>=0.24.0",
+  "pydantic>=2.0",
+]
+
+[project.scripts]
+denon-proxy = "denon_proxy.cli:main"
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+denon_proxy = ["http/web_ui.html"]
+

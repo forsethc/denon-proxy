@@ -28,14 +28,14 @@ Denon AVR receivers only support **one active Telnet connection** at a time. If 
 cd denon-proxy
 python3 -m venv venv
 source venv/bin/activate   # On Windows: venv\Scripts\activate
-pip install -r requirements.txt
+pip install .
 ```
 
-**Without a venv:**
+**Without a venv (not recommended):**
 
 ```bash
 cd denon-proxy
-pip install -r requirements.txt
+pip install .
 ```
 
 ### Running — config file (recommended)
@@ -46,18 +46,18 @@ Create `config.yaml` in the **project root** (the `denon-proxy` directory—same
 avr_host: "192.168.1.100"   # Your Denon AVR's IP
 ```
 
-Then run from the project root (activate venv first if using one). The app runs as a module; ensure `src` is on `PYTHONPATH`. The `--config` path is relative to your current directory:
+Then run from the project root (activate venv first if using one). The `--config` path is relative to your current directory:
 
 ```bash
-PYTHONPATH=src python -m denon_proxy.main --config config.yaml
+denon-proxy run
 ```
 
 ### Running — environment override
 
-Run without a config file:
+Run without a config file (using environment overrides):
 
 ```bash
-PYTHONPATH=src AVR_HOST=192.168.1.100 python -m denon_proxy.main
+AVR_HOST=192.168.1.100 denon-proxy run
 ```
 
 For more options (ports, SSDP, logging, etc.), see [CONFIG.md](docs/CONFIG.md).
@@ -135,6 +135,44 @@ docker run -d --name denon-proxy \
 ### Telnet
 
 See [TELNET.md](docs/TELNET.md) for connecting via Telnet, example commands, and supported commands.
+
+### CLI tools
+
+Once installed, denon-proxy also exposes a small CLI:
+
+```bash
+denon-proxy <command> [options]
+```
+
+Common commands:
+
+- **`run`**: start the proxy server (same behavior as `python -m denon_proxy.main`).
+
+  ```bash
+  # Use config.yaml in the current directory
+  denon-proxy run
+
+  # Or specify a config file explicitly
+  denon-proxy run --config /path/to/config.yaml
+  ```
+
+- **`version`**: print the installed denon-proxy version.
+
+  ```bash
+  denon-proxy version
+  ```
+
+- **`check-config`**: validate your configuration file (including YAML syntax and Pydantic validation) without starting the proxy.
+
+  ```bash
+  # Use config.yaml in the current directory
+  denon-proxy check-config
+
+  # Or validate an explicit path
+  denon-proxy check-config --config /path/to/config.yaml
+  ```
+
+`check-config` exits with status **0** when the configuration is valid. On errors it prints a human-friendly message (missing file, invalid YAML, or detailed field validation errors) and exits with a non-zero status, which makes it suitable for CI checks.
 
 
 ## Development

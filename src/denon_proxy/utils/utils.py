@@ -9,6 +9,7 @@ import ipaddress
 import subprocess
 from pathlib import Path
 from typing import TYPE_CHECKING
+from importlib import metadata
 
 if TYPE_CHECKING:
     from denon_proxy.runtime.config import Config
@@ -23,12 +24,30 @@ _DOCKER_NETWORKS = (
 def get_version() -> str:
     """
     Get version from git describe when in a git repo, else from VERSION file.
-    Docker builds (no .git) use the VERSION file written by the release workflow.
-    Falls back to 'unknown' when neither is available.
+
+    Preferred behaviour:
+    - If we can see a .git directory, run `git describe --tags --always --dirty`
+      from the repository root so local dev builds show the current commit and
+      dirty state.
+    - Otherwise, or if git is unavailable, fall back to a VERSION file written
+      at build/release time.
+    - If neither is available, return 'unknown'.
     """
-    root = Path(__file__).resolve().parent
-    # Prefer git when available (local dev, accurate for current commit)
-    if (root / ".git").exists():
+    path = Path(__file__).resolve()
+    root: Path | None = None
+
+    # Walk upwards to find a plausible project root: either a git repo or a
+    # directory that contains a VERSION file.
+    for candidate in (path, *path.parents):
+        if (candidate / ".git").exists() or (candidate / "VERSION").exists():
+            root = candidate
+            break
+    if root is None:
+        root = path.parent
+
+    # Prefer git when available (local dev, accurate and includes dirty state)
+    git_dir = root / ".git"
+    if git_dir.exists() and git_dir.is_dir():
         try:
             r = subprocess.run(
                 ["git", "describe", "--tags", "--always", "--dirty"],
@@ -40,8 +59,10 @@ def get_version() -> str:
             if r.returncode == 0 and r.stdout.strip():
                 return r.stdout.strip()
         except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
+            # Ignore git issues and fall back to VERSION.
             pass
-    # No git (e.g. Docker): use VERSION file
+
+    # Fallback: VERSION file at the located root
     version_file = root / "VERSION"
     try:
         if version_file.exists():
@@ -50,7 +71,12 @@ def get_version() -> str:
                 return v
     except OSError:
         pass
-    return "unknown"
+
+    # Final fallback: package metadata (works for normal pip installs)
+    try:
+        return metadata.version("denon-proxy")
+    except metadata.PackageNotFoundError:
+        return "unknown"
 
 
 def is_running_in_docker() -> bool:
