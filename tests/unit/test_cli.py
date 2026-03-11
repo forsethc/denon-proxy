@@ -51,3 +51,16 @@ def test_cli_check_config_invalid(monkeypatch: pytest.MonkeyPatch) -> None:
     assert "Config validation failed:" in out
     assert "avr_port" in out
 
+
+def test_cli_version_subcommand_prints_version(monkeypatch: pytest.MonkeyPatch) -> None:
+    """version subcommand prints version and exits 0."""
+    import denon_proxy.cli as cli_mod
+
+    monkeypatch.setattr(cli_mod, "get_version", lambda: "1.2.3-test")
+    stdout = StringIO()
+    with pytest.MonkeyPatch().context() as m:
+        m.setattr("sys.stdout", stdout, raising=True)
+        rc = cli_main(["version"])
+    assert rc == 0
+    assert stdout.getvalue().strip() == "1.2.3-test"
+
