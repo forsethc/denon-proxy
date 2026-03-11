@@ -825,6 +825,13 @@ def main() -> int:
     except FileNotFoundError as e:
         print(str(e), file=sys.stderr)
         return 1
+    except ImportError as e:
+        # Handle missing PyYAML (or other imports) during config load.
+        if "yaml" in str(e).lower():
+            print("PyYAML dependency missing; fix with: pip install -r requirements.txt", file=sys.stderr)
+        else:
+            print(f"Import error while loading config: {e}", file=sys.stderr)
+        return 1
     except ValidationError as e:
         print("Config validation failed:", file=sys.stderr)
         for err in e.errors():
