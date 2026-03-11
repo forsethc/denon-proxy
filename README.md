@@ -136,6 +136,67 @@ docker run -d --name denon-proxy \
 
 See [TELNET.md](docs/TELNET.md) for connecting via Telnet, example commands, and supported commands.
 
+### CLI tools
+
+Once installed, denon-proxy also exposes a small CLI:
+
+```bash
+python -m denon_proxy.cli <command> [options]
+```
+
+Common commands:
+
+- **`version`**: print the installed denon-proxy version.
+
+  ```bash
+  python -m denon_proxy.cli version
+  ```
+
+- **`check-config`**: validate your configuration file (including YAML syntax and Pydantic validation) without starting the proxy.
+
+  ```bash
+  # Use config.yaml in the current directory
+  python -m denon_proxy.cli check-config
+
+  # Or validate an explicit path
+  python -m denon_proxy.cli check-config --config /path/to/config.yaml
+  ```
+
+`check-config` exits with status **0** when the configuration is valid. On errors it prints a human-friendly message (missing file, invalid YAML, or detailed field validation errors) and exits with a non-zero status, which makes it suitable for CI checks.
+
+#### Installing the `denon-proxy` CLI
+
+If you install the project as a package, the `denon-proxy` command is exposed for you:
+
+```bash
+# In a virtualenv (recommended)
+pip install .
+
+# Or editable install for development
+pip install -e .
+```
+
+After that you can run:
+
+```bash
+denon-proxy version
+denon-proxy check-config --config /path/to/config.yaml
+```
+
+If you prefer an isolated global install, you can use `pipx`:
+
+```bash
+pipx install /path/to/denon-proxy
+denon-proxy check-config
+```
+
+For local development without installing the package, you can create a simple alias instead:
+
+```bash
+alias denon-proxy='PYTHONPATH=/path/to/denon-proxy/src python -m denon_proxy.cli'
+```
+
+Put that alias in your shell rc (e.g. `~/.zshrc`) to get a convenient `denon-proxy` command while working on the code.
 
 ## Development
 
