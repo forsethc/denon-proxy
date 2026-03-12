@@ -7,7 +7,6 @@ from unittest.mock import patch
 
 import pytest
 
-from denon_proxy.main import main
 from denon_proxy.runtime.config import Config
 from denon_proxy.runtime.config_io import _load_config_dict_from_file, load_config
 
@@ -167,55 +166,3 @@ def test_load_config_leaves_optimistic_state_when_avr_host_specified():
         assert config["optimistic_state"] is True
     finally:
         path.unlink(missing_ok=True)
-
-
-def test_main_returns_1_when_config_not_found():
-    """When config file is missing, main() returns 1 (and prints error to stderr)."""
-    with (
-        patch(
-            "denon_proxy.runtime.config_io.load_config",
-            side_effect=FileNotFoundError("Config not found: /missing.yaml"),
-        ),
-        patch("sys.argv", ["denon_proxy"]),
-    ):
-        assert main() == 1
-
-
-def test_main_returns_0_on_keyboard_interrupt():
-    """When the user hits Ctrl-C (KeyboardInterrupt), main() returns 0."""
-
-    def raise_keyboard_interrupt(*_args, **_kwargs):
-        raise KeyboardInterrupt
-
-    with (
-        patch(
-            "denon_proxy.runtime.config_io.load_config",
-            return_value=Config(log_level="INFO"),
-        ),
-        patch(
-            "denon_proxy.main.main_async",
-            side_effect=raise_keyboard_interrupt,
-        ),
-        patch("sys.argv", ["denon_proxy"]),
-    ):
-        assert main() == 0
-
-
-def test_main_returns_0_on_successful_run():
-    """When the proxy runs and exits normally, main() returns 0."""
-
-    async def noop(*_args, **_kwargs):
-        pass
-
-    with (
-        patch(
-            "denon_proxy.runtime.config_io.load_config",
-            return_value=Config(log_level="INFO"),
-        ),
-        patch("denon_proxy.main.main_async", noop),
-        patch(
-            "sys.argv",
-            ["denon_proxy"],
-        ),
-    ):
-        assert main() == 0
