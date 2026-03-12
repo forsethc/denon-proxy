@@ -115,15 +115,16 @@ class AVRConnection:
 
     async def send_command(self, command: str) -> bool:
         """Send a telnet command to the AVR."""
-        if not self.is_connected():
+        writer = self.writer
+        if writer is None or writer.is_closing():
             if self.on_send_while_disconnected:
                 self.on_send_while_disconnected()
             self.logger.warning("Cannot send command, AVR not connected: %s", command)
             return False
         try:
             data = telnet_line_to_bytes(command)
-            self.writer.write(data)
-            await self.writer.drain()
+            writer.write(data)
+            await writer.drain()
             self.logger.debug("Sent to AVR: %s", command.strip())
             return True
         except OSError as e:
