@@ -7,7 +7,7 @@ import logging
 import pytest
 
 from denon_proxy.avr.state import AVRState
-from denon_proxy.main import ClientHandler
+from denon_proxy.proxy.core import ClientHandler
 from denon_proxy.runtime.state import RuntimeState
 
 

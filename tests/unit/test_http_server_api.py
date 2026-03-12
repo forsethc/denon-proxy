@@ -11,7 +11,8 @@ import pytest
 from denon_proxy.avr.info import AVRInfo
 from denon_proxy.avr.state import AVRState
 from denon_proxy.http.server import run_http_server
-from denon_proxy.main import build_json_state, load_config_from_dict
+from denon_proxy.proxy.core import build_json_state
+from denon_proxy.runtime.config import Config
 from denon_proxy.runtime.state import RuntimeState
 
 
@@ -35,7 +36,7 @@ async def test_http_get_status_json_shape():
     Start HTTP JSON API with a minimal config and AVRState, GET /api/status, and assert JSON shape.
     """
     # Minimal config: HTTP interface enabled on port 0 so OS picks a free port.
-    config = load_config_from_dict(
+    config = Config.model_validate(
         {
             "enable_http": True,
             "http_port": 0,
@@ -126,7 +127,7 @@ async def test_http_get_status_json_shape():
 @pytest.mark.asyncio
 async def test_http_post_command_requires_send_command():
     """POST /api/command returns 501 when send_command is not configured."""
-    config = load_config_from_dict(
+    config = Config.model_validate(
         {
             "enable_http": True,
             "http_port": 0,
@@ -173,7 +174,7 @@ async def test_http_post_command_requires_send_command():
 @pytest.mark.asyncio
 async def test_http_post_command_calls_send_command():
     """POST /api/command returns 200 and calls send_command when configured."""
-    config = load_config_from_dict(
+    config = Config.model_validate(
         {
             "enable_http": True,
             "http_port": 0,
@@ -237,7 +238,7 @@ async def test_http_post_command_calls_send_command():
 )
 async def test_http_post_command_bad_body_returns_400(body, expected_error_substring):
     """POST /api/command returns 400 with error JSON for invalid or missing command body."""
-    config = load_config_from_dict(
+    config = Config.model_validate(
         {
             "enable_http": True,
             "http_port": 0,
@@ -287,7 +288,7 @@ async def test_http_post_command_bad_body_returns_400(body, expected_error_subst
 @pytest.mark.asyncio
 async def test_http_post_refresh_requires_request_state():
     """POST /api/refresh returns 501 when request_state is not configured."""
-    config = load_config_from_dict(
+    config = Config.model_validate(
         {
             "enable_http": True,
             "http_port": 0,
@@ -326,7 +327,7 @@ async def test_http_post_refresh_requires_request_state():
 @pytest.mark.asyncio
 async def test_http_post_refresh_calls_request_state():
     """POST /api/refresh returns 200 and calls request_state when configured."""
-    config = load_config_from_dict(
+    config = Config.model_validate(
         {
             "enable_http": True,
             "http_port": 0,
@@ -371,7 +372,7 @@ async def test_http_post_refresh_calls_request_state():
 @pytest.mark.asyncio
 async def test_http_events_sse_streams_state():
     """GET /events returns an SSE stream with JSON state when notify_state_changed is called."""
-    config = load_config_from_dict(
+    config = Config.model_validate(
         {
             "enable_http": True,
             "http_port": 0,
@@ -417,7 +418,7 @@ async def test_http_events_sse_streams_state():
 @pytest.mark.asyncio
 async def test_http_server_disabled():
     """When HTTP is disabled, run_http_server should not start a server."""
-    config = load_config_from_dict(
+    config = Config.model_validate(
         {
             "enable_http": False,
             "http_port": 0,
@@ -437,7 +438,7 @@ async def test_http_server_disabled():
 @pytest.mark.asyncio
 async def test_http_get_root_returns_404_when_no_dashboard():
     """GET / returns 404 when dashboard_html is not configured."""
-    config = load_config_from_dict({"enable_http": True, "http_port": 0})
+    config = Config.model_validate({"enable_http": True, "http_port": 0})
     logger = logging.getLogger("test.http.root.404")
 
     def get_state() -> dict:
@@ -466,7 +467,7 @@ async def test_http_get_root_returns_404_when_no_dashboard():
 @pytest.mark.asyncio
 async def test_http_get_root_returns_html_when_dashboard_set():
     """GET / returns 200 and HTML when dashboard_html is configured."""
-    config = load_config_from_dict({"enable_http": True, "http_port": 0})
+    config = Config.model_validate({"enable_http": True, "http_port": 0})
     logger = logging.getLogger("test.http.root.html")
     html = "<!DOCTYPE html><html><body>Test Dashboard</body></html>"
 
@@ -499,7 +500,7 @@ async def test_http_get_root_returns_html_when_dashboard_set():
 @pytest.mark.asyncio
 async def test_http_get_status_returns_500_when_get_state_raises():
     """GET /api/status returns 500 when get_state raises."""
-    config = load_config_from_dict({"enable_http": True, "http_port": 0})
+    config = Config.model_validate({"enable_http": True, "http_port": 0})
     logger = logging.getLogger("test.http.status.500")
 
     def get_state() -> dict:
@@ -528,7 +529,7 @@ async def test_http_get_status_returns_500_when_get_state_raises():
 @pytest.mark.asyncio
 async def test_http_post_command_returns_500_when_send_command_raises():
     """POST /api/command returns 500 when send_command raises."""
-    config = load_config_from_dict({"enable_http": True, "http_port": 0})
+    config = Config.model_validate({"enable_http": True, "http_port": 0})
     logger = logging.getLogger("test.http.command.500")
 
     def get_state() -> dict:
@@ -567,7 +568,7 @@ async def test_http_post_command_returns_500_when_send_command_raises():
 @pytest.mark.asyncio
 async def test_http_post_refresh_returns_500_when_request_state_raises():
     """POST /api/refresh returns 500 when request_state raises."""
-    config = load_config_from_dict({"enable_http": True, "http_port": 0})
+    config = Config.model_validate({"enable_http": True, "http_port": 0})
     logger = logging.getLogger("test.http.refresh.500")
 
     def get_state() -> dict:

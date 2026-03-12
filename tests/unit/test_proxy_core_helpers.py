@@ -2,7 +2,7 @@ import logging
 
 from denon_proxy.avr.info import AVRInfo
 from denon_proxy.avr.state import AVRState
-from denon_proxy.main import (
+from denon_proxy.proxy.core import (
     DenonProxyServer,
     _client_ip_for_display,
     _command_group,
@@ -10,9 +10,8 @@ from denon_proxy.main import (
     _should_log_command_info,
     avr_response_broadcast_lines,
     build_json_state,
-    load_config_from_dict,
-    state_and_config_updates_from_denonavr,
 )
+from denon_proxy.runtime.config import Config
 from denon_proxy.runtime.state import RuntimeState
 
 
@@ -64,9 +63,6 @@ class _FakeClient:
 
 
 class _FakeAvr:
-    def __init__(self) -> None:
-        pass
-
     def is_connected(self) -> bool:
         return True
 
@@ -79,7 +75,7 @@ def test_build_json_state_with_no_avr():
     state = AVRState()
     state.power = "ON"
     state.volume = "50"
-    config = load_config_from_dict({})
+    config = Config.model_validate({})
     runtime_state = RuntimeState()
     runtime_state.avr_info = AVRInfo.virtual()
     result = build_json_state(state, None, [], config, runtime_state)
@@ -150,7 +146,7 @@ def test_build_json_state_with_virtual_avr_info():
     """When avr_info is AVRInfo.virtual(), avr dict has Denon / Virtual and no serial."""
     state = AVRState()
     state.power = "ON"
-    config = load_config_from_dict({"enable_ssdp": False})
+    config = Config.model_validate({"enable_ssdp": False})
     runtime_state = RuntimeState()
     runtime_state.avr_info = AVRInfo.virtual()
     result = build_json_state(state, None, [], config, runtime_state)
@@ -164,7 +160,7 @@ def test_build_json_state_with_virtual_avr_info():
 def test_build_json_state_includes_client_aliases():
     """build_json_state includes client_aliases from config."""
     state = AVRState()
-    config = load_config_from_dict(
+    config = Config.model_validate(
         {
             "client_aliases": {"192.168.1.5": "Living Room HA", "10.0.0.1": "Tablet"},
         }
@@ -178,7 +174,7 @@ def test_build_json_state_includes_client_aliases():
 def test_build_json_state_includes_discovery_info():
     """build_json_state includes discovery section with enabled, http_port, proxy_ip."""
     state = AVRState()
-    config = load_config_from_dict({"enable_ssdp": True, "ssdp_http_port": 9090})
+    config = Config.model_validate({"enable_ssdp": True, "ssdp_http_port": 9090})
     runtime_state = RuntimeState()
     runtime_state.avr_info = AVRInfo.virtual()
     result = build_json_state(state, None, [], config, runtime_state)
@@ -190,7 +186,7 @@ def test_build_json_state_includes_discovery_info():
 def test_build_json_state_includes_client_activity_log():
     """build_json_state includes client_activity_log and client_activity_log_enabled."""
     state = AVRState()
-    config = load_config_from_dict({})
+    config = Config.model_validate({})
     runtime_state = RuntimeState()
     runtime_state.avr_info = AVRInfo.virtual()
     result = build_json_state(state, None, [], config, runtime_state)
@@ -206,7 +202,7 @@ def test_build_json_state_includes_client_activity_log():
     }
     assert result2["client_activity_log_enabled"] is True
 
-    config_disabled = load_config_from_dict({"client_activity_log": False})
+    config_disabled = Config.model_validate({"client_activity_log": False})
     result3 = build_json_state(state, None, [], config_disabled, runtime_state)
     assert result3["client_activity_log_enabled"] is False
 
@@ -222,7 +218,7 @@ def test_build_json_state_includes_client_activity_log():
 
 def test_record_command_does_not_store_queries_when_hide_queries_true():
     """When client_activity_log_hide_queries is True, query commands (ending with ?) are not stored."""
-    config = load_config_from_dict(
+    config = Config.model_validate(
         {
             "client_activity_log": True,
             "client_activity_log_hide_queries": True,
@@ -250,7 +246,7 @@ def test_record_command_does_not_store_queries_when_hide_queries_true():
 
 def test_record_command_stores_queries_when_hide_queries_false():
     """When client_activity_log_hide_queries is False, query commands are stored."""
-    config = load_config_from_dict(
+    config = Config.model_validate(
         {
             "client_activity_log": True,
             "client_activity_log_hide_queries": False,
@@ -272,130 +268,6 @@ def test_record_command_stores_queries_when_hide_queries_false():
     assert server._client_activity_log["10.0.0.1"][1][1] == "PWON"
 
 
-def test_state_and_config_updates_from_denonavr_basic():
-    class MockVol:
-        def __init__(self, volume: float):
-            self.volume = volume
-
-    class MockD:
-        power = "ON"
-        vol = MockVol(-20.0)  # 80 + (-20)*2 = 40
-        input_func = "HDMI1"
-        muted = False
-        sound_mode = "STEREO"
-        smart_select = "SMART1"
-        manufacturer = "Denon"
-        model_name = "AVR-X1600H"
-        serial_number = "123"
-        name = "Living Room"
-        input = None
-
-    state_updates, avr_info = state_and_config_updates_from_denonavr(MockD())
-    assert state_updates["power"] == "ON"
-    assert state_updates["volume"] == "40"
-    assert state_updates["input_source"] == "HDMI1"
-    assert state_updates["mute"] is False
-    assert state_updates["sound_mode"] == "STEREO"
-    assert state_updates["smart_select"] == "SMART1"
-    assert avr_info.manufacturer == "Denon"
-    assert avr_info.model_name == "AVR-X1600H"
-    assert avr_info.raw_friendly_name == "Living Room"
-    assert avr_info.raw_sources == []
-
-
-def test_state_and_config_updates_from_denonavr_smart_select_and_sources():
-    class MockVol:
-        volume = 0.0
-
-    class MockInput:
-        _input_func_map_rev = {"CD": "CD Player", "HDMI1": "Game"}
-
-    class MockD:
-        power = "STANDBY"
-        vol = MockVol()
-        input_func = None
-        muted = True
-        sound_mode = "SMART1"
-        smart_select = None
-        manufacturer = None
-        model_name = None
-        serial_number = None
-        name = None
-        input = MockInput()
-
-    state_updates, avr_info = state_and_config_updates_from_denonavr(MockD())
-    assert state_updates["power"] == "STANDBY"
-    assert state_updates["mute"] is True
-    assert state_updates["smart_select"] == "SMART1"
-    assert state_updates.get("sound_mode") is None
-    assert avr_info.raw_sources == [("CD", "CD Player"), ("HDMI1", "Game")]
-
-
-def test_state_and_config_updates_from_denonavr_sound_mode_smart_treated_as_smart_select():
-    """When denonavr returns sound_mode like SMART0, it is stored as smart_select and sound_mode cleared."""
-
-    class MockD:
-        power = "ON"
-        vol = None
-        input_func = None
-        muted = None
-        sound_mode = "SMART0"
-        smart_select = None
-        manufacturer = None
-        model_name = None
-        serial_number = None
-        name = None
-        input = None
-
-    state_updates, _ = state_and_config_updates_from_denonavr(MockD())
-    assert state_updates.get("smart_select") == "SMART0"
-    assert state_updates.get("sound_mode") is None
-
-
-def test_state_and_config_updates_from_denonavr_minimal_attributes():
-    """When denonavr has few attributes set, only those are in state_updates."""
-
-    class MockD:
-        power = None
-        vol = None
-        input_func = None
-        muted = None
-        sound_mode = None
-        smart_select = None
-        manufacturer = None
-        model_name = None
-        serial_number = None
-        name = None
-        input = None
-
-    state_updates, avr_info = state_and_config_updates_from_denonavr(MockD())
-    assert state_updates == {}
-    assert avr_info.manufacturer is None
-    assert avr_info.raw_sources == []
-
-
-def test_state_and_config_updates_from_denonavr_volume_conversion():
-    class MockVol:
-        def __init__(self, vol_db: float):
-            self.volume = vol_db
-
-    class MockD:
-        power = "ON"
-        vol = MockVol(0.0)
-        input_func = None
-        muted = None
-        sound_mode = None
-        smart_select = None
-        manufacturer = None
-        model_name = None
-        serial_number = None
-        name = None
-        input = None
-
-    state_updates, _ = state_and_config_updates_from_denonavr(MockD())
-    assert state_updates["volume"] == "80"
-
-
 def test_avr_response_broadcast_lines_pwon():
     assert avr_response_broadcast_lines("PWON") == ["PWON", "ZMON"]
 
@@ -410,58 +282,3 @@ def test_avr_response_broadcast_lines_other():
     assert avr_response_broadcast_lines("MV50") == ["MV50"]
     assert avr_response_broadcast_lines("SIHDMI1") == ["SIHDMI1"]
     assert avr_response_broadcast_lines("MUON") == ["MUON"]
-
-
-def test_apply_payload_updates_present_fields():
-    state = AVRState()
-    state.power = "STANDBY"
-    state.volume = "40"
-    state.apply_payload({"power": "ON", "volume": "55"})
-    assert state.power == "ON"
-    assert state.volume == "55"
-    assert state.input_source == "CD"  # unchanged default
-
-
-def test_apply_payload_power_uppercased():
-    state = AVRState()
-    state.apply_payload({"power": "on"})
-    assert state.power == "ON"
-    state.apply_payload({"power": "standby"})
-    assert state.power == "STANDBY"
-
-
-def test_apply_payload_falsy_values():
-    state = AVRState()
-    state.power = "ON"
-    state.apply_payload({"power": None})
-    assert state.power is None
-    state.apply_payload({"volume": ""})
-    assert state.volume == ""
-
-
-def test_apply_payload_mute_and_sources():
-    state = AVRState()
-    state.apply_payload({"mute": True, "input_source": "HDMI1", "sound_mode": "DOLBY"})
-    assert state.mute is True
-    assert state.input_source == "HDMI1"
-    assert state.sound_mode == "DOLBY"
-
-
-def test_apply_payload_smart_select_normalized():
-    state = AVRState()
-    state.apply_payload({"smart_select": "smart1"})
-    assert state.smart_select == "SMART1"
-    state.apply_payload({"smart_select": "2"})
-    assert state.smart_select == "SMART2"
-    state.apply_payload({"smart_select": None})
-    assert state.smart_select is None
-
-
-def test_apply_payload_partial_leaves_others_unchanged():
-    state = AVRState()
-    state.input_source = "TUNER"
-    state.sound_mode = "STEREO"
-    state.apply_payload({"volume": "60"})
-    assert state.volume == "60"
-    assert state.input_source == "TUNER"
-    assert state.sound_mode == "STEREO"

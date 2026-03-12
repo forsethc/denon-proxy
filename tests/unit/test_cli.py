@@ -22,7 +22,7 @@ def test_cli_check_config_valid(monkeypatch: pytest.MonkeyPatch) -> None:
     """check-config exits 0 and prints success for a valid config."""
     import denon_proxy.cli as cli_mod
 
-    monkeypatch.setattr(cli_mod, "_load_config_and_report_errors", lambda path: Config(log_level="INFO"))
+    monkeypatch.setattr(cli_mod, "load_config_and_report_errors", lambda path: Config(log_level="INFO"))
     stdout = StringIO()
     with pytest.MonkeyPatch().context() as m:
         m.setattr("sys.stdout", stdout, raising=True)
@@ -33,14 +33,14 @@ def test_cli_check_config_valid(monkeypatch: pytest.MonkeyPatch) -> None:
 
 def test_cli_check_config_invalid(monkeypatch: pytest.MonkeyPatch) -> None:
     """check-config exits 1 and prints validation errors for an invalid config."""
-    import denon_proxy.main as main_mod
+    import denon_proxy.runtime.config_io as config_io_mod
     from denon_proxy.runtime.config import Config as RuntimeConfig
 
     # Patch load_config so the real helper runs and sees a ValidationError.
     def bad_load_config(_path):
         return RuntimeConfig.load_from_dict({"avr_port": 0}, env={})
 
-    monkeypatch.setattr(main_mod, "load_config", bad_load_config)
+    monkeypatch.setattr(config_io_mod, "load_config", bad_load_config)
     stderr = StringIO()
     with pytest.MonkeyPatch().context() as m:
         m.setattr("sys.stderr", stderr, raising=True)

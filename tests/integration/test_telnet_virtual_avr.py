@@ -8,14 +8,15 @@ import logging
 import pytest
 
 from denon_proxy.avr.connection import create_avr_connection
-from denon_proxy.main import DenonProxyServer, load_config_from_dict
+from denon_proxy.proxy.core import DenonProxyServer
+from denon_proxy.runtime.config import Config
 from denon_proxy.runtime.state import RuntimeState
 
 
 @pytest.fixture
 def integration_config():
     """Minimal config for integration: virtual AVR, port 0, no Web UI, no SSDP."""
-    return load_config_from_dict(
+    return Config.model_validate(
         {
             "avr_host": "",
             "proxy_host": "127.0.0.1",
@@ -245,6 +246,7 @@ async def _telnet_send_and_assert(
         await asyncio.wait_for(reader.read(4096), timeout=1.0)
         for cmd in commands:
             writer.write(cmd + b"\r")
+            await asyncio.sleep(0.1)  # allow command to be written
             await writer.drain()
         response = await asyncio.wait_for(reader.read(4096), timeout=timeout)
         response_str = response.decode("utf-8", errors="replace")
