@@ -36,6 +36,10 @@ jobs:
         run: |
           ruff check src tests
 
+      - name: Ruff format
+        run: |
+          ruff format --check src tests
+
   tests:
     name: Tests (pytest unit, integration, e2e tests)
     runs-on: ubuntu-latest

@@ -48,7 +48,7 @@ The proxy keeps configuration and runtime data in four distinct layers. Keeping 
 
 ## Linting and type checking
 
-The project uses [Ruff](https://docs.astral.sh/ruff/) for linting, and [mypy](https://mypy.readthedocs.io/) for static type checking. To install the required packages:
+The project uses [Ruff](https://docs.astral.sh/ruff/) for linting and formatting, and [mypy](https://mypy.readthedocs.io/) for static type checking. To install the required packages:
 
 ```bash
 pip install -e ".[test,dev]"
@@ -60,8 +60,10 @@ Then run:
 
 - **Lint** (report only): `ruff check`
 - **Lint and auto-fix**: `ruff check --fix`
+- **Format** (rewrite files): `ruff format`
+- **Format check** (CI-style, no writes): `ruff format --check`
 
-Configuration is in `pyproject.toml` under `[tool.ruff]` and `[tool.ruff.lint]`.
+Configuration is in `pyproject.toml` under `[tool.ruff]`, `[tool.ruff.lint]`, and `[tool.ruff.format]`.
 
 ### Mypy
 
