@@ -21,12 +21,7 @@ async def _http_get(host: str, port: int, path: str) -> tuple[int, bytes]:
         timeout=2.0,
     )
     try:
-        request = (
-            f"GET {path} HTTP/1.1\r\n"
-            f"Host: {host}\r\n"
-            "Connection: close\r\n"
-            "\r\n"
-        ).encode("ascii")
+        request = (f"GET {path} HTTP/1.1\r\nHost: {host}\r\nConnection: close\r\n\r\n").encode("ascii")
         writer.write(request)
         await writer.drain()
         raw = await asyncio.wait_for(reader.read(65536), timeout=2.0)
@@ -106,9 +101,7 @@ async def test_json_api_status_and_command_while_discovery_running(full_stack_ht
     assert "state" in data1
     assert data1["avr"]["type"] == "virtual"
 
-    status_post, body_post = await _http_post_json(
-        "127.0.0.1", http_port, "/api/command", {"command": "PWSTANDBY"}
-    )
+    status_post, body_post = await _http_post_json("127.0.0.1", http_port, "/api/command", {"command": "PWSTANDBY"})
     assert status_post == 200
     result = json.loads(body_post.decode("utf-8"))
     assert result.get("ok") is True and result.get("command") == "PWSTANDBY"

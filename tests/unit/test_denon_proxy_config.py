@@ -190,10 +190,13 @@ def test_load_dashboard_html_returns_none_when_file_unreadable():
 
 def test_main_returns_1_when_config_not_found():
     """When config file is missing, main() returns 1 (and prints error to stderr)."""
-    with patch(
-        "denon_proxy.main.load_config",
-        side_effect=FileNotFoundError("Config not found: /missing.yaml"),
-    ), patch("sys.argv", ["denon_proxy"]):
+    with (
+        patch(
+            "denon_proxy.main.load_config",
+            side_effect=FileNotFoundError("Config not found: /missing.yaml"),
+        ),
+        patch("sys.argv", ["denon_proxy"]),
+    ):
         assert main() == 1
 
 
@@ -204,32 +207,42 @@ def test_main_returns_1_on_import_error_and_suggests_pyyaml():
     def raise_yaml_import_error(*_args, **_kwargs):
         raise ImportError("No module named 'yaml'")
 
-    with patch(
-        "denon_proxy.main.load_config",
-        return_value=Config(log_level="INFO"),
-    ), patch(
-        "denon_proxy.main.main_async",
-        side_effect=raise_yaml_import_error,
-    ), patch("sys.argv", ["denon_proxy"]), patch(
-        "sys.stderr",
-        new_callable=StringIO,
-    ) as stderr:
+    with (
+        patch(
+            "denon_proxy.main.load_config",
+            return_value=Config(log_level="INFO"),
+        ),
+        patch(
+            "denon_proxy.main.main_async",
+            side_effect=raise_yaml_import_error,
+        ),
+        patch("sys.argv", ["denon_proxy"]),
+        patch(
+            "sys.stderr",
+            new_callable=StringIO,
+        ) as stderr,
+    ):
         assert main() == 1
     assert "PyYAML" in stderr.getvalue()
 
 
 def test_main_returns_0_on_keyboard_interrupt():
     """When the user hits Ctrl-C (KeyboardInterrupt), main() returns 0."""
+
     def raise_keyboard_interrupt(*_args, **_kwargs):
         raise KeyboardInterrupt
 
-    with patch(
-        "denon_proxy.main.load_config",
-        return_value=Config(log_level="INFO"),
-    ), patch(
-        "denon_proxy.main.main_async",
-        side_effect=raise_keyboard_interrupt,
-    ), patch("sys.argv", ["denon_proxy"]):
+    with (
+        patch(
+            "denon_proxy.main.load_config",
+            return_value=Config(log_level="INFO"),
+        ),
+        patch(
+            "denon_proxy.main.main_async",
+            side_effect=raise_keyboard_interrupt,
+        ),
+        patch("sys.argv", ["denon_proxy"]),
+    ):
         assert main() == 0
 
 
@@ -239,11 +252,15 @@ def test_main_returns_0_on_successful_run():
     async def noop(*_args, **_kwargs):
         pass
 
-    with patch(
-        "denon_proxy.main.load_config",
-        return_value=Config(log_level="INFO"),
-    ), patch("denon_proxy.main.main_async", noop), patch(
-        "sys.argv",
-        ["denon_proxy"],
+    with (
+        patch(
+            "denon_proxy.main.load_config",
+            return_value=Config(log_level="INFO"),
+        ),
+        patch("denon_proxy.main.main_async", noop),
+        patch(
+            "sys.argv",
+            ["denon_proxy"],
+        ),
     ):
         assert main() == 0

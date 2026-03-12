@@ -2,6 +2,7 @@
 - discovery stack (proxy + SSDP + discovery HTTP)
 - full stack (proxy + HTTP API + discovery).
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -18,16 +19,18 @@ from denon_proxy.runtime.state import RuntimeState
 @pytest.fixture
 def discovery_config():
     """Config for proxy + discovery only (no JSON API): VirtualAVR + SSDP + discovery HTTP."""
-    return load_config_from_dict({
-        "avr_host": "",
-        "proxy_host": "127.0.0.1",
-        "proxy_port": 0,
-        "enable_http": False,
-        "enable_ssdp": True,
-        "ssdp_advertise_ip": "127.0.0.1",
-        "ssdp_http_port": 0,
-        "ssdp_friendly_name": "Test Discovery Proxy",
-    })
+    return load_config_from_dict(
+        {
+            "avr_host": "",
+            "proxy_host": "127.0.0.1",
+            "proxy_port": 0,
+            "enable_http": False,
+            "enable_ssdp": True,
+            "ssdp_advertise_ip": "127.0.0.1",
+            "ssdp_http_port": 0,
+            "ssdp_friendly_name": "Test Discovery Proxy",
+        }
+    )
 
 
 @pytest.fixture
@@ -59,8 +62,7 @@ async def discovery_stack(discovery_config, discovery_logger):
                 await asyncio.wait_for(srv.wait_closed(), timeout=2.0)
         await proxy.stop()
         pytest.fail(
-            "Discovery stack failed: SSDP transport could not start. "
-            "Common cause: port already in use (Errno 48)."
+            "Discovery stack failed: SSDP transport could not start. Common cause: port already in use (Errno 48)."
         )
     yield proxy, ssdp_transport, http_servers
     if ssdp_transport:
@@ -76,17 +78,19 @@ async def discovery_stack(discovery_config, discovery_logger):
 @pytest.fixture
 def full_stack_http_config():
     """Config for full stack with JSON API: proxy + HTTP + discovery (production-like)."""
-    return load_config_from_dict({
-        "avr_host": "",
-        "proxy_host": "127.0.0.1",
-        "proxy_port": 0,
-        "enable_http": True,
-        "http_port": 0,
-        "enable_ssdp": True,
-        "ssdp_advertise_ip": "127.0.0.1",
-        "ssdp_http_port": 0,
-        "ssdp_friendly_name": "Test Full Stack Proxy",
-    })
+    return load_config_from_dict(
+        {
+            "avr_host": "",
+            "proxy_host": "127.0.0.1",
+            "proxy_port": 0,
+            "enable_http": True,
+            "http_port": 0,
+            "enable_ssdp": True,
+            "ssdp_advertise_ip": "127.0.0.1",
+            "ssdp_http_port": 0,
+            "ssdp_friendly_name": "Test Full Stack Proxy",
+        }
+    )
 
 
 @pytest.fixture
@@ -118,8 +122,7 @@ async def full_stack_http(full_stack_http_config, full_stack_http_logger):
                 await asyncio.wait_for(srv.wait_closed(), timeout=2.0)
         await proxy.stop()
         pytest.fail(
-            "Discovery stack failed: SSDP transport could not start. "
-            "Common cause: port already in use (Errno 48)."
+            "Discovery stack failed: SSDP transport could not start. Common cause: port already in use (Errno 48)."
         )
     yield proxy, ssdp_transport, discovery_http_servers
     if ssdp_transport:

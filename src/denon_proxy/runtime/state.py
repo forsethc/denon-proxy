@@ -18,6 +18,7 @@ if TYPE_CHECKING:
     from denon_proxy.avr.info import AVRInfo
     from denon_proxy.runtime.config import Config
 
+
 class RuntimeState:
     """
     Mutable runtime context for the proxy.

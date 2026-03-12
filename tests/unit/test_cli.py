@@ -72,4 +72,3 @@ def test_cli_version_subcommand_prints_version(monkeypatch: pytest.MonkeyPatch) 
         rc = cli_main(["version"])
     assert rc == 0
     assert stdout.getvalue().strip() == "1.2.3-test"
-

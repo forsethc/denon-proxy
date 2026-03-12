@@ -95,7 +95,8 @@ def _get_sources(config: Config, runtime_state: RuntimeState) -> list[tuple[str,
                 else:
                     _logger.warning(
                         "Input source '%s' (display_name: '%s') not found on AVR, skipping",
-                        func_name, display_name,
+                        func_name,
+                        display_name,
                     )
             out = filtered
         result = out if out else DEMO_SOURCES
@@ -117,16 +118,11 @@ def _get_sources(config: Config, runtime_state: RuntimeState) -> list[tuple[str,
     if raw_sources:
         _logger.info(
             "Raw sources from AVR:\n  %s",
-            "\n  ".join(
-                f"{func} -> {display_name}"
-                for func, display_name in raw_sources
-            ),
+            "\n  ".join(f"{func} -> {display_name}" for func, display_name in raw_sources),
         )
     _logger.info(
         "Resolved input sources:\n  %s",
-        "\n  ".join(
-            f"{func} -> {display_name}" for func, display_name in result
-        ),
+        "\n  ".join(f"{func} -> {display_name}" for func, display_name in result),
     )
     return result
 
@@ -134,6 +130,7 @@ def _get_sources(config: Config, runtime_state: RuntimeState) -> list[tuple[str,
 # -----------------------------------------------------------------------------
 # Helpers
 # -----------------------------------------------------------------------------
+
 
 def get_advertise_ip(config: Config) -> str | None:
     """Get the IP to advertise in SSDP LOCATION."""
@@ -154,6 +151,7 @@ def get_advertise_ip(config: Config) -> str | None:
 # XML builders
 # -----------------------------------------------------------------------------
 
+
 def _get_proxy_friendly_name(config: Config, runtime_state: RuntimeState) -> str:
     """Proxy's advertised friendly name: config if set, else physical device name + ' Proxy'. Cached on RuntimeState."""
     return runtime_state.get_friendly_name(config)
@@ -163,7 +161,7 @@ def _deviceinfo_xml(config: Config, runtime_state: RuntimeState) -> str:
     """Deviceinfo.xml - identify as pre-2016 AVR so denonavr uses port 8080/description.xml
     (avoids port 60006 aios_device.xml which can cause HA config flow issues)."""
     sources_xml = "\n".join(
-        f'      <Source><FuncName>{func_name}</FuncName><DefaultName>{display_name}</DefaultName></Source>'
+        f"      <Source><FuncName>{func_name}</FuncName><DefaultName>{display_name}</DefaultName></Source>"
         for func_name, display_name in _get_sources(config, runtime_state)
     )
     return f"""<?xml version="1.0" encoding="utf-8"?>
@@ -253,79 +251,58 @@ def _appcommand_response_xml(
         command_text = cmd_text or ""
         if command_text == "GetFriendlyName":
             cmd_responses.append(
-                f'  <cmd id="{cmd_id}" cmd_text="GetFriendlyName">'
-                f"<friendlyname>{friendly_name}</friendlyname></cmd>"
+                f'  <cmd id="{cmd_id}" cmd_text="GetFriendlyName"><friendlyname>{friendly_name}</friendlyname></cmd>'
             )
         elif command_text == "GetAllZonePowerStatus":
             # Both zone1 (AppCommand) and list format (some clients expect zone names)
             cmd_responses.append(
                 f'  <cmd id="{cmd_id}" cmd_text="GetAllZonePowerStatus">'
                 f"<zone1>{power}</zone1>"
-                f'<list><listvalue><zone>Main</zone><value>{power}</value></listvalue></list>'
+                f"<list><listvalue><zone>Main</zone><value>{power}</value></listvalue></list>"
                 f"</cmd>"
             )
         elif command_text == "GetAllZoneVolume":
             cmd_responses.append(
-                f'  <cmd id="{cmd_id}" cmd_text="GetAllZoneVolume">'
-                f"<zone1><volume>{volume}</volume></zone1></cmd>"
+                f'  <cmd id="{cmd_id}" cmd_text="GetAllZoneVolume"><zone1><volume>{volume}</volume></zone1></cmd>'
             )
         elif command_text == "GetAllZoneMuteStatus":
             cmd_responses.append(
-                f'  <cmd id="{cmd_id}" cmd_text="GetAllZoneMuteStatus">'
-                f"<zone1>{mute_val}</zone1></cmd>"
+                f'  <cmd id="{cmd_id}" cmd_text="GetAllZoneMuteStatus"><zone1>{mute_val}</zone1></cmd>'
             )
         elif command_text == "GetAllZoneSource":
             cmd_responses.append(
-                f'  <cmd id="{cmd_id}" cmd_text="GetAllZoneSource">'
-                f"<zone1><source>{input_src}</source></zone1></cmd>"
+                f'  <cmd id="{cmd_id}" cmd_text="GetAllZoneSource"><zone1><source>{input_src}</source></zone1></cmd>'
             )
         elif command_text == "GetSurroundModeStatus":
             cmd_responses.append(
-                f'  <cmd id="{cmd_id}" cmd_text="GetSurroundModeStatus">'
-                f"<surround>{sound_mode}</surround></cmd>"
+                f'  <cmd id="{cmd_id}" cmd_text="GetSurroundModeStatus"><surround>{sound_mode}</surround></cmd>'
             )
         elif command_text == "GetAutoStandby":
             cmd_responses.append(
                 f'  <cmd id="{cmd_id}" cmd_text="GetAutoStandby">'
-                '<list><listvalue><zone>Main</zone><value>OFF</value>'
+                "<list><listvalue><zone>Main</zone><value>OFF</value>"
                 "</listvalue></list></cmd>"
             )
         elif command_text == "GetDimmer":
-            cmd_responses.append(
-                f'  <cmd id="{cmd_id}" cmd_text="GetDimmer">'
-                '<value>Bright</value></cmd>'
-            )
+            cmd_responses.append(f'  <cmd id="{cmd_id}" cmd_text="GetDimmer"><value>Bright</value></cmd>')
         elif command_text == "GetECO":
-            cmd_responses.append(
-                f'  <cmd id="{cmd_id}" cmd_text="GetECO">'
-                "<mode>Off</mode></cmd>"
-            )
+            cmd_responses.append(f'  <cmd id="{cmd_id}" cmd_text="GetECO"><mode>Off</mode></cmd>')
         elif command_text == "GetToneControl":
             # denonavr uses convert_string_int_bool for status/adjust: expects "0" or "1", not "Off"/"On"
             cmd_responses.append(
                 f'  <cmd id="{cmd_id}" cmd_text="GetToneControl">'
-                '<status>0</status><adjust>0</adjust>'
-                '<basslevel>0</basslevel><bassvalue>50</bassvalue>'
-                '<treblelevel>0</treblelevel><treblevalue>50</treblevalue></cmd>'
+                "<status>0</status><adjust>0</adjust>"
+                "<basslevel>0</basslevel><bassvalue>50</bassvalue>"
+                "<treblelevel>0</treblelevel><treblevalue>50</treblevalue></cmd>"
             )
         elif command_text == "GetRenameSource":
-            cmd_responses.append(
-                f'  <cmd id="{cmd_id}" cmd_text="GetRenameSource">'
-                "<list></list></cmd>"
-            )
+            cmd_responses.append(f'  <cmd id="{cmd_id}" cmd_text="GetRenameSource"><list></list></cmd>')
         elif command_text == "GetDeletedSource":
-            cmd_responses.append(
-                f'  <cmd id="{cmd_id}" cmd_text="GetDeletedSource">'
-                "<list></list></cmd>"
-            )
+            cmd_responses.append(f'  <cmd id="{cmd_id}" cmd_text="GetDeletedSource"><list></list></cmd>')
         else:
             cmd_responses.append(f'  <cmd id="{cmd_id}" cmd_text="{command_text}"></cmd>')
 
-    xml_str = (
-        '<?xml version="1.0" encoding="utf-8"?>\n<rx>\n'
-        + "\n".join(cmd_responses)
-        + "\n</rx>"
-    )
+    xml_str = '<?xml version="1.0" encoding="utf-8"?>\n<rx>\n' + "\n".join(cmd_responses) + "\n</rx>"
     return xml_str.encode("utf-8")
 
 
@@ -367,6 +344,8 @@ def _mainzone_xml(avr_state: AVRState, config: Config, runtime_state: RuntimeSta
 </item>""".encode()
 
 
+# ruff wants to make this a one-liner which is not very readable
+# fmt: off
 def _escape_xml_text(s: str) -> str:
     """Escape &, <, >, " for use in XML element text."""
     return (
@@ -376,6 +355,7 @@ def _escape_xml_text(s: str) -> str:
         .replace(">", "&gt;")
         .replace('"', "&quot;")
     )
+# fmt: on
 
 
 async def _fetch_avr_description(avr_host: str, logger: logging.Logger) -> str | None:
@@ -392,12 +372,11 @@ async def _fetch_avr_description(avr_host: str, logger: logging.Logger) -> str |
     return None
 
 
-def _rewrite_avr_description(
-    xml_str: str, avr_host: str, advertise_ip: str, logger: logging.Logger
-) -> str:
+def _rewrite_avr_description(xml_str: str, avr_host: str, advertise_ip: str, logger: logging.Logger) -> str:
     """Rewrite AVR's description.xml: replace host with proxy IP, add ' Proxy' to friendlyName."""
     # This assumes the avr and the proxy use the same ports for everything (if any are specified)
     xml_str = xml_str.replace(avr_host, advertise_ip)
+
     # Add " Proxy" to friendlyName if not already present
     def add_proxy(m: re.Match[str]) -> str:
         content = m.group(1)
@@ -414,9 +393,7 @@ def _description_xml(config: Config, advertise_ip: str, runtime_state: RuntimeSt
     Uses physical AVR manufacturer/model from runtime_state.avr_info when available (e.g. after
     HTTP sync) so UC Remote and other clients can detect Denon vs Marantz correctly."""
     friendly_name = _get_proxy_friendly_name(config, runtime_state)
-    http_port = runtime_state.get_resolved_port(
-        config, "ssdp_http_port", DEFAULT_SSDP_HTTP_PORT
-    )
+    http_port = runtime_state.get_resolved_port(config, "ssdp_http_port", DEFAULT_SSDP_HTTP_PORT)
     avr_info = runtime_state.avr_info or AVRInfo.unknown()
     serial = avr_info.udn_serial(advertise_ip)
     manufacturer = (avr_info.manufacturer or "Denon").strip() or "Denon"
@@ -447,34 +424,37 @@ def _parse_ssdp_search_target(msg: str) -> str | None:
 
 def _ssdp_response(config: Config, advertise_ip: str, st: str, runtime_state: RuntimeState) -> bytes:
     """Build SSDP HTTP 200 response for M-SEARCH."""
-    http_port = runtime_state.get_resolved_port(
-        config, "ssdp_http_port", DEFAULT_SSDP_HTTP_PORT
-    )
+    http_port = runtime_state.get_resolved_port(config, "ssdp_http_port", DEFAULT_SSDP_HTTP_PORT)
     location = f"http://{advertise_ip}:{http_port}/description.xml"
     avr_info = runtime_state.avr_info or AVRInfo.unknown()
     serial = avr_info.udn_serial(advertise_ip)
     usn = f"uuid:denon-proxy-{serial}::{st}"
-    return "\r\n".join([
-        "HTTP/1.1 200 OK",
-        "CACHE-CONTROL: max-age=1800",
-        "EXT:",
-        f"LOCATION: {location}",
-        "SERVER: Linux/1.0 UPnP/1.0 Denon-AVR-Proxy/1.0",
-        f"ST: {st}",
-        f"USN: {usn}",
-        "", "",
-    ]).encode("utf-8")
+    return "\r\n".join(
+        [
+            "HTTP/1.1 200 OK",
+            "CACHE-CONTROL: max-age=1800",
+            "EXT:",
+            f"LOCATION: {location}",
+            "SERVER: Linux/1.0 UPnP/1.0 Denon-AVR-Proxy/1.0",
+            f"ST: {st}",
+            f"USN: {usn}",
+            "",
+            "",
+        ]
+    ).encode("utf-8")
 
 
 # -----------------------------------------------------------------------------
 # SSDP Protocol
 # -----------------------------------------------------------------------------
 
+
 class SSDPProtocol(asyncio.DatagramProtocol):
     """Respond to SSDP M-SEARCH to advertise as Denon AVR."""
 
     MATCH_ST = (
-        "ssdp:all", "upnp:rootdevice",
+        "ssdp:all",
+        "upnp:rootdevice",
         "urn:schemas-upnp-org:device:MediaRenderer:1",
         "urn:schemas-upnp-org:device:MediaServer:1",
         "urn:schemas-denon-com:device:AiosDevice:1",
@@ -513,6 +493,7 @@ class SSDPProtocol(asyncio.DatagramProtocol):
 # HTTP Device Description Handler
 # -----------------------------------------------------------------------------
 
+
 class DeviceDescriptionHandler(asyncio.Protocol):
     """
     Serves HTTP for SSDP (description.xml) and denonavr (Deviceinfo, AppCommand,
@@ -548,7 +529,7 @@ class DeviceDescriptionHandler(asyncio.Protocol):
             return
         headers_end = self._buffer.index(b"\r\n\r\n")
         headers = self._buffer[:headers_end].decode("utf-8", errors="ignore")
-        body_bytes = self._buffer[headers_end + 4:]
+        body_bytes = self._buffer[headers_end + 4 :]
 
         if "POST" in headers.split("\r\n")[0].upper():
             cl = 0
@@ -597,9 +578,7 @@ class DeviceDescriptionHandler(asyncio.Protocol):
                     self.config, self.avr_state, body_bytes, self.logger, self.runtime_state
                 )
 
-            peername = (
-                self.transport.get_extra_info("peername") if self.transport else None
-            )
+            peername = self.transport.get_extra_info("peername") if self.transport else None
             client_ip = peername[0] if peername else "?"
             client_display = self.config.client_display_for_log(client_ip)
 
@@ -630,6 +609,7 @@ class DeviceDescriptionHandler(asyncio.Protocol):
 # -----------------------------------------------------------------------------
 # Public API
 # -----------------------------------------------------------------------------
+
 
 async def run_discovery_servers(
     config: Config,
@@ -701,9 +681,7 @@ async def run_discovery_servers(
     appcmd_xml = _appcommand_friendlyname_xml(config, runtime_state).encode("utf-8")
 
     def http_factory() -> DeviceDescriptionHandler:
-        return DeviceDescriptionHandler(
-            desc_xml, devinfo_xml, appcmd_xml, logger, avr_state, config, runtime_state
-        )
+        return DeviceDescriptionHandler(desc_xml, devinfo_xml, appcmd_xml, logger, avr_state, config, runtime_state)
 
     http_servers: list[asyncio.AbstractServer] = []
     loop = asyncio.get_running_loop()

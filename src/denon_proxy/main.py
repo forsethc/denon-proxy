@@ -35,6 +35,7 @@ except ImportError:
 # Optional: use denonavr for initial state sync via HTTP (doesn't use telnet)
 try:
     import denonavr
+
     DENONAVR_AVAILABLE = True
 except ImportError:
     DENONAVR_AVAILABLE = False
@@ -79,6 +80,7 @@ if TYPE_CHECKING:
 # Logging setup
 # -----------------------------------------------------------------------------
 
+
 def setup_logging(level: str = "INFO", denonavr_log_level: str | None = None) -> None:
     """Configure logging format and level. denonavr_log_level sets the denonavr library logger separately.
     When stdout is not a TTY (e.g. systemd captures it), we use a format without timestamp/name
@@ -99,9 +101,7 @@ def setup_logging(level: str = "INFO", denonavr_log_level: str | None = None) ->
     logging.getLogger("httpx").setLevel(logging.WARNING)
     logging.getLogger("httpcore").setLevel(logging.WARNING)
     if denonavr_log_level is not None:
-        logging.getLogger("denonavr").setLevel(
-            getattr(logging, denonavr_log_level.upper(), logging.INFO)
-        )
+        logging.getLogger("denonavr").setLevel(getattr(logging, denonavr_log_level.upper(), logging.INFO))
 
 
 def _load_config_dict_from_file(config_path: Path | None) -> dict[str, Any]:
@@ -220,11 +220,7 @@ def build_json_state(
     client_activity_log: optional dict client_id -> iterable of (timestamp, command) for UI log.
     """
     client_ips = [_client_ip_for_display(c) for c in list(clients)]
-    state_dict = {
-        k: v
-        for k, v in vars(avr_state).items()
-        if not k.startswith("_")
-    }
+    state_dict = {k: v for k, v in vars(avr_state).items() if not k.startswith("_")}
     if "volume" in state_dict and state_dict["volume"] is not None:
         vol_max = getattr(avr_state, "volume_max", 98.0)
         state_dict["volume"] = volume_to_level(state_dict["volume"], vol_max)
@@ -356,6 +352,7 @@ def _is_valid_client_command(command: str) -> tuple[bool, str | None]:
 # Client connection handler
 # -----------------------------------------------------------------------------
 
+
 class ClientHandler(asyncio.Protocol):
     """
     Handles a single client connection to the proxy.
@@ -392,9 +389,7 @@ class ClientHandler(asyncio.Protocol):
         peer = self.transport.get_extra_info("peername")
         self._peername = cast("tuple[str, int] | None", peer)
         self.clients.add(self)
-        client_display = self.config.client_display_for_log(
-            self._peername[0] if self._peername else "?"
-        )
+        client_display = self.config.client_display_for_log(self._peername[0] if self._peername else "?")
         self.logger.info("Client connected: %s (total: %d)", client_display, len(self.clients))
         client_ip = self._peername[0] if self._peername else "?"
         self.record_command(client_ip, "[connected]")
@@ -503,6 +498,7 @@ class ClientHandler(asyncio.Protocol):
 # Proxy server
 # -----------------------------------------------------------------------------
 
+
 class DenonProxyServer:
     """
     Main proxy server: accepts client connections and bridges them
@@ -539,9 +535,7 @@ class DenonProxyServer:
         self._reconnect_task: asyncio.Task[Any] | None = None
         # Per-client activity log for UI: one deque per client (connect, disconnect, commands).
         self._client_activity_log: dict[str, deque[tuple[float, str]]] = {}
-        self._client_activity_log_max = max(
-            1, int(self.config.get("client_activity_log_max_entries", 200))
-        )
+        self._client_activity_log_max = max(1, int(self.config.get("client_activity_log_max_entries", 200)))
 
     def record_command(self, client_id: str, command: str) -> None:
         """Record a command or event for a client (for UI activity log).
@@ -596,6 +590,7 @@ class DenonProxyServer:
         self.runtime_state.notify_web_state()
         if self._reconnect_task is not None and not self._reconnect_task.done():
             return
+
         async def reconnect() -> None:
             try:
                 await asyncio.sleep(RECONNECT_DELAY)
@@ -606,6 +601,7 @@ class DenonProxyServer:
                         self.logger.info("Reconnected to AVR")
             finally:
                 self._reconnect_task = None
+
         self._reconnect_task = asyncio.create_task(reconnect())
 
     async def _sync_initial_state(self) -> None:
@@ -631,8 +627,7 @@ class DenonProxyServer:
                     len(avr_info.raw_sources),
                 )
             self.logger.info(
-                "Initial state from HTTP: power=%s vol=%s input=%s mute=%s "
-                "sound_mode=%s smart_select=%s",
+                "Initial state from HTTP: power=%s vol=%s input=%s mute=%s sound_mode=%s smart_select=%s",
                 self.avr_state.power,
                 self.avr_state.volume,
                 self.avr_state.input_source,
@@ -691,8 +686,13 @@ class DenonProxyServer:
         listen_port = self.runtime_state.get_resolved_port(self.config, "proxy_port", DEFAULT_PROXY_PORT)
         avr_host = (self.config.get("avr_host") or "").strip()
         if avr_host:
-            self.logger.info("Proxy listening on %s:%d (AVR: %s:%d)",
-                             connect_host, listen_port, avr_host, self.config.get("avr_port", DEFAULT_AVR_PORT))
+            self.logger.info(
+                "Proxy listening on %s:%d (AVR: %s:%d)",
+                connect_host,
+                listen_port,
+                avr_host,
+                self.config.get("avr_port", DEFAULT_AVR_PORT),
+            )
         else:
             self.logger.info("Proxy listening on %s:%d (virtual AVR)", connect_host, listen_port)
         self.logger.info("Connect Home Assistant and UC Remote 3 to %s:%d", connect_host, listen_port)
@@ -719,12 +719,14 @@ class DenonProxyServer:
             async def _do() -> None:
                 if self.avr:
                     await self.avr.send_command(cmd)
+
             asyncio.create_task(_do())
 
         def _request_state_cb() -> None:
             async def _do() -> None:
                 if self.avr and self.avr.is_connected():
                     await self.avr.request_state()
+
             asyncio.create_task(_do())
 
         enable_http = bool(self.config.get("enable_http", True))
@@ -775,6 +777,7 @@ class DenonProxyServer:
 # -----------------------------------------------------------------------------
 # Main entry point
 # -----------------------------------------------------------------------------
+
 
 async def main_async(config: Config) -> None:
     """Run the proxy server."""
@@ -902,11 +905,10 @@ def run_proxy(config_path: Path | None) -> int:
 
 def main() -> int:
     """Parse arguments and run the proxy."""
-    parser = argparse.ArgumentParser(
-        description="Denon AVR Proxy - Virtual AVR for multiple clients"
-    )
+    parser = argparse.ArgumentParser(description="Denon AVR Proxy - Virtual AVR for multiple clients")
     parser.add_argument(
-        "--config", "-c",
+        "--config",
+        "-c",
         type=Path,
         default=None,
         help="Path to config YAML (default: config.yaml in current working directory)",

@@ -43,14 +43,9 @@ async def test_virtual_avr_request_state_pushes_status_dump_lines():
     await avr.connect()
     await avr.request_state()
 
-    expected = [
-        line.strip()
-        for line in state.get_status_dump().strip().splitlines()
-        if line.strip()
-    ]
+    expected = [line.strip() for line in state.get_status_dump().strip().splitlines() if line.strip()]
     assert recorded == expected, (
-        f"on_response should be called with lines from get_status_dump(); "
-        f"got {recorded!r}, expected {expected!r}"
+        f"on_response should be called with lines from get_status_dump(); got {recorded!r}, expected {expected!r}"
     )
     # Sanity: we expect PW, ZM, MV, SI, MU, MS, and optionally MSSMART
     assert any(line.startswith("PW") for line in recorded)

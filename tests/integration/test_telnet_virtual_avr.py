@@ -15,13 +15,15 @@ from denon_proxy.runtime.state import RuntimeState
 @pytest.fixture
 def integration_config():
     """Minimal config for integration: virtual AVR, port 0, no Web UI, no SSDP."""
-    return load_config_from_dict({
-        "avr_host": "",
-        "proxy_host": "127.0.0.1",
-        "proxy_port": 0,
-        "enable_http": False,
-        "enable_ssdp": False,
-    })
+    return load_config_from_dict(
+        {
+            "avr_host": "",
+            "proxy_host": "127.0.0.1",
+            "proxy_port": 0,
+            "enable_http": False,
+            "enable_ssdp": False,
+        }
+    )
 
 
 @pytest.fixture
@@ -247,14 +249,10 @@ async def _telnet_send_and_assert(
         response = await asyncio.wait_for(reader.read(4096), timeout=timeout)
         response_str = response.decode("utf-8", errors="replace")
         for sub in response_contains:
-            assert (
-                sub in response_str
-            ), f"Expected {sub!r} in response, got: {response_str!r}"
+            assert sub in response_str, f"Expected {sub!r} in response, got: {response_str!r}"
         for attr, expected in state_assertions.items():
             actual = getattr(server.avr_state, attr)
-            assert (
-                actual == expected
-            ), f"state.{attr}: got {actual!r}, expected {expected!r}"
+            assert actual == expected, f"state.{attr}: got {actual!r}, expected {expected!r}"
     finally:
         writer.close()
         await writer.wait_closed()

@@ -71,12 +71,7 @@ async def test_http_get_status_json_shape():
 
         reader, writer = await _open_connection(port)
         try:
-            request = (
-                "GET /api/status HTTP/1.1\r\n"
-                "Host: 127.0.0.1\r\n"
-                "Connection: close\r\n"
-                "\r\n"
-            ).encode("ascii")
+            request = ("GET /api/status HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n").encode("ascii")
             writer.write(request)
             await writer.drain()
 
@@ -311,12 +306,7 @@ async def test_http_post_refresh_requires_request_state():
         port = server.sockets[0].getsockname()[1]
         reader, writer = await _open_connection(port)
         try:
-            request = (
-                "POST /api/refresh HTTP/1.1\r\n"
-                "Host: 127.0.0.1\r\n"
-                "Connection: close\r\n"
-                "\r\n"
-            ).encode("ascii")
+            request = ("POST /api/refresh HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n").encode("ascii")
             writer.write(request)
             await writer.drain()
 
@@ -360,12 +350,7 @@ async def test_http_post_refresh_calls_request_state():
         port = server.sockets[0].getsockname()[1]
         reader, writer = await _open_connection(port)
         try:
-            request = (
-                "POST /api/refresh HTTP/1.1\r\n"
-                "Host: 127.0.0.1\r\n"
-                "Connection: close\r\n"
-                "\r\n"
-            ).encode("ascii")
+            request = ("POST /api/refresh HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n").encode("ascii")
             writer.write(request)
             await writer.drain()
 
@@ -405,12 +390,7 @@ async def test_http_events_sse_streams_state():
         port = server.sockets[0].getsockname()[1]
         reader, writer = await _open_connection(port)
         try:
-            request = (
-                "GET /events HTTP/1.1\r\n"
-                "Host: 127.0.0.1\r\n"
-                "Connection: keep-alive\r\n"
-                "\r\n"
-            ).encode("ascii")
+            request = ("GET /events HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: keep-alive\r\n\r\n").encode("ascii")
             writer.write(request)
             await writer.drain()
 
@@ -614,4 +594,3 @@ async def test_http_post_refresh_returns_500_when_request_state_raises():
     finally:
         server.close()
         await server.wait_closed()
-

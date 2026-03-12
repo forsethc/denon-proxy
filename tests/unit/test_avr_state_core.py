@@ -163,4 +163,3 @@ def test_apply_payload_normalizes_smart_select():
     assert state.smart_select is None
     state.apply_payload({"smart_select": "SMARTx"})
     assert state.smart_select is None
-

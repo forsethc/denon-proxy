@@ -15,7 +15,7 @@ def test_parse_ssdp_search_target_denon_urn():
     msg = (
         "M-SEARCH * HTTP/1.1\r\n"
         "HOST: 239.255.255.250:1900\r\n"
-        "MAN: \"ssdp:discover\"\r\n"
+        'MAN: "ssdp:discover"\r\n'
         "ST: urn:schemas-denon-com:device:AiosDevice:1\r\n"
         "\r\n"
     )
@@ -43,7 +43,7 @@ def test_parse_ssdp_search_target_case_insensitive():
 
 
 def test_parse_ssdp_search_target_no_st_returns_none():
-    msg = "M-SEARCH * HTTP/1.1\r\nHOST: 239.255.255.250:1900\r\nMAN: \"ssdp:discover\"\r\n\r\n"
+    msg = 'M-SEARCH * HTTP/1.1\r\nHOST: 239.255.255.250:1900\r\nMAN: "ssdp:discover"\r\n\r\n'
     assert parse_ssdp_search_target(msg) is None
 
 

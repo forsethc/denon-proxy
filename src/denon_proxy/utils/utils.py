@@ -15,8 +15,8 @@ if TYPE_CHECKING:
     from denon_proxy.runtime.state import RuntimeState
 
 _DOCKER_NETWORKS = (
-    ipaddress.IPv4Network("172.16.0.0/12"), # typical Docker bridge on Linux
-    ipaddress.IPv4Network("192.168.65.0/24"), # Docker Desktop for Mac/Windows
+    ipaddress.IPv4Network("172.16.0.0/12"),  # typical Docker bridge on Linux
+    ipaddress.IPv4Network("192.168.65.0/24"),  # Docker Desktop for Mac/Windows
 )
 
 

@@ -34,9 +34,7 @@ async def test_full_stack_api_and_telnet_together(full_stack_http):
             timeout=2.0,
         )
         try:
-            writer.write(
-                b"GET /api/status HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n"
-            )
+            writer.write(b"GET /api/status HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n")
             await writer.drain()
             raw = await asyncio.wait_for(reader.read(65536), timeout=2.0)
         finally:

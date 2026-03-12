@@ -155,10 +155,7 @@ def test_rewrite_avr_description_skips_proxy_suffix_if_present():
 
 
 def test_parse_appcommand_request_multiple_tx_chunks():
-    body = (
-        b"<tx><cmd id=\"1\">GetFriendlyName</cmd></tx>"
-        b"<tx><cmd id=\"2\">GetAllZonePowerStatus</cmd></tx>"
-    )
+    body = b'<tx><cmd id="1">GetFriendlyName</cmd></tx><tx><cmd id="2">GetAllZonePowerStatus</cmd></tx>'
     cmds = parse_appcommand_request(body)
     assert cmds == [
         ("1", "GetFriendlyName"),
@@ -199,7 +196,7 @@ def test_escape_xml_text():
     assert _escape_xml_text("<x>") == "&lt;x&gt;"
     assert _escape_xml_text('"') == "&quot;"
     assert _escape_xml_text("no special chars") == "no special chars"
-    assert _escape_xml_text("a & b <c> \"d\"") == "a &amp; b &lt;c&gt; &quot;d&quot;"
+    assert _escape_xml_text('a & b <c> "d"') == "a &amp; b &lt;c&gt; &quot;d&quot;"
 
 
 def test_get_sources_from_dict():
@@ -240,4 +237,3 @@ def test_get_sources_uses_raw_sources_when_no_user_sources():
     )
     result = get_sources(config, runtime_state)
     assert result == [("CD", "CD"), ("HDMI1", "Game Console")]
-

@@ -29,4 +29,3 @@ def test_parse_http_request_with_body_and_querystring():
     assert path == "/api/command"
     assert b"Content-Type: application/json" in headers
     assert body == b'{"command":"PWON"}'
-
