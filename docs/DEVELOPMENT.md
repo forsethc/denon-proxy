@@ -46,17 +46,26 @@ The proxy keeps configuration and runtime data in four distinct layers. Keeping 
 - **RuntimeState** → holds that reference plus derived caches and callbacks.
 - **AVRState** → the only frequently mutating state; it reflects the current device (or optimistic) state.
 
-## Type checking
+## Linting and type checking
 
-The project uses [mypy](https://mypy.readthedocs.io/) for static type checking. Install the dev extras, then run:
+The project uses [Ruff](https://docs.astral.sh/ruff/) for linting, and [mypy](https://mypy.readthedocs.io/) for static type checking. To install the required packages:
 
 ```bash
 pip install -e ".[test,dev]"
 ```
 
+Then run:
+
+### Ruff
+
+- **Lint** (report only): `ruff check src tests`
+- **Lint and auto-fix**: `ruff check src tests --fix`
+
+Configuration is in `pyproject.toml` under `[tool.ruff]` and `[tool.ruff.lint]`.
+
 ### Mypy
 
-- **Type-check the package**: `mypy src`
+- **Type-check the package**: `mypy src` (uses `mypy_path = "src"` so the `denon_proxy` package is found).
 
 Configuration is in `pyproject.toml` under `[tool.mypy]` and `[tool.mypy.overrides]`.
 
