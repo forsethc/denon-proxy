@@ -8,7 +8,7 @@ connection to the physical AVR.
 
 Usage:
     python denon_proxy.py [--config config.yaml]
-    
+
     Or with environment variables:
     AVR_HOST=192.168.1.100 PROXY_PORT=2323 python denon_proxy.py
 """
