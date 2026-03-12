@@ -1,4 +1,3 @@
-from denon_proxy.avr.info import AVRInfo
 from denon_proxy.avr.state import AVRState
 from denon_proxy.proxy.core import state_and_config_updates_from_denonavr
 
@@ -180,4 +179,3 @@ def test_apply_payload_partial_leaves_others_unchanged():
     assert state.volume == "60"
     assert state.input_source == "TUNER"
     assert state.sound_mode == "STEREO"
-

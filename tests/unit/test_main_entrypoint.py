@@ -170,4 +170,3 @@ async def test_main_async_starts_and_shuts_down_proxy_and_discovery(monkeypatch)
     # Ensure our fake event was created and waited on so shutdown path ran.
     assert events.get("created") is True
     assert events.get("waited") is True
-

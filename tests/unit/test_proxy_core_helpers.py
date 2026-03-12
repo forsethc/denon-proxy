@@ -282,4 +282,3 @@ def test_avr_response_broadcast_lines_other():
     assert avr_response_broadcast_lines("MV50") == ["MV50"]
     assert avr_response_broadcast_lines("SIHDMI1") == ["SIHDMI1"]
     assert avr_response_broadcast_lines("MUON") == ["MUON"]
-
