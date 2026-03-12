@@ -15,13 +15,18 @@ from __future__ import annotations
 
 import asyncio
 import json
-import logging
-from typing import Any, Callable, Set, cast
+from typing import TYPE_CHECKING, Any, cast
 
-from denon_proxy.runtime.config import Config
 from denon_proxy.constants import DEFAULT_HTTP_PORT
-from denon_proxy.runtime.state import RuntimeState
 from denon_proxy.utils.utils import resolve_listening_port
+
+if TYPE_CHECKING:
+    import logging
+    from collections.abc import Callable
+
+    from denon_proxy.runtime.config import Config
+    from denon_proxy.runtime.state import RuntimeState
+
 
 def parse_http_request(buffer: bytes) -> tuple[str, str, bytes, bytes] | None:
     """
@@ -70,7 +75,7 @@ class _HttpServerHandler(asyncio.Protocol):
         self,
         get_state: Callable[[], dict[str, Any]],
         logger: logging.Logger,
-        sse_subscribers: Set[asyncio.Transport],
+        sse_subscribers: set[asyncio.Transport],
         send_command: Callable[[str], None] | None = None,
         request_state: Callable[[], None] | None = None,
         dashboard_html: str | None = None,
@@ -89,7 +94,7 @@ class _HttpServerHandler(asyncio.Protocol):
         self.on_command_sent = on_command_sent
 
     def connection_made(self, transport: asyncio.BaseTransport) -> None:
-        self.transport = cast(asyncio.Transport, transport)
+        self.transport = cast("asyncio.Transport", transport)
 
     def connection_lost(self, exc: BaseException | None) -> None:
         if self._sse_mode and self.transport:
@@ -241,7 +246,7 @@ async def run_http_server(
         return None
 
     port = int(config.get("http_port", DEFAULT_HTTP_PORT))
-    sse_subscribers: Set[asyncio.Transport] = set()
+    sse_subscribers: set[asyncio.Transport] = set()
 
     async def _push() -> None:
         try:
@@ -257,11 +262,10 @@ async def run_http_server(
             logger.debug("SSE push error: %s", e)
 
     def notify_state_changed() -> None:
-        try:
+        import contextlib
+
+        with contextlib.suppress(RuntimeError):
             asyncio.get_running_loop().create_task(_push())
-        except RuntimeError:
-            # No running loop; ignore (e.g. during shutdown)
-            pass
 
     try:
         def factory() -> _HttpServerHandler:

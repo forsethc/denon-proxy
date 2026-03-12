@@ -13,12 +13,12 @@ import logging
 
 import pytest
 
-from denon_proxy.avr.info import AVRInfo
-from denon_proxy.runtime.state import RuntimeState
-from denon_proxy.constants import SSDP_MCAST_GRP, SSDP_MCAST_PORT
 from denon_proxy.avr.discovery import run_discovery_servers
+from denon_proxy.avr.info import AVRInfo
 from denon_proxy.avr.state import AVRState
+from denon_proxy.constants import SSDP_MCAST_GRP, SSDP_MCAST_PORT
 from denon_proxy.main import load_config_from_dict
+from denon_proxy.runtime.state import RuntimeState
 
 
 @pytest.fixture
@@ -221,7 +221,7 @@ async def test_discovery_msearch_handled_and_responded(discovery_servers):
         "MAN: \"ssdp:discover\"\r\n"
         "ST: urn:schemas-denon-com:device:AiosDevice:1\r\n"
         "\r\n"
-    ).encode("utf-8")
+    ).encode()
 
     loop = asyncio.get_running_loop()
     transport, protocol = await loop.create_datagram_endpoint(

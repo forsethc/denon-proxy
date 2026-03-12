@@ -8,7 +8,7 @@ connection to the physical AVR.
 
 Usage:
     python denon_proxy.py [--config config.yaml]
-    
+
     Or with environment variables:
     AVR_HOST=192.168.1.100 PROXY_PORT=2323 python denon_proxy.py
 """
@@ -25,7 +25,7 @@ import sys
 import time
 from collections import deque
 from pathlib import Path
-from typing import Any, Callable, Iterable, Mapping, Set, cast
+from typing import TYPE_CHECKING, Any, cast
 
 try:
     import yaml
@@ -42,9 +42,15 @@ except ImportError:
 import httpx
 from pydantic import ValidationError
 
-from denon_proxy.avr.connection import AVRConnection, VirtualAVRConnection, create_avr_connection
+from denon_proxy.avr.connection import (
+    AVRConnection,
+    VirtualAVRConnection,
+    create_avr_connection,
+)
 from denon_proxy.avr.discovery import get_advertise_ip, run_discovery_servers
-from denon_proxy.runtime.config import Config
+from denon_proxy.avr.info import AVRInfo
+from denon_proxy.avr.state import AVRState, volume_to_level
+from denon_proxy.avr.telnet_utils import parse_telnet_lines, telnet_line_to_bytes
 from denon_proxy.constants import (
     DEFAULT_AVR_PORT,
     DEFAULT_HTTP_PORT,
@@ -56,14 +62,18 @@ from denon_proxy.constants import (
     SHUTDOWN_PROXY_WAIT,
     SHUTDOWN_SERVER_WAIT,
 )
-from denon_proxy.avr.info import AVRInfo
-from denon_proxy.runtime.state import RuntimeState
-from denon_proxy.utils.utils import get_version, is_docker_internal_ip, is_running_in_docker, resolve_listening_port
-from denon_proxy.avr.state import AVRState, volume_to_level
-from denon_proxy.avr.telnet_utils import parse_telnet_lines, telnet_line_to_bytes
-
 from denon_proxy.http.server import run_http_server
+from denon_proxy.runtime.config import Config
+from denon_proxy.runtime.state import RuntimeState
+from denon_proxy.utils.utils import (
+    get_version,
+    is_docker_internal_ip,
+    is_running_in_docker,
+    resolve_listening_port,
+)
 
+if TYPE_CHECKING:
+    from collections.abc import Callable, Iterable, Mapping
 
 # -----------------------------------------------------------------------------
 # Logging setup
@@ -117,7 +127,7 @@ def _load_config_dict_from_file(config_path: Path | None) -> dict[str, Any]:
                 "Copy config.sample.yaml to config.yaml in the project root and edit as needed."
             )
 
-    with open(path) as f:
+    with path.open() as f:
         data = yaml.safe_load(f) or {}
     if not isinstance(data, dict):
         raise ValueError(f"Config file must contain a mapping, got {type(data).__name__}")
@@ -356,7 +366,7 @@ class ClientHandler(asyncio.Protocol):
         self,
         avr: AVRConnection | VirtualAVRConnection,
         avr_state: AVRState,
-        clients: Set["ClientHandler"],
+        clients: set[ClientHandler],
         logger: logging.Logger,
         runtime_state: RuntimeState,
         config: Config,
@@ -378,9 +388,9 @@ class ClientHandler(asyncio.Protocol):
 
     def connection_made(self, transport: asyncio.BaseTransport) -> None:
         """Called when a client connects."""
-        self.transport = cast(asyncio.Transport, transport)
+        self.transport = cast("asyncio.Transport", transport)
         peer = self.transport.get_extra_info("peername")
-        self._peername = cast(tuple[str, int] | None, peer)
+        self._peername = cast("tuple[str, int] | None", peer)
         self.clients.add(self)
         client_display = self.config.client_display_for_log(
             self._peername[0] if self._peername else "?"
@@ -520,7 +530,7 @@ class DenonProxyServer:
         self.logger = logger
         self.runtime_state = runtime_state
         self.avr_state = AVRState()
-        self.clients: Set[ClientHandler] = set()
+        self.clients: set[ClientHandler] = set()
         self.avr: (AVRConnection | VirtualAVRConnection) | None = None
         self._server: asyncio.Server | None = None
         self._json_api_server: asyncio.Server | None = None
@@ -534,16 +544,26 @@ class DenonProxyServer:
         )
 
     def record_command(self, client_id: str, command: str) -> None:
-        """Record a command or event for a client (for UI activity log). client_id is IP or 'Web UI'. No-op if disabled in config.
-        When client_activity_log_hide_queries is true, query commands (ending with ?) are not stored so they cannot evict visible entries."""
+        """Record a command or event for a client (for UI activity log).
+
+        client_id is IP or 'Web UI'. No-op if disabled in config.
+        When client_activity_log_hide_queries is true, query commands
+        (ending with ?) are not stored so they cannot evict visible
+        entries.
+        """
         if not self.config.get("client_activity_log", True):
             return
         cid = str(client_id).strip() if client_id else "?"
         msg = command.strip() if isinstance(command, str) else str(command).strip()
         ts = time.time()
-        if msg not in ("[connected]", "[disconnected]"):
-            if self.config.get("client_activity_log_hide_queries", False) and msg.endswith("?"):
-                return  # don't store queries when hide_queries is on; they would only evict visible entries
+        if (
+            msg not in ("[connected]", "[disconnected]")
+            and self.config.get("client_activity_log_hide_queries", False)
+            and msg.endswith("?")
+        ):
+            # Don't store queries when hide_queries is on; they would only
+            # evict visible entries.
+            return
         if cid not in self._client_activity_log:
             self._client_activity_log[cid] = deque(maxlen=self._client_activity_log_max)
         self._client_activity_log[cid].append((ts, msg))
@@ -606,10 +626,20 @@ class DenonProxyServer:
             self.avr_state.apply_payload(state_updates)
             self.runtime_state.avr_info = avr_info
             if avr_info.has_sources():
-                self.logger.info("Fetched %d input sources from AVR", len(avr_info.raw_sources))
-            self.logger.info("Initial state from HTTP: power=%s vol=%s input=%s mute=%s sound_mode=%s smart_select=%s",
-                             self.avr_state.power, self.avr_state.volume,
-                             self.avr_state.input_source, self.avr_state.mute, self.avr_state.sound_mode, self.avr_state.smart_select)
+                self.logger.info(
+                    "Fetched %d input sources from AVR",
+                    len(avr_info.raw_sources),
+                )
+            self.logger.info(
+                "Initial state from HTTP: power=%s vol=%s input=%s mute=%s "
+                "sound_mode=%s smart_select=%s",
+                self.avr_state.power,
+                self.avr_state.volume,
+                self.avr_state.input_source,
+                self.avr_state.mute,
+                self.avr_state.sound_mode,
+                self.avr_state.smart_select,
+            )
         except (OSError, asyncio.TimeoutError, httpx.HTTPError) as e:
             self.logger.debug("Could not sync initial state via HTTP: %s", e)
 

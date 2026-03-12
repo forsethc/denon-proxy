@@ -2,7 +2,6 @@
 
 from denon_proxy.avr.info import AVRInfo
 
-
 # --- describe() ---
 
 

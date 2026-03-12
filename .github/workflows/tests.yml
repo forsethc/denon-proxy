@@ -9,7 +9,7 @@ on:
 
 jobs:
   code_quality:
-    name: Code Quality checks (mypy)
+    name: Code Quality checks (mypy, ruff)
     runs-on: ubuntu-latest
 
     steps:
@@ -31,6 +31,10 @@ jobs:
       - name: Mypy
         run: |
           mypy src
+
+      - name: Ruff lint
+        run: |
+          ruff check src tests
 
   tests:
     name: Tests (pytest unit, integration, e2e tests)

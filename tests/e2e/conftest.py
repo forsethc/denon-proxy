@@ -1,4 +1,7 @@
-"""Shared e2e fixtures: discovery stack (proxy + SSDP + discovery HTTP) and full stack (proxy + HTTP API + discovery)."""
+"""Shared e2e fixtures:
+- discovery stack (proxy + SSDP + discovery HTTP)
+- full stack (proxy + HTTP API + discovery).
+"""
 from __future__ import annotations
 
 import asyncio
@@ -6,10 +9,10 @@ import logging
 
 import pytest
 
-from denon_proxy.runtime.state import RuntimeState
 from denon_proxy.avr.connection import create_avr_connection
 from denon_proxy.avr.discovery import run_discovery_servers
 from denon_proxy.main import DenonProxyServer, load_config_from_dict
+from denon_proxy.runtime.state import RuntimeState
 
 
 @pytest.fixture

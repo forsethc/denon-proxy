@@ -28,32 +28,34 @@ Usage (with denon-proxy):
 
 from __future__ import annotations
 
-import errno
 import asyncio
+import errno
 import logging
 import re
 import socket
 import struct
 import xml.etree.ElementTree as ET
-from typing import Callable, cast
+from typing import TYPE_CHECKING, cast
 
-from denon_proxy.avr.info import AVRInfo
-from denon_proxy.runtime.config import Config
-from denon_proxy.runtime.state import RuntimeState
-from denon_proxy.utils.utils import is_docker_internal_ip
 import httpx
 
+from denon_proxy.avr.info import AVRInfo
 from denon_proxy.avr.state import AVRState, volume_to_db
 from denon_proxy.constants import (
+    AVR_NETWORK_TIMEOUT,
     DEFAULT_SSDP_HTTP_PORT,
     DEMO_SOURCES,
     DENON_AIOS_HTTP_PORT,
     DISCOVERY_HTTP_PORT,
-    AVR_NETWORK_TIMEOUT,
     SOCKET_TIMEOUT,
     SSDP_MCAST_GRP,
     SSDP_MCAST_PORT,
 )
+from denon_proxy.utils.utils import is_docker_internal_ip
+
+if TYPE_CHECKING:
+    from denon_proxy.runtime.config import Config
+    from denon_proxy.runtime.state import RuntimeState
 
 __all__ = ["get_advertise_ip", "run_discovery_servers"]
 
@@ -100,14 +102,32 @@ def _get_sources(config: Config, runtime_state: RuntimeState) -> list[tuple[str,
     else:
         # No user mapping: prefer raw sources (from physical AVR) over defaults
         if raw_sources:
-            result = [(str(func).strip(), str(display_name).strip() if display_name else str(func).strip()) for func, display_name in raw_sources if func]
+            result = [
+                (
+                    str(func).strip(),
+                    str(display_name).strip() if display_name else str(func).strip(),
+                )
+                for func, display_name in raw_sources
+                if func
+            ]
         else:
             result = DEMO_SOURCES
 
     runtime_state.resolved_sources = result
     if raw_sources:
-        _logger.info("Raw sources from AVR:\n  %s", "\n  ".join(f"{func} -> {display_name}" for func, display_name in raw_sources))
-    _logger.info("Resolved input sources:\n  %s", "\n  ".join(f"{func} -> {display_name}" for func, display_name in result))
+        _logger.info(
+            "Raw sources from AVR:\n  %s",
+            "\n  ".join(
+                f"{func} -> {display_name}"
+                for func, display_name in raw_sources
+            ),
+        )
+    _logger.info(
+        "Resolved input sources:\n  %s",
+        "\n  ".join(
+            f"{func} -> {display_name}" for func, display_name in result
+        ),
+    )
     return result
 
 
@@ -344,7 +364,7 @@ def _mainzone_xml(avr_state: AVRState, config: Config, runtime_state: RuntimeSta
   <SourceDelete>
 {source_delete}
   </SourceDelete>
-</item>""".encode("utf-8")
+</item>""".encode()
 
 
 def _escape_xml_text(s: str) -> str:
@@ -468,7 +488,7 @@ class SSDPProtocol(asyncio.DatagramProtocol):
         self._advertise_ip = get_advertise_ip(config)
 
     def connection_made(self, transport: asyncio.BaseTransport) -> None:
-        self.transport = cast(asyncio.DatagramTransport, transport)
+        self.transport = cast("asyncio.DatagramTransport", transport)
 
     def datagram_received(self, data: bytes, addr: tuple[str, int]) -> None:
         if not self._advertise_ip:
@@ -520,7 +540,7 @@ class DeviceDescriptionHandler(asyncio.Protocol):
         self.transport: asyncio.Transport | None = None
 
     def connection_made(self, transport: asyncio.BaseTransport) -> None:
-        self.transport = cast(asyncio.Transport, transport)
+        self.transport = cast("asyncio.Transport", transport)
 
     def data_received(self, data: bytes) -> None:
         self._buffer += data
@@ -561,9 +581,11 @@ class DeviceDescriptionHandler(asyncio.Protocol):
             content_type = b"application/xml"
 
             if method == "GET":
-                if path_lower == "/description.xml" or path == "/":
-                    body = self.description_xml if "description" in path_lower else b"<html><body>Denon AVR Proxy</body></html>"
-                    content_type = b"application/xml" if "description" in path_lower else b"text/html"
+                if path == "/":
+                    body = b"<html><body>Denon AVR Proxy</body></html>"
+                    content_type = b"text/html"
+                elif path_lower == "/description.xml":
+                    body = self.description_xml
                 elif "/goform/deviceinfo.xml" in path_lower or path_lower.endswith("deviceinfo.xml"):
                     body = self.deviceinfo_xml
                 elif "aios_device.xml" in path_lower or "upnp/desc" in path_lower:
@@ -697,7 +719,8 @@ async def run_discovery_servers(
             ssdp_transport.close()
         return None, None
 
-    # Optional: also listen on 80 and 60006 for clients that probe those ports, but only if they're not already listening from above.
+    # Optional: also listen on 80 and 60006 for clients that probe those
+    # ports, but only if they're not already listening from above.
     if http_port != DISCOVERY_HTTP_PORT:
         try:
             server = await loop.create_server(http_factory, "0.0.0.0", DISCOVERY_HTTP_PORT, reuse_address=True)

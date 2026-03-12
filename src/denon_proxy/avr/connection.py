@@ -9,14 +9,17 @@ proxy does not need to know which is in use.
 from __future__ import annotations
 
 import asyncio
-import logging
-from typing import Any, Callable
+from typing import TYPE_CHECKING, Any
 
-from denon_proxy.runtime.config import Config
+from denon_proxy.avr.telnet_utils import parse_telnet_lines, telnet_line_to_bytes
 from denon_proxy.constants import AVR_NETWORK_TIMEOUT, REQUEST_STATE_INTERVAL
 
-from denon_proxy.avr.state import AVRState
-from denon_proxy.avr.telnet_utils import parse_telnet_lines, telnet_line_to_bytes
+if TYPE_CHECKING:
+    import logging
+    from collections.abc import Callable
+
+    from denon_proxy.avr.state import AVRState
+    from denon_proxy.runtime.config import Config
 
 # -----------------------------------------------------------------------------
 # AVR Connection - telnet connection to physical AVR

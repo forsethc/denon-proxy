@@ -5,7 +5,7 @@ from __future__ import annotations
 import ipaddress
 import os
 from collections.abc import Iterator, Mapping
-from typing import Any, Mapping as TypingMapping
+from typing import Any
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
@@ -21,7 +21,10 @@ _VALID_COMMAND_GROUPS = frozenset(
 )
 
 
-def _apply_env_to_dict(raw: dict[str, Any], env: TypingMapping[str, str] | None = None) -> None:
+def _apply_env_to_dict(
+    raw: dict[str, Any],
+    env: Mapping[str, str] | None = None,
+) -> None:
     """Mutate raw config dict with environment variable overrides."""
     if env is None:
         env = os.environ
@@ -168,7 +171,7 @@ class Config(BaseModel, Mapping[str, Any]):
         return v
 
     @model_validator(mode="after")
-    def _no_avr_host_force_optimistic_off(self) -> "Config":
+    def _no_avr_host_force_optimistic_off(self) -> Config:
         """After building config, force optimistic_state=False when no avr_host."""
         if not (self.avr_host or "").strip():
             object.__setattr__(self, "optimistic_state", False)
@@ -186,9 +189,9 @@ class Config(BaseModel, Mapping[str, Any]):
     @classmethod
     def load_from_dict(
         cls,
-        raw: TypingMapping[str, Any] | None,
-        env: TypingMapping[str, str] | None = None,
-    ) -> "Config":
+        raw: Mapping[str, Any] | None,
+        env: Mapping[str, str] | None = None,
+    ) -> Config:
         """
         Build Config from a raw dict (e.g. from YAML) and apply env overrides.
 

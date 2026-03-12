@@ -1,1 +1,5 @@
-"""All tests in this directory are integration tests (multiple real components, not full app). Mark applied by tests/conftest.py pytest_collection_modifyitems."""
+"""All tests in this directory are integration tests.
+
+They exercise multiple real components, not the full app. The marker is
+applied by tests/conftest.py via pytest_collection_modifyitems().
+"""

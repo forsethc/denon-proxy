@@ -1,5 +1,5 @@
-from denon_proxy.constants import VOLUME_DEFAULT_LEVEL
 from denon_proxy.avr.state import AVRState
+from denon_proxy.constants import VOLUME_DEFAULT_LEVEL
 
 
 def test_update_from_message_updates_all_fields():
@@ -86,7 +86,6 @@ def test_update_from_message_mvmax_updates_volume_max_and_not_volume():
     """MVMAX is AVR config, not current volume; updates volume_max only."""
     state = AVRState()
     state.volume = "50"
-    original_max = state.volume_max
     state.update_from_message("MVMAX60")
     assert state.volume == "50"
     assert state.volume_max == 60.0

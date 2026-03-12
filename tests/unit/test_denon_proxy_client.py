@@ -2,14 +2,13 @@
 
 from __future__ import annotations
 
-import asyncio
 import logging
 
 import pytest
 
-from denon_proxy.runtime.state import RuntimeState
 from denon_proxy.avr.state import AVRState
 from denon_proxy.main import ClientHandler
+from denon_proxy.runtime.state import RuntimeState
 
 
 @pytest.mark.asyncio

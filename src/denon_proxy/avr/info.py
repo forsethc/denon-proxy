@@ -1,10 +1,11 @@
 """
 AVR identity and capability info discovered at runtime.
 
-Immutable type populated from HTTP sync (denonavr); holds manufacturer, model,
-serial, raw friendly name from the device, and the raw list of input sources. Exposes exactly what SSDP and HTTP discovery need (e.g. UDN
-serial, model fields) so those layers depend on this typed object instead of
-raw dicts.
+Immutable type populated from HTTP sync (denonavr); holds manufacturer,
+model, serial, raw friendly name from the device, and the raw list of
+input sources. It exposes exactly what SSDP and HTTP discovery need
+(e.g. UDN serial, model fields) so those layers depend on this typed
+object instead of raw dicts.
 """
 
 from __future__ import annotations
@@ -50,7 +51,9 @@ class AVRInfo:
 
     @classmethod
     def unknown(cls) -> AVRInfo:
-        """Placeholder when a physical AVR is configured but identity could not be discovered (e.g. HTTP sync failed)."""
+        """Placeholder when a physical AVR is configured but identity
+        could not be discovered (e.g. HTTP sync failed).
+        """
         return cls(
             manufacturer="Denon",
             model_name=None,

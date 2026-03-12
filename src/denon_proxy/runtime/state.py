@@ -8,12 +8,14 @@ callback, and resolved ports (e.g. when config specifies port 0).
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING
 
-from denon_proxy.avr.info import AVRInfo
 from denon_proxy.utils.utils import get_resolved_port as _get_resolved_port
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
+    from denon_proxy.avr.info import AVRInfo
     from denon_proxy.runtime.config import Config
 
 class RuntimeState:
@@ -54,11 +56,11 @@ class RuntimeState:
         # Version from git describe (set at startup; used in JSON API and web UI)
         self.version: str = "unknown"
 
-    def get_resolved_port(self, config: "Config", config_key: str, default: int) -> int:
+    def get_resolved_port(self, config: Config, config_key: str, default: int) -> int:
         """Return effective port: resolved value if set, else config key with default."""
         return _get_resolved_port(self, config, config_key, default)
 
-    def get_friendly_name(self, config: "Config") -> str:
+    def get_friendly_name(self, config: Config) -> str:
         """Resolved proxy friendly name: config override, else AVR name + ' Proxy', else default.
 
         Computed on first access from config + avr_info and cached for the lifetime of this

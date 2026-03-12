@@ -1,9 +1,12 @@
 """Unit tests for SSDP helpers: parse_ssdp_search_target, ssdp_response."""
+# ruff:noqa: I001 # ruff doesn't like the discovery imports
 
+from denon_proxy.avr.discovery import (
+    _parse_ssdp_search_target as parse_ssdp_search_target,
+    _ssdp_response as ssdp_response,
+)
 from denon_proxy.avr.info import AVRInfo
 from denon_proxy.runtime.state import RuntimeState
-from denon_proxy.avr.discovery import _parse_ssdp_search_target as parse_ssdp_search_target, _ssdp_response as ssdp_response
-
 
 # --- parse_ssdp_search_target ---
 

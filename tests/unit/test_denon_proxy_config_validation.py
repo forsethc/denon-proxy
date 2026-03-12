@@ -20,7 +20,6 @@ from pydantic import ValidationError
 
 from denon_proxy.runtime.config import Config
 
-
 # -----------------------------------------------------------------------------
 # Invalid configs: each must raise ValidationError; we assert on message content
 # so we know the right validator fired (and don't accidentally allow invalid data).
@@ -225,12 +224,11 @@ def test_valid_config_accepted(raw_overrides: dict) -> None:
     assert config is not None
     # Spot-check: overrides we passed are reflected (with normalizations the model applies)
     for key, value in raw_overrides.items():
-        if value is None and key == "ssdp_friendly_name":
-            assert config.get(key) is None
-        elif key == "ssdp_friendly_name" and isinstance(value, str) and not value.strip():
-            assert config.get(key) is None
-        elif key == "ssdp_friendly_name" and isinstance(value, str):
-            assert config[key] == value.strip()  # model strips whitespace
+        if key == "ssdp_friendly_name":
+            if value is None or (isinstance(value, str) and not value.strip()):
+                assert config.get(key) is None
+            elif isinstance(value, str):
+                assert config[key] == value.strip()  # model strips whitespace
         elif key in ("log_level", "denonavr_log_level") and isinstance(value, str):
             assert config[key].upper() == value.upper()  # model normalizes to upper
         elif key == "avr_host" and value == "":
