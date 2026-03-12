@@ -38,7 +38,7 @@ import xml.etree.ElementTree as ET
 from typing import Callable, cast
 
 from denon_proxy.avr.info import AVRInfo
-from denon_proxy.runtime.config import Config, DEFAULT_SSDP_HTTP_PORT
+from denon_proxy.runtime.config import Config
 from denon_proxy.runtime.state import RuntimeState
 from denon_proxy.utils.utils import is_docker_internal_ip
 import httpx
