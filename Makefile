@@ -11,8 +11,13 @@ default: code-quality
 .PHONY: default init check check-all code-quality test docker mypy ruff-fix ruff-lint ruff-format ruff-format-fix ruff-lint-fix pytest docker-direct docker-compose
 
 init:
-	$(PYTHON) -m pip install --upgrade pip
-	pip install -e ".[dev,test]"
+	@echo "Initializing Python environment..."
+	@$(PYTHON) -m pip install --upgrade pip >/dev/null 2>&1
+	@pip install -e ".[dev,test]" >/dev/null 2>&1
+
+version:
+	$(MAKE) init
+	denon-proxy version
 
 check: code-quality test
 
