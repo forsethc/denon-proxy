@@ -42,9 +42,15 @@ except ImportError:
 import httpx
 from pydantic import ValidationError
 
-from denon_proxy.avr.connection import AVRConnection, VirtualAVRConnection, create_avr_connection
+from denon_proxy.avr.connection import (
+    AVRConnection,
+    VirtualAVRConnection,
+    create_avr_connection,
+)
 from denon_proxy.avr.discovery import get_advertise_ip, run_discovery_servers
-from denon_proxy.runtime.config import Config
+from denon_proxy.avr.info import AVRInfo
+from denon_proxy.avr.state import AVRState, volume_to_level
+from denon_proxy.avr.telnet_utils import parse_telnet_lines, telnet_line_to_bytes
 from denon_proxy.constants import (
     DEFAULT_AVR_PORT,
     DEFAULT_HTTP_PORT,
@@ -56,14 +62,15 @@ from denon_proxy.constants import (
     SHUTDOWN_PROXY_WAIT,
     SHUTDOWN_SERVER_WAIT,
 )
-from denon_proxy.avr.info import AVRInfo
-from denon_proxy.runtime.state import RuntimeState
-from denon_proxy.utils.utils import get_version, is_docker_internal_ip, is_running_in_docker, resolve_listening_port
-from denon_proxy.avr.state import AVRState, volume_to_level
-from denon_proxy.avr.telnet_utils import parse_telnet_lines, telnet_line_to_bytes
-
 from denon_proxy.http.server import run_http_server
-
+from denon_proxy.runtime.config import Config
+from denon_proxy.runtime.state import RuntimeState
+from denon_proxy.utils.utils import (
+    get_version,
+    is_docker_internal_ip,
+    is_running_in_docker,
+    resolve_listening_port,
+)
 
 # -----------------------------------------------------------------------------
 # Logging setup

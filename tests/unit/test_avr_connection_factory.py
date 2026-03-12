@@ -1,5 +1,9 @@
 """Unit tests: create_avr_connection factory (avr_connection)."""
-from denon_proxy.avr.connection import AVRConnection, VirtualAVRConnection, create_avr_connection
+from denon_proxy.avr.connection import (
+    AVRConnection,
+    VirtualAVRConnection,
+    create_avr_connection,
+)
 from denon_proxy.avr.state import AVRState
 
 

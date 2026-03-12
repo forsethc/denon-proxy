@@ -1,8 +1,6 @@
 """Unit tests: avr_discovery helpers (get_sources, deviceinfo_xml, description_xml, etc.)."""
 import logging
 
-from denon_proxy.avr.info import AVRInfo
-from denon_proxy.runtime.state import RuntimeState
 from denon_proxy.avr.discovery import (
     get_advertise_ip,
     _get_proxy_friendly_name as get_proxy_friendly_name,
@@ -16,6 +14,8 @@ from denon_proxy.avr.discovery import (
     _escape_xml_text,
     _rewrite_avr_description,
 )
+from denon_proxy.avr.info import AVRInfo
+from denon_proxy.runtime.state import RuntimeState
 
 
 def test_get_advertise_ip_prefers_config_value():

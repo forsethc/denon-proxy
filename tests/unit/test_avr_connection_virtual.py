@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+
 import pytest
 
 from denon_proxy.avr.connection import VirtualAVRConnection

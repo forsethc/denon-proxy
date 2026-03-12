@@ -5,7 +5,8 @@ from __future__ import annotations
 import ipaddress
 import os
 from collections.abc import Iterator, Mapping
-from typing import Any, Mapping as TypingMapping
+from typing import Any
+from typing import Mapping as TypingMapping
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 

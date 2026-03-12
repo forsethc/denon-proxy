@@ -13,12 +13,12 @@ import logging
 
 import pytest
 
-from denon_proxy.avr.info import AVRInfo
-from denon_proxy.runtime.state import RuntimeState
-from denon_proxy.constants import SSDP_MCAST_GRP, SSDP_MCAST_PORT
 from denon_proxy.avr.discovery import run_discovery_servers
+from denon_proxy.avr.info import AVRInfo
 from denon_proxy.avr.state import AVRState
+from denon_proxy.constants import SSDP_MCAST_GRP, SSDP_MCAST_PORT
 from denon_proxy.main import load_config_from_dict
+from denon_proxy.runtime.state import RuntimeState
 
 
 @pytest.fixture

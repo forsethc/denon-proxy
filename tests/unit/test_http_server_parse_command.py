@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 from denon_proxy.http.server import parse_command_request
 
 

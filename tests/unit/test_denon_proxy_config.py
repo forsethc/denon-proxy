@@ -223,7 +223,6 @@ def test_main_returns_0_on_keyboard_interrupt():
 
 def test_main_returns_0_on_successful_run():
     """When the proxy runs and exits normally, main() returns 0."""
-    import asyncio
 
     async def noop(*_args, **_kwargs):
         pass

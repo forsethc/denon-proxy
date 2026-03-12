@@ -28,32 +28,32 @@ Usage (with denon-proxy):
 
 from __future__ import annotations
 
-import errno
 import asyncio
+import errno
 import logging
 import re
 import socket
 import struct
 import xml.etree.ElementTree as ET
-from typing import Callable, cast
+from typing import cast
 
-from denon_proxy.avr.info import AVRInfo
-from denon_proxy.runtime.config import Config
-from denon_proxy.runtime.state import RuntimeState
-from denon_proxy.utils.utils import is_docker_internal_ip
 import httpx
 
+from denon_proxy.avr.info import AVRInfo
 from denon_proxy.avr.state import AVRState, volume_to_db
 from denon_proxy.constants import (
+    AVR_NETWORK_TIMEOUT,
     DEFAULT_SSDP_HTTP_PORT,
     DEMO_SOURCES,
     DENON_AIOS_HTTP_PORT,
     DISCOVERY_HTTP_PORT,
-    AVR_NETWORK_TIMEOUT,
     SOCKET_TIMEOUT,
     SSDP_MCAST_GRP,
     SSDP_MCAST_PORT,
 )
+from denon_proxy.runtime.config import Config
+from denon_proxy.runtime.state import RuntimeState
+from denon_proxy.utils.utils import is_docker_internal_ip
 
 __all__ = ["get_advertise_ip", "run_discovery_servers"]
 

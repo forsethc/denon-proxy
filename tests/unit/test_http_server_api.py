@@ -8,11 +8,11 @@ import logging
 
 import pytest
 
-from denon_proxy.avr.state import AVRState
 from denon_proxy.avr.info import AVRInfo
-from denon_proxy.runtime.state import RuntimeState
-from denon_proxy.main import build_json_state, load_config_from_dict
+from denon_proxy.avr.state import AVRState
 from denon_proxy.http.server import run_http_server
+from denon_proxy.main import build_json_state, load_config_from_dict
+from denon_proxy.runtime.state import RuntimeState
 
 
 async def _open_connection(port: int) -> tuple[asyncio.StreamReader, asyncio.StreamWriter]:

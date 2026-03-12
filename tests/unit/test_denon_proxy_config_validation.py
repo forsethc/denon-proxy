@@ -20,7 +20,6 @@ from pydantic import ValidationError
 
 from denon_proxy.runtime.config import Config
 
-
 # -----------------------------------------------------------------------------
 # Invalid configs: each must raise ValidationError; we assert on message content
 # so we know the right validator fired (and don't accidentally allow invalid data).
