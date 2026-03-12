@@ -91,7 +91,7 @@ class _HttpServerHandler(asyncio.Protocol):
         self.on_command_sent = on_command_sent
 
     def connection_made(self, transport: asyncio.BaseTransport) -> None:
-        self.transport = cast(asyncio.Transport, transport)
+        self.transport = cast("asyncio.Transport", transport)
 
     def connection_lost(self, exc: BaseException | None) -> None:
         if self._sse_mode and self.transport:

@@ -386,9 +386,9 @@ class ClientHandler(asyncio.Protocol):
 
     def connection_made(self, transport: asyncio.BaseTransport) -> None:
         """Called when a client connects."""
-        self.transport = cast(asyncio.Transport, transport)
+        self.transport = cast("asyncio.Transport", transport)
         peer = self.transport.get_extra_info("peername")
-        self._peername = cast(tuple[str, int] | None, peer)
+        self._peername = cast("tuple[str, int] | None", peer)
         self.clients.add(self)
         client_display = self.config.client_display_for_log(
             self._peername[0] if self._peername else "?"

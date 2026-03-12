@@ -486,7 +486,7 @@ class SSDPProtocol(asyncio.DatagramProtocol):
         self._advertise_ip = get_advertise_ip(config)
 
     def connection_made(self, transport: asyncio.BaseTransport) -> None:
-        self.transport = cast(asyncio.DatagramTransport, transport)
+        self.transport = cast("asyncio.DatagramTransport", transport)
 
     def datagram_received(self, data: bytes, addr: tuple[str, int]) -> None:
         if not self._advertise_ip:
@@ -538,7 +538,7 @@ class DeviceDescriptionHandler(asyncio.Protocol):
         self.transport: asyncio.Transport | None = None
 
     def connection_made(self, transport: asyncio.BaseTransport) -> None:
-        self.transport = cast(asyncio.Transport, transport)
+        self.transport = cast("asyncio.Transport", transport)
 
     def data_received(self, data: bytes) -> None:
         self._buffer += data
