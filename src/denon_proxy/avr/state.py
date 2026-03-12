@@ -11,6 +11,8 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 import re
 
+from typing import Any
+
 from denon_proxy.constants import DEFAULT_MAX_VOLUME, VOLUME_DEFAULT_LEVEL, VOLUME_REFERENCE_LEVEL
 
 
@@ -144,11 +146,11 @@ class AVRState:
             lines.append(f"MSSMART{numeral}")
         return "\r\n".join(lines) + "\r\n" if lines else ""
 
-    def snapshot(self) -> dict:
+    def snapshot(self) -> dict[str, Any]:
         """Snapshot for optimistic update rollback."""
         return asdict(self)
 
-    def restore(self, snapshot: dict) -> None:
+    def restore(self, snapshot: dict[str, Any]) -> None:
         """Restore from snapshot after failed send."""
         self.power = snapshot.get("power")
         self.volume = snapshot.get("volume")
@@ -158,7 +160,7 @@ class AVRState:
         self.smart_select = snapshot.get("smart_select")
         self.volume_max = snapshot.get("volume_max", DEFAULT_MAX_VOLUME)
 
-    def apply_payload(self, payload: dict) -> None:
+    def apply_payload(self, payload: dict[str, Any]) -> None:
         """
         Apply a dict of state fields (e.g. from JSON POST /state or denonavr sync).
         Only updates keys present in payload. smart_select is normalized to SMART{n}.

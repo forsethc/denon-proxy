@@ -25,7 +25,7 @@ import sys
 import time
 from collections import deque
 from pathlib import Path
-from typing import Any, Callable, Iterable, Set
+from typing import Any, Callable, Iterable, Mapping, Set, cast
 
 try:
     import yaml
@@ -44,8 +44,12 @@ from pydantic import ValidationError
 
 from denon_proxy.avr.connection import AVRConnection, VirtualAVRConnection, create_avr_connection
 from denon_proxy.avr.discovery import get_advertise_ip, run_discovery_servers
-from denon_proxy.runtime.config import Config, DEFAULT_AVR_PORT, DEFAULT_HTTP_PORT, DEFAULT_PROXY_PORT, DEFAULT_SSDP_HTTP_PORT
+from denon_proxy.runtime.config import Config
 from denon_proxy.constants import (
+    DEFAULT_AVR_PORT,
+    DEFAULT_HTTP_PORT,
+    DEFAULT_PROXY_PORT,
+    DEFAULT_SSDP_HTTP_PORT,
     DENONAVR_SYNC_TIMEOUT,
     POST_CONNECT_DELAY,
     RECONNECT_DELAY,
@@ -90,7 +94,7 @@ def setup_logging(level: str = "INFO", denonavr_log_level: str | None = None) ->
         )
 
 
-def _load_config_dict_from_file(config_path: Path | None) -> dict:
+def _load_config_dict_from_file(config_path: Path | None) -> dict[str, Any]:
     """
     Load raw config data (dict) from YAML file.
 
@@ -134,7 +138,7 @@ def _load_dashboard_html(path: Path | None = None) -> str | None:
         return None
 
 
-def load_config_from_dict(raw: dict | None) -> Config:
+def load_config_from_dict(raw: dict[str, Any] | None) -> Config:
     """
     Merge defaults with a raw config dict (no file I/O).
 
@@ -197,8 +201,8 @@ def build_json_state(
     clients: Iterable[ClientHandler],
     config: Config,
     runtime_state: RuntimeState,
-    client_activity_log: dict[str, Iterable[tuple[float, str]]] | None = None,
-) -> dict:
+    client_activity_log: Mapping[str, Iterable[tuple[float, str]]] | None = None,
+) -> dict[str, Any]:
     """
     Build JSON status dict for Web UI / SSE.
 
@@ -214,14 +218,15 @@ def build_json_state(
     if "volume" in state_dict and state_dict["volume"] is not None:
         vol_max = getattr(avr_state, "volume_max", 98.0)
         state_dict["volume"] = volume_to_level(state_dict["volume"], vol_max)
-    avr_dict = dict(avr.get_details()) if avr else {"type": "none"}
+    avr_dict: dict[str, Any] = dict(avr.get_details()) if avr else {"type": "none"}
     avr_dict["connected"] = avr.is_connected() if avr else False
     avr_dict["volume_max"] = getattr(avr_state, "volume_max", 98.0)
-    avr_dict["manufacturer"] = runtime_state.avr_info.manufacturer
-    avr_dict["model_name"] = runtime_state.avr_info.model_name
-    avr_dict["serial_number"] = runtime_state.avr_info.serial_number
-    avr_dict["friendly_name"] = runtime_state.avr_info.raw_friendly_name
-    sources = runtime_state.resolved_sources or runtime_state.avr_info.raw_sources
+    avr_info = runtime_state.avr_info or AVRInfo.unknown()
+    avr_dict["manufacturer"] = avr_info.manufacturer
+    avr_dict["model_name"] = avr_info.model_name
+    avr_dict["serial_number"] = avr_info.serial_number
+    avr_dict["friendly_name"] = avr_info.raw_friendly_name
+    sources = runtime_state.resolved_sources or avr_info.raw_sources
     if sources:
         avr_dict["sources"] = [{"func": func_name, "display_name": display_name} for func_name, display_name in sources]
     proxy_ip = get_advertise_ip(config) or None
@@ -366,15 +371,16 @@ class ClientHandler(asyncio.Protocol):
         self.record_command = record_command or (lambda _cid, _cmd: None)
         self.transport: asyncio.Transport | None = None
         self._buffer = b""
-        self._peername: tuple | None = None
+        self._peername: tuple[str, int] | None = None
 
     def _notify_web(self) -> None:
         self.runtime_state.notify_web_state()
 
     def connection_made(self, transport: asyncio.BaseTransport) -> None:
         """Called when a client connects."""
-        self.transport = transport
-        self._peername = transport.get_extra_info("peername")
+        self.transport = cast(asyncio.Transport, transport)
+        peer = self.transport.get_extra_info("peername")
+        self._peername = cast(tuple[str, int] | None, peer)
         self.clients.add(self)
         client_display = self.config.client_display_for_log(
             self._peername[0] if self._peername else "?"
@@ -499,7 +505,7 @@ class DenonProxyServer:
         logger: logging.Logger,
         avr_factory: Callable[
             [
-                dict,
+                Config,
                 AVRState,
                 Callable[[str], None],
                 Callable[[], None],
@@ -630,7 +636,8 @@ class DenonProxyServer:
             await self.avr.request_state()
 
         # Start proxy server
-        def factory():
+        def factory() -> ClientHandler:
+            assert self.avr is not None
             return ClientHandler(
                 avr=self.avr,
                 avr_state=self.avr_state,
@@ -661,9 +668,9 @@ class DenonProxyServer:
         self.logger.info("Connect Home Assistant and UC Remote 3 to %s:%d", connect_host, listen_port)
 
         # Web UI / JSON status API
-        def _get_json_state() -> dict:
+        def _get_json_state() -> dict[str, Any]:
             if not self.config.get("client_activity_log", True):
-                log_snapshot = {}
+                log_snapshot: dict[str, list[tuple[float, str]]] = {}
             else:
                 log_snapshot = {
                     cid: list(entries)[-self._client_activity_log_max :]
@@ -755,7 +762,7 @@ async def main_async(config: Config) -> None:
     stop_event = asyncio.Event()
     _shutting_down = False
 
-    def shutdown():
+    def shutdown() -> None:
         nonlocal _shutting_down
         if _shutting_down:
             logger.warning("Second Ctrl-C: forcing exit")

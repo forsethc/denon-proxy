@@ -35,10 +35,10 @@ import re
 import socket
 import struct
 import xml.etree.ElementTree as ET
-from typing import Callable
+from typing import Callable, cast
 
 from denon_proxy.avr.info import AVRInfo
-from denon_proxy.runtime.config import Config, DEFAULT_SSDP_HTTP_PORT
+from denon_proxy.runtime.config import Config
 from denon_proxy.runtime.state import RuntimeState
 from denon_proxy.utils.utils import is_docker_internal_ip
 import httpx
@@ -73,7 +73,8 @@ def _get_sources(config: Config, runtime_state: RuntimeState) -> list[tuple[str,
         return runtime_state.resolved_sources
 
     cfg = config.get("sources")
-    raw_sources = runtime_state.avr_info.raw_sources
+    avr_info = runtime_state.avr_info
+    raw_sources = avr_info.raw_sources if avr_info is not None else None
 
     if cfg:
         out: list[tuple[str, str]] = []
@@ -116,14 +117,15 @@ def _get_sources(config: Config, runtime_state: RuntimeState) -> list[tuple[str,
 
 def get_advertise_ip(config: Config) -> str | None:
     """Get the IP to advertise in SSDP LOCATION."""
-    ip = config.get("ssdp_advertise_ip", "").strip()
+    ip = str(config.get("ssdp_advertise_ip", "")).strip()
     if ip:
         return ip
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
             s.settimeout(SOCKET_TIMEOUT)
             s.connect(("8.8.8.8", 80))
-            return s.getsockname()[0]
+            ip = s.getsockname()[0]
+            return str(ip)
     except OSError:
         return None
 
@@ -377,7 +379,7 @@ def _rewrite_avr_description(
     # This assumes the avr and the proxy use the same ports for everything (if any are specified)
     xml_str = xml_str.replace(avr_host, advertise_ip)
     # Add " Proxy" to friendlyName if not already present
-    def add_proxy(m: re.Match) -> str:
+    def add_proxy(m: re.Match[str]) -> str:
         content = m.group(1)
         if content.endswith(" Proxy"):
             return m.group(0)
@@ -392,10 +394,13 @@ def _description_xml(config: Config, advertise_ip: str, runtime_state: RuntimeSt
     Uses physical AVR manufacturer/model from runtime_state.avr_info when available (e.g. after
     HTTP sync) so UC Remote and other clients can detect Denon vs Marantz correctly."""
     friendly_name = _get_proxy_friendly_name(config, runtime_state)
-    http_port = runtime_state.get_resolved_port(config, "ssdp_http_port", DEFAULT_SSDP_HTTP_PORT)
-    serial = runtime_state.avr_info.udn_serial(advertise_ip)
-    manufacturer = (runtime_state.avr_info.manufacturer or "Denon").strip() or "Denon"
-    raw_model = (runtime_state.avr_info.model_name or "").strip()
+    http_port = runtime_state.get_resolved_port(
+        config, "ssdp_http_port", DEFAULT_SSDP_HTTP_PORT
+    )
+    avr_info = runtime_state.avr_info or AVRInfo.unknown()
+    serial = avr_info.udn_serial(advertise_ip)
+    manufacturer = (avr_info.manufacturer or "Denon").strip() or "Denon"
+    raw_model = (avr_info.model_name or "").strip()
     model_name = f"{raw_model} Proxy" if raw_model else "AVR-Proxy"
     return f"""<?xml version="1.0" encoding="utf-8"?>
 <root xmlns="urn:schemas-upnp-org:device-1-0">
@@ -422,9 +427,12 @@ def _parse_ssdp_search_target(msg: str) -> str | None:
 
 def _ssdp_response(config: Config, advertise_ip: str, st: str, runtime_state: RuntimeState) -> bytes:
     """Build SSDP HTTP 200 response for M-SEARCH."""
-    http_port = runtime_state.get_resolved_port(config, "ssdp_http_port", DEFAULT_SSDP_HTTP_PORT)
+    http_port = runtime_state.get_resolved_port(
+        config, "ssdp_http_port", DEFAULT_SSDP_HTTP_PORT
+    )
     location = f"http://{advertise_ip}:{http_port}/description.xml"
-    serial = runtime_state.avr_info.udn_serial(advertise_ip)
+    avr_info = runtime_state.avr_info or AVRInfo.unknown()
+    serial = avr_info.udn_serial(advertise_ip)
     usn = f"uuid:denon-proxy-{serial}::{st}"
     return "\r\n".join([
         "HTTP/1.1 200 OK",
@@ -460,9 +468,9 @@ class SSDPProtocol(asyncio.DatagramProtocol):
         self._advertise_ip = get_advertise_ip(config)
 
     def connection_made(self, transport: asyncio.BaseTransport) -> None:
-        self.transport = transport
+        self.transport = cast(asyncio.DatagramTransport, transport)
 
-    def datagram_received(self, data: bytes, addr: tuple) -> None:
+    def datagram_received(self, data: bytes, addr: tuple[str, int]) -> None:
         if not self._advertise_ip:
             return
         try:
@@ -509,10 +517,10 @@ class DeviceDescriptionHandler(asyncio.Protocol):
         self.config = config
         self.runtime_state = runtime_state
         self._buffer = b""
-        self.transport: asyncio.BaseTransport | None = None
+        self.transport: asyncio.Transport | None = None
 
     def connection_made(self, transport: asyncio.BaseTransport) -> None:
-        self.transport = transport
+        self.transport = cast(asyncio.Transport, transport)
 
     def data_received(self, data: bytes) -> None:
         self._buffer += data
@@ -567,11 +575,13 @@ class DeviceDescriptionHandler(asyncio.Protocol):
                     self.config, self.avr_state, body_bytes, self.logger, self.runtime_state
                 )
 
-            peername = self.transport.get_extra_info("peername") if self.transport else None
+            peername = (
+                self.transport.get_extra_info("peername") if self.transport else None
+            )
             client_ip = peername[0] if peername else "?"
             client_display = self.config.client_display_for_log(client_ip)
 
-            if body is not None:
+            if body is not None and self.transport is not None:
                 resp = (
                     b"HTTP/1.1 200 OK\r\n"
                     b"Content-Type: " + content_type + b"\r\n"
@@ -604,7 +614,7 @@ async def run_discovery_servers(
     logger: logging.Logger,
     avr_state: AVRState,
     runtime_state: RuntimeState,
-) -> tuple[asyncio.DatagramTransport | None, list | None]:
+) -> tuple[asyncio.DatagramTransport | None, list[asyncio.AbstractServer] | None]:
     """
     Start SSDP (UDP 1900) and HTTP device description servers.
 
@@ -629,7 +639,7 @@ async def run_discovery_servers(
 
     logger.info("SSDP advertising as '%s' at %s", _get_proxy_friendly_name(config, runtime_state), advertise_ip)
 
-    ssdp_transport = None
+    ssdp_transport: asyncio.DatagramTransport | None = None
     try:
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -668,12 +678,12 @@ async def run_discovery_servers(
     devinfo_xml = _deviceinfo_xml(config, runtime_state).encode("utf-8")
     appcmd_xml = _appcommand_friendlyname_xml(config, runtime_state).encode("utf-8")
 
-    def http_factory():
+    def http_factory() -> DeviceDescriptionHandler:
         return DeviceDescriptionHandler(
             desc_xml, devinfo_xml, appcmd_xml, logger, avr_state, config, runtime_state
         )
 
-    http_servers = []
+    http_servers: list[asyncio.AbstractServer] = []
     loop = asyncio.get_running_loop()
 
     # Required: we advertise this port in SSDP LOCATION; binding must succeed.

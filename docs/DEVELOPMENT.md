@@ -46,6 +46,20 @@ The proxy keeps configuration and runtime data in four distinct layers. Keeping 
 - **RuntimeState** → holds that reference plus derived caches and callbacks.
 - **AVRState** → the only frequently mutating state; it reflects the current device (or optimistic) state.
 
+## Type checking
+
+The project uses [mypy](https://mypy.readthedocs.io/) for static type checking. Install the dev extras, then run:
+
+```bash
+pip install -e ".[test,dev]"
+```
+
+### Mypy
+
+- **Type-check the package**: `mypy src`
+
+Configuration is in `pyproject.toml` under `[tool.mypy]` and `[tool.mypy.overrides]`.
+
 ## Tests
 
 The project is covered by unit, integration, and end-to-end tests.

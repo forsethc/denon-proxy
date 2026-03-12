@@ -16,9 +16,10 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from typing import Any, Callable, Set
+from typing import Any, Callable, Set, cast
 
-from denon_proxy.runtime.config import Config, DEFAULT_HTTP_PORT
+from denon_proxy.runtime.config import Config
+from denon_proxy.constants import DEFAULT_HTTP_PORT
 from denon_proxy.runtime.state import RuntimeState
 from denon_proxy.utils.utils import resolve_listening_port
 
@@ -42,7 +43,7 @@ def parse_http_request(buffer: bytes) -> tuple[str, str, bytes, bytes] | None:
     return method, path, header_bytes, body_bytes
 
 
-def parse_command_request(body_bytes: bytes) -> tuple[str | None, dict | None]:
+def parse_command_request(body_bytes: bytes) -> tuple[str | None, dict[str, Any] | None]:
     """
     Parse and validate POST /api/command body.
 
@@ -69,7 +70,7 @@ class _HttpServerHandler(asyncio.Protocol):
         self,
         get_state: Callable[[], dict[str, Any]],
         logger: logging.Logger,
-        sse_subscribers: Set[asyncio.WriteTransport],
+        sse_subscribers: Set[asyncio.Transport],
         send_command: Callable[[str], None] | None = None,
         request_state: Callable[[], None] | None = None,
         dashboard_html: str | None = None,
@@ -81,14 +82,14 @@ class _HttpServerHandler(asyncio.Protocol):
         self.sse_subscribers = sse_subscribers
         self.on_sse_push: Callable[[], None] = lambda: None
         self.logger = logger
-        self.transport: asyncio.BaseTransport | None = None
+        self.transport: asyncio.Transport | None = None
         self._buffer = b""
         self._sse_mode = False
         self._dashboard_html = dashboard_html
         self.on_command_sent = on_command_sent
 
     def connection_made(self, transport: asyncio.BaseTransport) -> None:
-        self.transport = transport
+        self.transport = cast(asyncio.Transport, transport)
 
     def connection_lost(self, exc: BaseException | None) -> None:
         if self._sse_mode and self.transport:
@@ -158,6 +159,9 @@ class _HttpServerHandler(asyncio.Protocol):
         if error is not None:
             self._send_json(400, error)
             return
+        if command is None:
+            self._send_json(400, {"error": "Command too short"})
+            return
         if self.on_command_sent:
             self.on_command_sent("Web UI", command)
         try:
@@ -182,7 +186,7 @@ class _HttpServerHandler(asyncio.Protocol):
     # Response helpers
     # ------------------------------------------------------------------
 
-    def _send_json(self, status: int, obj: dict) -> None:
+    def _send_json(self, status: int, obj: dict[str, Any]) -> None:
         body = json.dumps(obj).encode("utf-8")
         self._send_body(status, body, content_type="application/json")
 
@@ -191,7 +195,7 @@ class _HttpServerHandler(asyncio.Protocol):
         self._send_body(status, body, content_type="text/html; charset=utf-8")
 
     def _send_body(self, status: int, body: bytes, content_type: str = "application/json") -> None:
-        reasons = {
+        reasons: dict[int, str] = {
             200: "OK",
             400: "Bad Request",
             404: "Not Found",
@@ -237,7 +241,7 @@ async def run_http_server(
         return None
 
     port = int(config.get("http_port", DEFAULT_HTTP_PORT))
-    sse_subscribers: Set[asyncio.WriteTransport] = set()
+    sse_subscribers: Set[asyncio.Transport] = set()
 
     async def _push() -> None:
         try:
@@ -260,7 +264,7 @@ async def run_http_server(
             pass
 
     try:
-        def factory():
+        def factory() -> _HttpServerHandler:
             h = _HttpServerHandler(
                 get_state,
                 logger,
