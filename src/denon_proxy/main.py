@@ -25,7 +25,8 @@ import sys
 import time
 from collections import deque
 from pathlib import Path
-from typing import Any, Callable, Iterable, Mapping, Set, cast
+from typing import Any, cast
+from collections.abc import Callable, Iterable, Mapping
 
 try:
     import yaml
@@ -363,7 +364,7 @@ class ClientHandler(asyncio.Protocol):
         self,
         avr: AVRConnection | VirtualAVRConnection,
         avr_state: AVRState,
-        clients: Set["ClientHandler"],
+        clients: set["ClientHandler"],
         logger: logging.Logger,
         runtime_state: RuntimeState,
         config: Config,
@@ -527,7 +528,7 @@ class DenonProxyServer:
         self.logger = logger
         self.runtime_state = runtime_state
         self.avr_state = AVRState()
-        self.clients: Set[ClientHandler] = set()
+        self.clients: set[ClientHandler] = set()
         self.avr: (AVRConnection | VirtualAVRConnection) | None = None
         self._server: asyncio.Server | None = None
         self._json_api_server: asyncio.Server | None = None

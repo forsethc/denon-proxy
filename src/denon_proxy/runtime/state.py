@@ -8,7 +8,8 @@ callback, and resolved ports (e.g. when config specifies port 0).
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING
+from collections.abc import Callable
 
 from denon_proxy.avr.info import AVRInfo
 from denon_proxy.utils.utils import get_resolved_port as _get_resolved_port

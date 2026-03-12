@@ -6,7 +6,6 @@ import ipaddress
 import os
 from collections.abc import Iterator, Mapping
 from typing import Any
-from typing import Mapping as TypingMapping
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
@@ -22,7 +21,10 @@ _VALID_COMMAND_GROUPS = frozenset(
 )
 
 
-def _apply_env_to_dict(raw: dict[str, Any], env: TypingMapping[str, str] | None = None) -> None:
+def _apply_env_to_dict(
+    raw: dict[str, Any],
+    env: Mapping[str, str] | None = None,
+) -> None:
     """Mutate raw config dict with environment variable overrides."""
     if env is None:
         env = os.environ

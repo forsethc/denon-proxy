@@ -16,7 +16,8 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from typing import Any, Callable, Set, cast
+from typing import Any, Set, cast
+from collections.abc import Callable
 
 from denon_proxy.constants import DEFAULT_HTTP_PORT
 from denon_proxy.runtime.config import Config
@@ -71,7 +72,7 @@ class _HttpServerHandler(asyncio.Protocol):
         self,
         get_state: Callable[[], dict[str, Any]],
         logger: logging.Logger,
-        sse_subscribers: Set[asyncio.Transport],
+        sse_subscribers: set[asyncio.Transport],
         send_command: Callable[[str], None] | None = None,
         request_state: Callable[[], None] | None = None,
         dashboard_html: str | None = None,
@@ -242,7 +243,7 @@ async def run_http_server(
         return None
 
     port = int(config.get("http_port", DEFAULT_HTTP_PORT))
-    sse_subscribers: Set[asyncio.Transport] = set()
+    sse_subscribers: set[asyncio.Transport] = set()
 
     async def _push() -> None:
         try:

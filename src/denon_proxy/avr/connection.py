@@ -10,7 +10,8 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Any, Callable
+from typing import Any
+from collections.abc import Callable
 
 from denon_proxy.avr.state import AVRState
 from denon_proxy.avr.telnet_utils import parse_telnet_lines, telnet_line_to_bytes
