@@ -25,8 +25,7 @@ import sys
 import time
 from collections import deque
 from pathlib import Path
-from typing import Any, cast
-from collections.abc import Callable, Iterable, Mapping
+from typing import Any, TYPE_CHECKING, cast
 
 try:
     import yaml
@@ -72,6 +71,9 @@ from denon_proxy.utils.utils import (
     is_running_in_docker,
     resolve_listening_port,
 )
+
+if TYPE_CHECKING:
+    from collections.abc import Callable, Iterable, Mapping
 
 # -----------------------------------------------------------------------------
 # Logging setup

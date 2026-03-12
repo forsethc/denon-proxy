@@ -35,7 +35,7 @@ import re
 import socket
 import struct
 import xml.etree.ElementTree as ET
-from typing import cast
+from typing import TYPE_CHECKING, cast
 
 import httpx
 
@@ -51,9 +51,11 @@ from denon_proxy.constants import (
     SSDP_MCAST_GRP,
     SSDP_MCAST_PORT,
 )
-from denon_proxy.runtime.config import Config
-from denon_proxy.runtime.state import RuntimeState
 from denon_proxy.utils.utils import is_docker_internal_ip
+
+if TYPE_CHECKING:
+    from denon_proxy.runtime.config import Config
+    from denon_proxy.runtime.state import RuntimeState
 
 __all__ = ["get_advertise_ip", "run_discovery_servers"]
 

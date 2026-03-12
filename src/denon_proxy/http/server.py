@@ -15,14 +15,17 @@ from __future__ import annotations
 
 import asyncio
 import json
-import logging
-from typing import Any, cast
-from collections.abc import Callable
+from typing import Any, TYPE_CHECKING, cast
 
 from denon_proxy.constants import DEFAULT_HTTP_PORT
-from denon_proxy.runtime.config import Config
-from denon_proxy.runtime.state import RuntimeState
 from denon_proxy.utils.utils import resolve_listening_port
+
+if TYPE_CHECKING:
+    import logging
+    from collections.abc import Callable
+
+    from denon_proxy.runtime.config import Config
+    from denon_proxy.runtime.state import RuntimeState
 
 
 def parse_http_request(buffer: bytes) -> tuple[str, str, bytes, bytes] | None:
