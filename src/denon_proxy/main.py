@@ -127,7 +127,7 @@ def _load_config_dict_from_file(config_path: Path | None) -> dict[str, Any]:
                 "Copy config.sample.yaml to config.yaml in the project root and edit as needed."
             )
 
-    with open(path) as f:
+    with path.open() as f:
         data = yaml.safe_load(f) or {}
     if not isinstance(data, dict):
         raise ValueError(f"Config file must contain a mapping, got {type(data).__name__}")
