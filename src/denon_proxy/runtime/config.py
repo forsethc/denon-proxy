@@ -189,8 +189,8 @@ class Config(BaseModel, Mapping[str, Any]):
     @classmethod
     def load_from_dict(
         cls,
-        raw: TypingMapping[str, Any] | None,
-        env: TypingMapping[str, str] | None = None,
+        raw: Mapping[str, Any] | None,
+        env: Mapping[str, str] | None = None,
     ) -> Config:
         """
         Build Config from a raw dict (e.g. from YAML) and apply env overrides.
