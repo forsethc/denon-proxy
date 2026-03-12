@@ -3,12 +3,13 @@ from __future__ import annotations
 import argparse
 import sys
 from pathlib import Path
+from typing import Any
 
 from denon_proxy.main import _load_config_and_report_errors, run_proxy
 from denon_proxy.utils.utils import get_version
 
 
-def _add_version_subcommand(subparsers: argparse._SubParsersAction) -> None:
+def _add_version_subcommand(subparsers: argparse._SubParsersAction[Any]) -> None:
     parser = subparsers.add_parser(
         "version",
         help="Print denon-proxy version",
@@ -17,7 +18,7 @@ def _add_version_subcommand(subparsers: argparse._SubParsersAction) -> None:
     parser.set_defaults(func=_cmd_version)
 
 
-def _add_check_config_subcommand(subparsers: argparse._SubParsersAction) -> None:
+def _add_check_config_subcommand(subparsers: argparse._SubParsersAction[Any]) -> None:
     parser = subparsers.add_parser(
         "check-config",
         help="Validate configuration and exit",
@@ -33,7 +34,7 @@ def _add_check_config_subcommand(subparsers: argparse._SubParsersAction) -> None
     parser.set_defaults(func=_cmd_check_config)
 
 
-def _add_run_subcommand(subparsers: argparse._SubParsersAction) -> None:
+def _add_run_subcommand(subparsers: argparse._SubParsersAction[Any]) -> None:
     parser = subparsers.add_parser(
         "run",
         help="Start the proxy server",

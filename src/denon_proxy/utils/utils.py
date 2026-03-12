@@ -60,8 +60,11 @@ def is_docker_internal_ip(ip: str | None) -> bool:
     return any(addr in net for net in _DOCKER_NETWORKS)
 
 
+from typing import Any
+
+
 def resolve_listening_port(
-    server: object,
+    server: Any,
     requested_port: int,
     target: object,
     port_attr: str,
@@ -70,8 +73,9 @@ def resolve_listening_port(
     When requested_port was 0 (OS pick), set target.<port_attr> to the actual bound port.
     Use after create_server(..., port=requested_port) so callers know the chosen port.
     """
-    if requested_port == 0 and getattr(server, "sockets", None):
-        setattr(target, port_attr, server.sockets[0].getsockname()[1])
+    sockets = getattr(server, "sockets", None)
+    if requested_port == 0 and sockets:
+        setattr(target, port_attr, sockets[0].getsockname()[1])
 
 
 def get_resolved_port(

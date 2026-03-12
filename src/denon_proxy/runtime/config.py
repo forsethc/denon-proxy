@@ -85,7 +85,8 @@ class Config(BaseModel, Mapping[str, Any]):
             raise KeyError(key)
         return getattr(self, key)
 
-    def __iter__(self) -> Iterator[str]:
+    def __iter__(self) -> Iterator[str]:  # type: ignore[override]
+        # Expose keys for Mapping interface (dict(config) uses this).
         return iter(self.__class__.model_fields)
 
     def __len__(self) -> int:
@@ -143,7 +144,7 @@ class Config(BaseModel, Mapping[str, Any]):
 
     @field_validator("sources", mode="before")
     @classmethod
-    def _sources_dict_str_str(cls, v: Any):
+    def _sources_dict_str_str(cls, v: Any) -> Any:
         """Ensure sources is a dict with string keys and string values."""
         if v is None:
             return v
@@ -157,7 +158,7 @@ class Config(BaseModel, Mapping[str, Any]):
 
     @field_validator("ssdp_friendly_name", mode="before")
     @classmethod
-    def _ssdp_friendly_name_normalize(cls, v: str | None):
+    def _ssdp_friendly_name_normalize(cls, v: str | None) -> str | None:
         """Normalize friendly name: strip whitespace, treat empty as None."""
         if v is None:
             return None
