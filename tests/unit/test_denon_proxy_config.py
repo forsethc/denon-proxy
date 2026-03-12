@@ -13,7 +13,6 @@ from denon_proxy.main import (
     load_config,
     load_config_from_dict,
     main,
-    setup_logging,
 )
 from denon_proxy.runtime.config import Config
 
@@ -173,12 +172,6 @@ def test_load_config_leaves_optimistic_state_when_avr_host_specified():
         assert config["optimistic_state"] is True
     finally:
         path.unlink(missing_ok=True)
-
-
-def test_setup_logging_accepts_level_and_denonavr_level():
-    """setup_logging runs without error and accepts optional denonavr_log_level."""
-    setup_logging("INFO")
-    setup_logging("DEBUG", denonavr_log_level="WARNING")
 
 
 def test_load_dashboard_html_returns_none_when_file_unreadable():

@@ -65,6 +65,7 @@ from denon_proxy.constants import (
 )
 from denon_proxy.http.server import run_http_server
 from denon_proxy.runtime.config import Config
+from denon_proxy.runtime.logging import setup_logging
 from denon_proxy.runtime.state import RuntimeState
 from denon_proxy.utils.utils import (
     get_version,
@@ -75,33 +76,6 @@ from denon_proxy.utils.utils import (
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable, Mapping
-
-# -----------------------------------------------------------------------------
-# Logging setup
-# -----------------------------------------------------------------------------
-
-
-def setup_logging(level: str = "INFO", denonavr_log_level: str | None = None) -> None:
-    """Configure logging format and level. denonavr_log_level sets the denonavr library logger separately.
-    When stdout is not a TTY (e.g. systemd captures it), we use a format without timestamp/name
-    so journal/syslog doesn't duplicate them."""
-    log_level = getattr(logging, level.upper(), logging.INFO)
-    if sys.stdout.isatty():
-        fmt = "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
-        datefmt = "%Y-%m-%d %H:%M:%S"
-    else:
-        fmt = "[%(levelname)s] %(message)s"
-        datefmt = None
-    logging.basicConfig(
-        level=log_level,
-        format=fmt,
-        datefmt=datefmt,
-    )
-    # Reduce noise from libraries
-    logging.getLogger("httpx").setLevel(logging.WARNING)
-    logging.getLogger("httpcore").setLevel(logging.WARNING)
-    if denonavr_log_level is not None:
-        logging.getLogger("denonavr").setLevel(getattr(logging, denonavr_log_level.upper(), logging.INFO))
 
 
 def _load_config_dict_from_file(config_path: Path | None) -> dict[str, Any]:
