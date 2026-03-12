@@ -57,6 +57,7 @@ from denon_proxy.constants import (
     SHUTDOWN_PROXY_WAIT,
     SHUTDOWN_SERVER_WAIT,
 )
+from denon_proxy.http.dashboard import load_dashboard_html
 from denon_proxy.http.server import run_http_server
 from denon_proxy.runtime.config import Config
 from denon_proxy.runtime.config_io import load_config_and_report_errors
@@ -71,20 +72,6 @@ from denon_proxy.utils.utils import (
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable, Mapping
-
-
-def _load_dashboard_html(path: Path | None = None) -> str | None:
-    """
-    Load the Web UI HTML dashboard from http/web_ui.html.
-
-    Returns the HTML string, or None if the file is missing or unreadable.
-    path: optional path for tests; when None, uses http/web_ui.html in this package.
-    """
-    html_path = path if path is not None else Path(__file__).parent / "http" / "web_ui.html"
-    try:
-        return html_path.read_text(encoding="utf-8")
-    except OSError:
-        return None
 
 
 def load_config_from_dict(raw: dict[str, Any] | None) -> Config:
@@ -664,7 +651,7 @@ class DenonProxyServer:
         enable_http = bool(self.config.get("enable_http", True))
 
         if enable_http:
-            dashboard_html = _load_dashboard_html()
+            dashboard_html = load_dashboard_html()
             result = await run_http_server(
                 self.config,
                 self.logger,

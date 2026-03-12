@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 import pytest
 
-from denon_proxy.main import _load_dashboard_html, load_config_from_dict, main
+from denon_proxy.main import load_config_from_dict, main
 from denon_proxy.runtime.config import Config
 from denon_proxy.runtime.config_io import _load_config_dict_from_file, load_config
 
@@ -167,13 +167,6 @@ def test_load_config_leaves_optimistic_state_when_avr_host_specified():
         assert config["optimistic_state"] is True
     finally:
         path.unlink(missing_ok=True)
-
-
-def test_load_dashboard_html_returns_none_when_file_unreadable():
-    """When the path is missing or unreadable, _load_dashboard_html returns None."""
-    path = Path(__file__).parent / "does_not_exist_dashboard.html"
-    result = _load_dashboard_html(path=path)
-    assert result is None
 
 
 def test_main_returns_1_when_config_not_found():
