@@ -556,14 +556,14 @@ class DenonProxyServer:
         cid = str(client_id).strip() if client_id else "?"
         msg = command.strip() if isinstance(command, str) else str(command).strip()
         ts = time.time()
-        if msg not in ("[connected]", "[disconnected]"):
-            if (
-                self.config.get("client_activity_log_hide_queries", False)
-                and msg.endswith("?")
-            ):
-                # Don't store queries when hide_queries is on; they would only
-                # evict visible entries.
-                return
+        if (
+            msg not in ("[connected]", "[disconnected]")
+            and self.config.get("client_activity_log_hide_queries", False)
+            and msg.endswith("?")
+        ):
+            # Don't store queries when hide_queries is on; they would only
+            # evict visible entries.
+            return
         if cid not in self._client_activity_log:
             self._client_activity_log[cid] = deque(maxlen=self._client_activity_log_max)
         self._client_activity_log[cid].append((ts, msg))
