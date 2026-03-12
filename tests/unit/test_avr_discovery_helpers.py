@@ -1,18 +1,19 @@
 """Unit tests: avr_discovery helpers (get_sources, deviceinfo_xml, description_xml, etc.)."""
-import logging
+# ruff:noqa: I001 # ruff doesn't like the discovery imports
 
+import logging
 from denon_proxy.avr.discovery import (
-    get_advertise_ip,
+    _appcommand_friendlyname_xml as appcommand_friendlyname_xml,
+    _appcommand_response_xml as appcommand_response_xml,
+    _description_xml as description_xml,
+    _deviceinfo_xml as deviceinfo_xml,
+    _escape_xml_text,
     _get_proxy_friendly_name as get_proxy_friendly_name,
     _get_sources as get_sources,
-    _deviceinfo_xml as deviceinfo_xml,
-    _appcommand_friendlyname_xml as appcommand_friendlyname_xml,
-    _parse_appcommand_request as parse_appcommand_request,
     _mainzone_xml as mainzone_xml,
-    _description_xml as description_xml,
-    _appcommand_response_xml as appcommand_response_xml,
-    _escape_xml_text,
+    _parse_appcommand_request as parse_appcommand_request,
     _rewrite_avr_description,
+    get_advertise_ip,
 )
 from denon_proxy.avr.info import AVRInfo
 from denon_proxy.runtime.state import RuntimeState
