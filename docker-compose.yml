@@ -12,4 +12,4 @@ services:
       - "60006:60006"     # AVR-X 2016 device description
     volumes:
       # Mount your config (create from config.sample.yaml). Omit for demo mode with env vars.
-      - ./config.yaml:/app/config.yaml:ro
+      - ${DENON_PROXY_CONFIG_PATH:-./config.yaml}:/app/config.yaml:ro

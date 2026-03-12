@@ -68,7 +68,7 @@ docker-direct:
 
 docker-compose:
 	cp $(SAMPLE_CONFIG) $(MAKE_CONFIG_FILE)
-	docker compose up -d --build
+	DENON_PROXY_CONFIG_PATH=./$(MAKE_CONFIG_FILE) docker compose up -d --build
 	$(DOCKER_HEALTHCHECK_CMD)
 	docker compose down
 	rm -f $(MAKE_CONFIG_FILE)
