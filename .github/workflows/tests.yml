@@ -9,7 +9,7 @@ on:
 
 jobs:
   code_quality:
-    name: Code Quality checks (mypy, ruff)
+    name: Code Quality checks (mypy)
     runs-on: ubuntu-latest
 
     steps:
