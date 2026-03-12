@@ -74,18 +74,6 @@ if TYPE_CHECKING:
     from collections.abc import Callable, Iterable, Mapping
 
 
-def load_config_from_dict(raw: dict[str, Any] | None) -> Config:
-    """
-    Merge defaults with a raw config dict (no file I/O).
-
-    This is pure and easy to unit-test.
-    Environment overrides are not applied here; tests can control env explicitly
-    via Config.load_from_dict if needed.
-    """
-    # Use the model directly so no environment overrides are applied.
-    return Config.model_validate(raw or {})
-
-
 # Denon telnet command groups for configurable logging
 _COMMAND_GROUPS = {
     "PW": "power",

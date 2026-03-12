@@ -17,14 +17,14 @@ from denon_proxy.avr.discovery import run_discovery_servers
 from denon_proxy.avr.info import AVRInfo
 from denon_proxy.avr.state import AVRState
 from denon_proxy.constants import SSDP_MCAST_GRP, SSDP_MCAST_PORT
-from denon_proxy.main import load_config_from_dict
+from denon_proxy.runtime.config import Config
 from denon_proxy.runtime.state import RuntimeState
 
 
 @pytest.fixture
 def discovery_config():
     """Config for discovery-only: SSDP + discovery HTTP, no proxy."""
-    return load_config_from_dict(
+    return Config.model_validate(
         {
             "enable_ssdp": True,
             "ssdp_advertise_ip": "127.0.0.1",

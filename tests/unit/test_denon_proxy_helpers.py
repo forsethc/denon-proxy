@@ -2,7 +2,7 @@ import logging
 
 from denon_proxy.avr.info import AVRInfo
 from denon_proxy.avr.state import AVRState
-from denon_proxy.main import (
+from denon_proxy.proxy.core import (
     DenonProxyServer,
     _client_ip_for_display,
     _command_group,
@@ -10,9 +10,9 @@ from denon_proxy.main import (
     _should_log_command_info,
     avr_response_broadcast_lines,
     build_json_state,
-    load_config_from_dict,
     state_and_config_updates_from_denonavr,
 )
+from denon_proxy.runtime.config import Config
 from denon_proxy.runtime.state import RuntimeState
 
 
@@ -79,7 +79,7 @@ def test_build_json_state_with_no_avr():
     state = AVRState()
     state.power = "ON"
     state.volume = "50"
-    config = load_config_from_dict({})
+    config = Config.model_validate({})
     runtime_state = RuntimeState()
     runtime_state.avr_info = AVRInfo.virtual()
     result = build_json_state(state, None, [], config, runtime_state)
@@ -150,7 +150,7 @@ def test_build_json_state_with_virtual_avr_info():
     """When avr_info is AVRInfo.virtual(), avr dict has Denon / Virtual and no serial."""
     state = AVRState()
     state.power = "ON"
-    config = load_config_from_dict({"enable_ssdp": False})
+    config = Config.model_validate({"enable_ssdp": False})
     runtime_state = RuntimeState()
     runtime_state.avr_info = AVRInfo.virtual()
     result = build_json_state(state, None, [], config, runtime_state)
@@ -164,7 +164,7 @@ def test_build_json_state_with_virtual_avr_info():
 def test_build_json_state_includes_client_aliases():
     """build_json_state includes client_aliases from config."""
     state = AVRState()
-    config = load_config_from_dict(
+    config = Config.model_validate(
         {
             "client_aliases": {"192.168.1.5": "Living Room HA", "10.0.0.1": "Tablet"},
         }
@@ -178,7 +178,7 @@ def test_build_json_state_includes_client_aliases():
 def test_build_json_state_includes_discovery_info():
     """build_json_state includes discovery section with enabled, http_port, proxy_ip."""
     state = AVRState()
-    config = load_config_from_dict({"enable_ssdp": True, "ssdp_http_port": 9090})
+    config = Config.model_validate({"enable_ssdp": True, "ssdp_http_port": 9090})
     runtime_state = RuntimeState()
     runtime_state.avr_info = AVRInfo.virtual()
     result = build_json_state(state, None, [], config, runtime_state)
@@ -190,7 +190,7 @@ def test_build_json_state_includes_discovery_info():
 def test_build_json_state_includes_client_activity_log():
     """build_json_state includes client_activity_log and client_activity_log_enabled."""
     state = AVRState()
-    config = load_config_from_dict({})
+    config = Config.model_validate({})
     runtime_state = RuntimeState()
     runtime_state.avr_info = AVRInfo.virtual()
     result = build_json_state(state, None, [], config, runtime_state)
@@ -206,7 +206,7 @@ def test_build_json_state_includes_client_activity_log():
     }
     assert result2["client_activity_log_enabled"] is True
 
-    config_disabled = load_config_from_dict({"client_activity_log": False})
+    config_disabled = Config.model_validate({"client_activity_log": False})
     result3 = build_json_state(state, None, [], config_disabled, runtime_state)
     assert result3["client_activity_log_enabled"] is False
 
@@ -222,7 +222,7 @@ def test_build_json_state_includes_client_activity_log():
 
 def test_record_command_does_not_store_queries_when_hide_queries_true():
     """When client_activity_log_hide_queries is True, query commands (ending with ?) are not stored."""
-    config = load_config_from_dict(
+    config = Config.model_validate(
         {
             "client_activity_log": True,
             "client_activity_log_hide_queries": True,
@@ -250,7 +250,7 @@ def test_record_command_does_not_store_queries_when_hide_queries_true():
 
 def test_record_command_stores_queries_when_hide_queries_false():
     """When client_activity_log_hide_queries is False, query commands are stored."""
-    config = load_config_from_dict(
+    config = Config.model_validate(
         {
             "client_activity_log": True,
             "client_activity_log_hide_queries": False,

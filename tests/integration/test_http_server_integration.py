@@ -14,14 +14,15 @@ import logging
 import pytest
 
 from denon_proxy.avr.connection import create_avr_connection
-from denon_proxy.main import DenonProxyServer, load_config_from_dict
+from denon_proxy.proxy.core import DenonProxyServer
+from denon_proxy.runtime.config import Config
 from denon_proxy.runtime.state import RuntimeState
 
 
 @pytest.fixture
 def http_integration_config():
     """Minimal config for full-stack HTTP integration: virtual AVR, port 0, HTTP enabled, no SSDP."""
-    return load_config_from_dict(
+    return Config.model_validate(
         {
             "avr_host": "",
             "proxy_host": "127.0.0.1",

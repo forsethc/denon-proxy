@@ -12,14 +12,15 @@ import pytest
 
 from denon_proxy.avr.connection import create_avr_connection
 from denon_proxy.avr.discovery import run_discovery_servers
-from denon_proxy.main import DenonProxyServer, load_config_from_dict
+from denon_proxy.proxy.core import DenonProxyServer
+from denon_proxy.runtime.config import Config
 from denon_proxy.runtime.state import RuntimeState
 
 
 @pytest.fixture
 def discovery_config():
     """Config for proxy + discovery only (no JSON API): VirtualAVR + SSDP + discovery HTTP."""
-    return load_config_from_dict(
+    return Config.model_validate(
         {
             "avr_host": "",
             "proxy_host": "127.0.0.1",
@@ -78,7 +79,7 @@ async def discovery_stack(discovery_config, discovery_logger):
 @pytest.fixture
 def full_stack_http_config():
     """Config for full stack with JSON API: proxy + HTTP + discovery (production-like)."""
-    return load_config_from_dict(
+    return Config.model_validate(
         {
             "avr_host": "",
             "proxy_host": "127.0.0.1",
