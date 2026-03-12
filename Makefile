@@ -1,6 +1,11 @@
 PYTHON ?= python
+
+INIT_STAMP := .venv-init.stamp
+DEPS_FILES := pyproject.toml
+
+PACKAGE_NAME ?= denon-proxy
+
 # Docker test vars
-IMAGE_NAME ?= denon-proxy
 SAMPLE_CONFIG ?= config.sample.yaml
 MAKE_CONFIG_FILE ?= config.make.yaml
 PORTS = -p 23:23 -p 8080:8080 -p 8081:8081 -p 60006:60006
@@ -8,62 +13,78 @@ DOCKER_HEALTHCHECK_CMD = sleep 3 && curl -sf http://localhost:8081/api/status
 
 
 default: code-quality
-.PHONY: default init check check-all code-quality test docker mypy ruff-fix ruff-lint ruff-format ruff-format-fix ruff-lint-fix pytest docker-direct docker-compose
+.PHONY: default version run check check-all code-quality test docker mypy fix lint format format-fix lint-fix pytest docker-direct docker-compose version
 
-init:
-	$(PYTHON) -m pip install --upgrade pip
-	pip install -e ".[dev,test]"
+init: $(INIT_STAMP)
+	@echo "Python environment already initialized."
+
+$(INIT_STAMP): $(DEPS_FILES)
+	@echo "Initializing Python environment..."
+	@$(PYTHON) -m pip install --upgrade pip >/dev/null 2>&1
+	@pip install -e ".[dev,test]" >/dev/null 2>&1
+	@touch $(INIT_STAMP)
+
+version: init
+	$(PACKAGE_NAME) version
+
+run: init
+	$(PACKAGE_NAME) run
 
 check: code-quality test
 
 check-all: check docker
 
-code-quality:
+code-quality: init
 	@rc=0; \
-	printf '\n===== mypy: mypy src =====\n\n'; \
+	printf '\n===== Checking type safety =====\n\n'; \
 	$(MAKE) mypy || rc=1; \
-	printf '\n===== ruff-lint: ruff check src tests =====\n\n'; \
-	$(MAKE) ruff-lint || rc=1; \
-	printf '\n===== ruff-format: ruff format --check src tests =====\n\n'; \
-	$(MAKE) ruff-format || rc=1; \
+	printf '\n===== Linting =====\n\n'; \
+	$(MAKE) lint || rc=1; \
+	printf '\n===== Formatting =====\n\n'; \
+	$(MAKE) format || rc=1; \
 	printf '\n\n'; \
 	exit $$rc
 
-ruff-fix: ruff-lint-fix ruff-format-fix
+fix: init
+	lint-fix
+	format-fix
 
-test: pytest
+test: init
+	pytest
 
-docker: docker-direct docker-compose
+docker: init
+	docker-direct
+	docker-compose
 
-mypy:
+mypy: init
 	mypy src
 
-ruff-lint:
+lint: init
 	ruff check src tests
 
-ruff-lint-fix:
+lint-fix: init
 	ruff check --fix src tests
 
-ruff-format:
+format: init
 	ruff format --diff src tests
 
-ruff-format-fix:
+format-fix: init
 	ruff format src tests
 
-pytest:
+pytest: init
 	pytest
 
 docker-direct:
 	cp $(SAMPLE_CONFIG) $(MAKE_CONFIG_FILE)
-	docker build -t $(IMAGE_NAME) .
-	docker run -d --name $(IMAGE_NAME)-run \
+	docker build -t $(PACKAGE_NAME) .
+	docker run -d --name $(PACKAGE_NAME)-run \
 	  --cap-add=NET_BIND_SERVICE \
 	  $(PORTS) \
 	  -v "$(PWD)/$(MAKE_CONFIG_FILE):/app/config.yaml:ro" \
-	  $(IMAGE_NAME)
+	  $(PACKAGE_NAME)
 	$(DOCKER_HEALTHCHECK_CMD)
-	docker stop $(IMAGE_NAME)-run
-	docker rm $(IMAGE_NAME)-run
+	docker stop $(PACKAGE_NAME)-run
+	docker rm $(PACKAGE_NAME)-run
 	rm -f $(MAKE_CONFIG_FILE)
 
 docker-compose:

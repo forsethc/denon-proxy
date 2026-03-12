@@ -14,6 +14,7 @@ venv/
 env/
 htmlcov/
 .coverage
+.venv-init.stamp
 
 # IDE
 .idea/
