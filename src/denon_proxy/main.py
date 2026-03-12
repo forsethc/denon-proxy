@@ -27,11 +27,6 @@ from collections import deque
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
-try:
-    import yaml
-except ImportError:
-    yaml = None
-
 # Optional: use denonavr for initial state sync via HTTP (doesn't use telnet)
 try:
     import denonavr
@@ -41,7 +36,6 @@ except ImportError:
     DENONAVR_AVAILABLE = False
 
 import httpx
-from pydantic import ValidationError
 
 from denon_proxy.avr.connection import (
     AVRConnection,
@@ -65,6 +59,7 @@ from denon_proxy.constants import (
 )
 from denon_proxy.http.server import run_http_server
 from denon_proxy.runtime.config import Config
+from denon_proxy.runtime.config_io import load_config_and_report_errors
 from denon_proxy.runtime.logging import setup_logging
 from denon_proxy.runtime.state import RuntimeState
 from denon_proxy.utils.utils import (
@@ -76,36 +71,6 @@ from denon_proxy.utils.utils import (
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable, Mapping
-
-
-def _load_config_dict_from_file(config_path: Path | None) -> dict[str, Any]:
-    """
-    Load raw config data (dict) from YAML file.
-
-    Does not apply defaults or environment overrides so it can be tested
-    separately from I/O.
-    """
-    if yaml is None:
-        raise ImportError("PyYAML is required. Install with: pip install pyyaml")
-
-    if config_path:
-        if not config_path.exists():
-            raise FileNotFoundError(f"Config not found: {config_path}")
-        path = config_path
-    else:
-        # Default: config.yaml in current working directory (project root when run from there)
-        path = Path.cwd() / "config.yaml"
-        if not path.exists():
-            raise FileNotFoundError(
-                f"Config not found: {path}\n"
-                "Copy config.sample.yaml to config.yaml in the project root and edit as needed."
-            )
-
-    with path.open() as f:
-        data = yaml.safe_load(f) or {}
-    if not isinstance(data, dict):
-        raise ValueError(f"Config file must contain a mapping, got {type(data).__name__}")
-    return data
 
 
 def _load_dashboard_html(path: Path | None = None) -> str | None:
@@ -132,13 +97,6 @@ def load_config_from_dict(raw: dict[str, Any] | None) -> Config:
     """
     # Use the model directly so no environment overrides are applied.
     return Config.model_validate(raw or {})
-
-
-def load_config(config_path: Path | None = None) -> Config:
-    """Load configuration from YAML file with environment overrides."""
-    raw = _load_config_dict_from_file(config_path)
-    # Apply environment overrides during model construction
-    return Config.load_from_dict(raw)
 
 
 # Denon telnet command groups for configurable logging
@@ -822,43 +780,13 @@ async def main_async(config: Config) -> None:
         logger.warning("Shutdown timed out, exiting anyway")
 
 
-def _load_config_and_report_errors(config_path: Path | None) -> Config | None:
-    """
-    Helper for CLI/server entrypoints: load config and print user-facing errors.
-
-    Returns Config on success, or None on error (after printing to stderr).
-    """
-    try:
-        return load_config(config_path)
-    except FileNotFoundError as e:
-        print(str(e), file=sys.stderr)
-    except ImportError as e:
-        # Handle missing PyYAML (or other imports) during config load.
-        if "yaml" in str(e).lower():
-            print("Install PyYAML: pip install pyyaml", file=sys.stderr)
-        else:
-            print(f"Import error while loading config: {e}", file=sys.stderr)
-    except ValidationError as e:
-        print("Config validation failed:", file=sys.stderr)
-        for err in e.errors():
-            loc = ".".join(str(x) for x in err["loc"])
-            msg = err.get("msg", "")
-            print(f"  {loc}: {msg}", file=sys.stderr)
-    except Exception as e:
-        if yaml is not None and isinstance(e, yaml.YAMLError):
-            print("Invalid YAML in config file:", str(e), file=sys.stderr)
-        else:
-            raise
-    return None
-
-
 def run_proxy(config_path: Path | None) -> int:
     """
     Run the proxy server given an optional config path.
 
     Shared by the module entrypoint (__main__) and the CLI 'run' subcommand.
     """
-    config = _load_config_and_report_errors(config_path)
+    config = load_config_and_report_errors(config_path)
     if config is None:
         return 1
 
@@ -869,10 +797,7 @@ def run_proxy(config_path: Path | None) -> int:
     except KeyboardInterrupt:
         return 0
     except ImportError as e:
-        if "yaml" in str(e).lower():
-            print("Install PyYAML: pip install pyyaml", file=sys.stderr)
-        else:
-            print(f"Import error: {e}", file=sys.stderr)
+        print(f"Import error: {e}", file=sys.stderr)
         return 1
     return 0
 

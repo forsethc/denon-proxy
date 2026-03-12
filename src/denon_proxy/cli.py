@@ -5,7 +5,8 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from denon_proxy.main import _load_config_and_report_errors, run_proxy
+from denon_proxy.main import run_proxy
+from denon_proxy.runtime.config_io import load_config_and_report_errors
 from denon_proxy.utils.utils import get_version
 
 
@@ -58,7 +59,7 @@ def _cmd_version(args: argparse.Namespace) -> int:  # noqa: ARG001
 
 def _cmd_check_config(args: argparse.Namespace) -> int:
     """Validate configuration and report any errors."""
-    config = _load_config_and_report_errors(args.config)
+    config = load_config_and_report_errors(args.config)
     if config is None:
         return 1
 
