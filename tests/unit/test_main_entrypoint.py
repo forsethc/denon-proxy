@@ -26,17 +26,15 @@ def test_main_returns_1_when_config_not_found():
 def test_main_returns_0_on_keyboard_interrupt():
     """When the user hits Ctrl-C (KeyboardInterrupt), main() returns 0."""
 
-    def raise_keyboard_interrupt(*_args, **_kwargs):
-        raise KeyboardInterrupt
-
     with (
         patch(
             "denon_proxy.runtime.config_io.load_config",
             return_value=Config(log_level="INFO"),
         ),
+        patch("denon_proxy.main.setup_logging"),
         patch(
-            "denon_proxy.main.main_async",
-            side_effect=raise_keyboard_interrupt,
+            "denon_proxy.main.asyncio.run",
+            side_effect=KeyboardInterrupt,
         ),
         patch("sys.argv", ["denon_proxy"]),
     ):
@@ -46,15 +44,13 @@ def test_main_returns_0_on_keyboard_interrupt():
 def test_main_returns_0_on_successful_run():
     """When the proxy runs and exits normally, main() returns 0."""
 
-    async def noop(*_args, **_kwargs):
-        pass
-
     with (
         patch(
             "denon_proxy.runtime.config_io.load_config",
             return_value=Config(log_level="INFO"),
         ),
-        patch("denon_proxy.main.main_async", noop),
+        patch("denon_proxy.main.setup_logging"),
+        patch("denon_proxy.main.asyncio.run", return_value=None),
         patch(
             "sys.argv",
             ["denon_proxy"],
