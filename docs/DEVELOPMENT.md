@@ -46,6 +46,29 @@ The proxy keeps configuration and runtime data in four distinct layers. Keeping 
 - **RuntimeState** → holds that reference plus derived caches and callbacks.
 - **AVRState** → the only frequently mutating state; it reflects the current device (or optimistic) state.
 
+## Linting and type checking
+
+The project uses [Ruff](https://docs.astral.sh/ruff/) for linting and formatting, and [mypy](https://mypy.readthedocs.io/) for static type checking. Install the dev extras, then run:
+
+```bash
+pip install -e ".[test,dev]"
+```
+
+### Ruff
+
+- **Lint** (report only): `ruff check src tests`
+- **Lint and auto-fix**: `ruff check src tests --fix`
+- **Format** (rewrite files): `ruff format src tests`
+- **Format check** (CI-style): `ruff format --check src tests`
+
+Configuration is in `pyproject.toml` under `[tool.ruff]` and `[tool.ruff.lint]`.
+
+### Mypy
+
+- **Type-check the package**: `mypy src`
+
+Configuration is in `pyproject.toml` under `[tool.mypy]` and `[tool.mypy.overrides]`.
+
 ## Tests
 
 The project is covered by unit, integration, and end-to-end tests.
