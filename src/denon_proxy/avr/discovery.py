@@ -362,7 +362,7 @@ def _mainzone_xml(avr_state: AVRState, config: Config, runtime_state: RuntimeSta
   <SourceDelete>
 {source_delete}
   </SourceDelete>
-</item>""".encode("utf-8")
+</item>""".encode()
 
 
 def _escape_xml_text(s: str) -> str:

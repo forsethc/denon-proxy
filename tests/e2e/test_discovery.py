@@ -176,7 +176,7 @@ async def test_discovery_msearch_handled_and_responded(discovery_stack):
         "MAN: \"ssdp:discover\"\r\n"
         "ST: urn:schemas-denon-com:device:AiosDevice:1\r\n"
         "\r\n"
-    ).encode("utf-8")
+    ).encode()
 
     loop = asyncio.get_running_loop()
     transport, protocol = await loop.create_datagram_endpoint(
@@ -220,7 +220,7 @@ async def test_discovery_msearch_all_match_st_receive_response(st_value, discove
         "MAN: \"ssdp:discover\"\r\n"
         f"ST: {st_value}\r\n"
         "\r\n"
-    ).encode("utf-8")
+    ).encode()
 
     loop = asyncio.get_running_loop()
     transport, protocol = await loop.create_datagram_endpoint(
