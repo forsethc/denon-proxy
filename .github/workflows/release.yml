@@ -50,7 +50,6 @@ jobs:
           body: |
             ## Denon AVR Proxy v${{ github.event.inputs.version }}
 
-            See [README](README.md) for setup and usage.
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
