@@ -1,4 +1,8 @@
 PYTHON ?= python
+
+INIT_STAMP := .venv-init.stamp
+DEPS_FILES := pyproject.toml
+
 # Docker test vars
 IMAGE_NAME ?= denon-proxy
 SAMPLE_CONFIG ?= config.sample.yaml
@@ -8,12 +12,16 @@ DOCKER_HEALTHCHECK_CMD = sleep 3 && curl -sf http://localhost:8081/api/status
 
 
 default: code-quality
-.PHONY: default init check check-all code-quality test docker mypy ruff-fix ruff-lint ruff-format ruff-format-fix ruff-lint-fix pytest docker-direct docker-compose
+.PHONY: default check check-all code-quality test docker mypy ruff-fix ruff-lint ruff-format ruff-format-fix ruff-lint-fix pytest docker-direct docker-compose version
 
-init:
+init: $(INIT_STAMP)
+	@echo "Python environment already initialized."
+
+$(INIT_STAMP): $(DEPS_FILES)
 	@echo "Initializing Python environment..."
 	@$(PYTHON) -m pip install --upgrade pip >/dev/null 2>&1
 	@pip install -e ".[dev,test]" >/dev/null 2>&1
+	@touch $(INIT_STAMP)
 
 version:
 	$(MAKE) init
