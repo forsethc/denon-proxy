@@ -245,6 +245,7 @@ async def _telnet_send_and_assert(
         await asyncio.wait_for(reader.read(4096), timeout=1.0)
         for cmd in commands:
             writer.write(cmd + b"\r")
+            await asyncio.sleep(0.1)  # allow command to be written
             await writer.drain()
         response = await asyncio.wait_for(reader.read(4096), timeout=timeout)
         response_str = response.decode("utf-8", errors="replace")
