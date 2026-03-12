@@ -10,6 +10,8 @@ Run by class:
 import sys
 from pathlib import Path
 
+import pytest
+
 # Ensure project root and src/ are on sys.path so modules import regardless of pytest cwd.
 _root = Path(__file__).resolve().parent.parent
 _src = _root / "src"
@@ -17,8 +19,6 @@ for p in (_root, _src):
     s = str(p)
     if s not in sys.path:
         sys.path.insert(0, s)
-
-import pytest
 
 
 def pytest_configure(config):

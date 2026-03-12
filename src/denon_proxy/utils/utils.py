@@ -8,7 +8,7 @@ from __future__ import annotations
 import ipaddress
 from importlib import metadata
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from denon_proxy.runtime.config import Config
@@ -58,9 +58,6 @@ def is_docker_internal_ip(ip: str | None) -> bool:
     if not isinstance(addr, ipaddress.IPv4Address):
         return False
     return any(addr in net for net in _DOCKER_NETWORKS)
-
-
-from typing import Any
 
 
 def resolve_listening_port(
