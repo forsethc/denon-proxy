@@ -247,9 +247,14 @@ async def _telnet_send_and_assert(
         response = await asyncio.wait_for(reader.read(4096), timeout=timeout)
         response_str = response.decode("utf-8", errors="replace")
         for sub in response_contains:
-            assert sub in response_str, f"Expected {sub!r} in response, got: {response_str!r}"
+            assert (
+                sub in response_str
+            ), f"Expected {sub!r} in response, got: {response_str!r}"
         for attr, expected in state_assertions.items():
-            assert getattr(server.avr_state, attr) == expected, f"state.{attr}: got {getattr(server.avr_state, attr)!r}, expected {expected!r}"
+            actual = getattr(server.avr_state, attr)
+            assert (
+                actual == expected
+            ), f"state.{attr}: got {actual!r}, expected {expected!r}"
     finally:
         writer.close()
         await writer.wait_closed()

@@ -100,14 +100,32 @@ def _get_sources(config: Config, runtime_state: RuntimeState) -> list[tuple[str,
     else:
         # No user mapping: prefer raw sources (from physical AVR) over defaults
         if raw_sources:
-            result = [(str(func).strip(), str(display_name).strip() if display_name else str(func).strip()) for func, display_name in raw_sources if func]
+            result = [
+                (
+                    str(func).strip(),
+                    str(display_name).strip() if display_name else str(func).strip(),
+                )
+                for func, display_name in raw_sources
+                if func
+            ]
         else:
             result = DEMO_SOURCES
 
     runtime_state.resolved_sources = result
     if raw_sources:
-        _logger.info("Raw sources from AVR:\n  %s", "\n  ".join(f"{func} -> {display_name}" for func, display_name in raw_sources))
-    _logger.info("Resolved input sources:\n  %s", "\n  ".join(f"{func} -> {display_name}" for func, display_name in result))
+        _logger.info(
+            "Raw sources from AVR:\n  %s",
+            "\n  ".join(
+                f"{func} -> {display_name}"
+                for func, display_name in raw_sources
+            ),
+        )
+    _logger.info(
+        "Resolved input sources:\n  %s",
+        "\n  ".join(
+            f"{func} -> {display_name}" for func, display_name in result
+        ),
+    )
     return result
 
 
@@ -561,9 +579,11 @@ class DeviceDescriptionHandler(asyncio.Protocol):
             content_type = b"application/xml"
 
             if method == "GET":
-                if path_lower == "/description.xml" or path == "/":
-                    body = self.description_xml if "description" in path_lower else b"<html><body>Denon AVR Proxy</body></html>"
-                    content_type = b"application/xml" if "description" in path_lower else b"text/html"
+                if path == "/":
+                    body = b"<html><body>Denon AVR Proxy</body></html>"
+                    content_type = b"text/html"
+                elif path_lower == "/description.xml":
+                    body = self.description_xml
                 elif "/goform/deviceinfo.xml" in path_lower or path_lower.endswith("deviceinfo.xml"):
                     body = self.deviceinfo_xml
                 elif "aios_device.xml" in path_lower or "upnp/desc" in path_lower:
@@ -697,7 +717,8 @@ async def run_discovery_servers(
             ssdp_transport.close()
         return None, None
 
-    # Optional: also listen on 80 and 60006 for clients that probe those ports, but only if they're not already listening from above.
+    # Optional: also listen on 80 and 60006 for clients that probe those
+    # ports, but only if they're not already listening from above.
     if http_port != DISCOVERY_HTTP_PORT:
         try:
             server = await loop.create_server(http_factory, "0.0.0.0", DISCOVERY_HTTP_PORT, reuse_address=True)

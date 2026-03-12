@@ -1,4 +1,7 @@
-"""Shared e2e fixtures: discovery stack (proxy + SSDP + discovery HTTP) and full stack (proxy + HTTP API + discovery)."""
+"""Shared e2e fixtures:
+- discovery stack (proxy + SSDP + discovery HTTP)
+- full stack (proxy + HTTP API + discovery).
+"""
 from __future__ import annotations
 
 import asyncio

@@ -541,16 +541,26 @@ class DenonProxyServer:
         )
 
     def record_command(self, client_id: str, command: str) -> None:
-        """Record a command or event for a client (for UI activity log). client_id is IP or 'Web UI'. No-op if disabled in config.
-        When client_activity_log_hide_queries is true, query commands (ending with ?) are not stored so they cannot evict visible entries."""
+        """Record a command or event for a client (for UI activity log).
+
+        client_id is IP or 'Web UI'. No-op if disabled in config.
+        When client_activity_log_hide_queries is true, query commands
+        (ending with ?) are not stored so they cannot evict visible
+        entries.
+        """
         if not self.config.get("client_activity_log", True):
             return
         cid = str(client_id).strip() if client_id else "?"
         msg = command.strip() if isinstance(command, str) else str(command).strip()
         ts = time.time()
         if msg not in ("[connected]", "[disconnected]"):
-            if self.config.get("client_activity_log_hide_queries", False) and msg.endswith("?"):
-                return  # don't store queries when hide_queries is on; they would only evict visible entries
+            if (
+                self.config.get("client_activity_log_hide_queries", False)
+                and msg.endswith("?")
+            ):
+                # Don't store queries when hide_queries is on; they would only
+                # evict visible entries.
+                return
         if cid not in self._client_activity_log:
             self._client_activity_log[cid] = deque(maxlen=self._client_activity_log_max)
         self._client_activity_log[cid].append((ts, msg))
@@ -613,10 +623,20 @@ class DenonProxyServer:
             self.avr_state.apply_payload(state_updates)
             self.runtime_state.avr_info = avr_info
             if avr_info.has_sources():
-                self.logger.info("Fetched %d input sources from AVR", len(avr_info.raw_sources))
-            self.logger.info("Initial state from HTTP: power=%s vol=%s input=%s mute=%s sound_mode=%s smart_select=%s",
-                             self.avr_state.power, self.avr_state.volume,
-                             self.avr_state.input_source, self.avr_state.mute, self.avr_state.sound_mode, self.avr_state.smart_select)
+                self.logger.info(
+                    "Fetched %d input sources from AVR",
+                    len(avr_info.raw_sources),
+                )
+            self.logger.info(
+                "Initial state from HTTP: power=%s vol=%s input=%s mute=%s "
+                "sound_mode=%s smart_select=%s",
+                self.avr_state.power,
+                self.avr_state.volume,
+                self.avr_state.input_source,
+                self.avr_state.mute,
+                self.avr_state.sound_mode,
+                self.avr_state.smart_select,
+            )
         except (OSError, asyncio.TimeoutError, httpx.HTTPError) as e:
             self.logger.debug("Could not sync initial state via HTTP: %s", e)
 
