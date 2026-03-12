@@ -262,11 +262,10 @@ async def run_http_server(
             logger.debug("SSE push error: %s", e)
 
     def notify_state_changed() -> None:
-        try:
+        import contextlib
+
+        with contextlib.suppress(RuntimeError):
             asyncio.get_running_loop().create_task(_push())
-        except RuntimeError:
-            # No running loop; ignore (e.g. during shutdown)
-            pass
 
     try:
         def factory() -> _HttpServerHandler:

@@ -161,11 +161,10 @@ async def test_http_status_reflects_telnet_clients(http_integration_config, http
         )
         try:
             # Initial dump may contain multiple lines; just ensure connection is fully established.
-            try:
+            import contextlib
+
+            with contextlib.suppress(asyncio.TimeoutError):
                 await asyncio.wait_for(reader_telnet.read(1024), timeout=1.0)
-            except asyncio.TimeoutError:
-                # It's fine if nothing arrives yet; connection is still valid.
-                pass
 
             # Now GET /api/status and assert the Telnet client is visible
             reader_http, writer_http = await _open_http_connection(http_port)
