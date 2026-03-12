@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import asyncio
 import json
-from typing import Any, TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Any, cast
 
 from denon_proxy.constants import DEFAULT_HTTP_PORT
 from denon_proxy.utils.utils import resolve_listening_port

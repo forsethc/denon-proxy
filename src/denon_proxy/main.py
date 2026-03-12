@@ -25,7 +25,7 @@ import sys
 import time
 from collections import deque
 from pathlib import Path
-from typing import Any, TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Any, cast
 
 try:
     import yaml
