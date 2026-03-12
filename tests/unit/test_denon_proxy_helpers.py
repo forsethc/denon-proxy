@@ -66,6 +66,7 @@ class _FakeClient:
 class _FakeAvr:
     def __init__(self) -> None:
         pass
+
     def is_connected(self) -> bool:
         return True
 
@@ -163,9 +164,11 @@ def test_build_json_state_with_virtual_avr_info():
 def test_build_json_state_includes_client_aliases():
     """build_json_state includes client_aliases from config."""
     state = AVRState()
-    config = load_config_from_dict({
-        "client_aliases": {"192.168.1.5": "Living Room HA", "10.0.0.1": "Tablet"},
-    })
+    config = load_config_from_dict(
+        {
+            "client_aliases": {"192.168.1.5": "Living Room HA", "10.0.0.1": "Tablet"},
+        }
+    )
     runtime_state = RuntimeState()
     runtime_state.avr_info = AVRInfo.virtual()
     result = build_json_state(state, None, [], config, runtime_state)
@@ -219,10 +222,12 @@ def test_build_json_state_includes_client_activity_log():
 
 def test_record_command_does_not_store_queries_when_hide_queries_true():
     """When client_activity_log_hide_queries is True, query commands (ending with ?) are not stored."""
-    config = load_config_from_dict({
-        "client_activity_log": True,
-        "client_activity_log_hide_queries": True,
-    })
+    config = load_config_from_dict(
+        {
+            "client_activity_log": True,
+            "client_activity_log_hide_queries": True,
+        }
+    )
     logger = logging.getLogger("test")
     runtime_state = RuntimeState()
 
@@ -245,10 +250,12 @@ def test_record_command_does_not_store_queries_when_hide_queries_true():
 
 def test_record_command_stores_queries_when_hide_queries_false():
     """When client_activity_log_hide_queries is False, query commands are stored."""
-    config = load_config_from_dict({
-        "client_activity_log": True,
-        "client_activity_log_hide_queries": False,
-    })
+    config = load_config_from_dict(
+        {
+            "client_activity_log": True,
+            "client_activity_log_hide_queries": False,
+        }
+    )
     logger = logging.getLogger("test")
     runtime_state = RuntimeState()
 
@@ -326,6 +333,7 @@ def test_state_and_config_updates_from_denonavr_smart_select_and_sources():
 
 def test_state_and_config_updates_from_denonavr_sound_mode_smart_treated_as_smart_select():
     """When denonavr returns sound_mode like SMART0, it is stored as smart_select and sound_mode cleared."""
+
     class MockD:
         power = "ON"
         vol = None
@@ -346,6 +354,7 @@ def test_state_and_config_updates_from_denonavr_sound_mode_smart_treated_as_smar
 
 def test_state_and_config_updates_from_denonavr_minimal_attributes():
     """When denonavr has few attributes set, only those are in state_updates."""
+
     class MockD:
         power = None
         vol = None
@@ -456,4 +465,3 @@ def test_apply_payload_partial_leaves_others_unchanged():
     assert state.volume == "60"
     assert state.input_source == "TUNER"
     assert state.sound_mode == "STEREO"
-

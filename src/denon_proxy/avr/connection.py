@@ -213,9 +213,7 @@ class VirtualAVRConnection:
             if not line or len(line) < 2:
                 continue
             line_prefix = line[:2].upper()
-            if line_prefix == prefix or (
-                prefix in ("PW", "ZM") and line_prefix in ("PW", "ZM")
-            ):
+            if line_prefix == prefix or (prefix in ("PW", "ZM") and line_prefix in ("PW", "ZM")):
                 self.avr_state.update_from_message(line)
                 self.on_response(line)
         return True

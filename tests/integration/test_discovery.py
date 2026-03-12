@@ -24,12 +24,14 @@ from denon_proxy.runtime.state import RuntimeState
 @pytest.fixture
 def discovery_config():
     """Config for discovery-only: SSDP + discovery HTTP, no proxy."""
-    return load_config_from_dict({
-        "enable_ssdp": True,
-        "ssdp_advertise_ip": "127.0.0.1",
-        "ssdp_http_port": 0,
-        "ssdp_friendly_name": "Test Discovery Proxy",
-    })
+    return load_config_from_dict(
+        {
+            "enable_ssdp": True,
+            "ssdp_advertise_ip": "127.0.0.1",
+            "ssdp_http_port": 0,
+            "ssdp_friendly_name": "Test Discovery Proxy",
+        }
+    )
 
 
 @pytest.fixture
@@ -46,9 +48,7 @@ async def discovery_servers(discovery_config, discovery_logger):
     state = AVRState()
     runtime_state = RuntimeState()
     runtime_state.avr_info = AVRInfo.virtual()
-    ssdp_transport, http_servers = await run_discovery_servers(
-        discovery_config, discovery_logger, state, runtime_state
-    )
+    ssdp_transport, http_servers = await run_discovery_servers(discovery_config, discovery_logger, state, runtime_state)
     yield ssdp_transport, http_servers, discovery_config, runtime_state
     if ssdp_transport:
         ssdp_transport.close()
@@ -66,12 +66,7 @@ async def _http_get(host: str, port: int, path: str) -> tuple[int, bytes]:
         timeout=2.0,
     )
     try:
-        request = (
-            f"GET {path} HTTP/1.1\r\n"
-            f"Host: {host}\r\n"
-            "Connection: close\r\n"
-            "\r\n"
-        ).encode("ascii")
+        request = (f"GET {path} HTTP/1.1\r\nHost: {host}\r\nConnection: close\r\n\r\n").encode("ascii")
         writer.write(request)
         await writer.drain()
         raw = await asyncio.wait_for(reader.read(65536), timeout=2.0)
@@ -134,7 +129,7 @@ async def test_discovery_description_xml_rendered(discovery_servers):
     assert "root" in text.lower() or "deviceType" in text
     assert "presentationURL" in text or "LOCATION" in text or "description.xml" in text
     assert "Test Discovery Proxy" in text
-    assert f":{port}/" in text or f":{port}\"" in text
+    assert f":{port}/" in text or f':{port}"' in text
 
 
 @pytest.mark.asyncio
@@ -183,9 +178,7 @@ async def test_discovery_appcommand_get_friendly_name(discovery_servers):
     assert http_servers
     port = runtime_state.ssdp_http_port
     body = b'<tx><cmd id="1">GetFriendlyName</cmd></tx>'
-    status, resp_body = await _http_post(
-        "127.0.0.1", port, "/goform/appcommand.xml", body
-    )
+    status, resp_body = await _http_post("127.0.0.1", port, "/goform/appcommand.xml", body)
     assert status == 200
     text = resp_body.decode("utf-8", errors="replace")
     assert "friendlyname" in text.lower()
@@ -218,7 +211,7 @@ async def test_discovery_msearch_handled_and_responded(discovery_servers):
     msearch = (
         "M-SEARCH * HTTP/1.1\r\n"
         f"HOST: {SSDP_MCAST_GRP}:{SSDP_MCAST_PORT}\r\n"
-        "MAN: \"ssdp:discover\"\r\n"
+        'MAN: "ssdp:discover"\r\n'
         "ST: urn:schemas-denon-com:device:AiosDevice:1\r\n"
         "\r\n"
     ).encode()

@@ -268,6 +268,7 @@ async def run_http_server(
             asyncio.get_running_loop().create_task(_push())
 
     try:
+
         def factory() -> _HttpServerHandler:
             h = _HttpServerHandler(
                 get_state,
@@ -292,4 +293,3 @@ async def run_http_server(
     except OSError as e:
         logger.warning("HTTP server port %d unavailable: %s", port, e)
         return None
-

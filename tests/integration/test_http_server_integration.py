@@ -67,12 +67,7 @@ async def test_http_status_and_command_full_stack(http_integration_config, http_
         # Initial status reflects default AVRState and virtual AVR details
         reader, writer = await _open_http_connection(http_port)
         try:
-            request = (
-                "GET /api/status HTTP/1.1\r\n"
-                "Host: 127.0.0.1\r\n"
-                "Connection: close\r\n"
-                "\r\n"
-            ).encode("ascii")
+            request = ("GET /api/status HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n").encode("ascii")
             writer.write(request)
             await writer.drain()
 
@@ -119,12 +114,7 @@ async def test_http_status_and_command_full_stack(http_integration_config, http_
         # Status should now reflect the new power state, and proxy.avr_state should be updated
         reader3, writer3 = await _open_http_connection(http_port)
         try:
-            request3 = (
-                "GET /api/status HTTP/1.1\r\n"
-                "Host: 127.0.0.1\r\n"
-                "Connection: close\r\n"
-                "\r\n"
-            ).encode("ascii")
+            request3 = ("GET /api/status HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n").encode("ascii")
             writer3.write(request3)
             await writer3.drain()
 
@@ -169,12 +159,7 @@ async def test_http_status_reflects_telnet_clients(http_integration_config, http
             # Now GET /api/status and assert the Telnet client is visible
             reader_http, writer_http = await _open_http_connection(http_port)
             try:
-                request = (
-                    "GET /api/status HTTP/1.1\r\n"
-                    "Host: 127.0.0.1\r\n"
-                    "Connection: close\r\n"
-                    "\r\n"
-                ).encode("ascii")
+                request = ("GET /api/status HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n").encode("ascii")
                 writer_http.write(request)
                 await writer_http.drain()
 
@@ -196,12 +181,7 @@ async def test_http_status_reflects_telnet_clients(http_integration_config, http
         await asyncio.sleep(0.05)
         reader_http2, writer_http2 = await _open_http_connection(http_port)
         try:
-            request2 = (
-                "GET /api/status HTTP/1.1\r\n"
-                "Host: 127.0.0.1\r\n"
-                "Connection: close\r\n"
-                "\r\n"
-            ).encode("ascii")
+            request2 = ("GET /api/status HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n").encode("ascii")
             writer_http2.write(request2)
             await writer_http2.drain()
 
@@ -232,12 +212,7 @@ async def test_http_events_sse_streams_updates_on_command(http_integration_confi
         # Open SSE connection
         reader_sse, writer_sse = await _open_http_connection(http_port)
         try:
-            request_sse = (
-                "GET /events HTTP/1.1\r\n"
-                "Host: 127.0.0.1\r\n"
-                "Connection: keep-alive\r\n"
-                "\r\n"
-            ).encode("ascii")
+            request_sse = ("GET /events HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: keep-alive\r\n\r\n").encode("ascii")
             writer_sse.write(request_sse)
             await writer_sse.drain()
 
@@ -314,12 +289,7 @@ async def test_http_refresh_request_state_broadcasts_to_telnet_clients(
             # Trigger request_state via HTTP (proxy calls avr.request_state())
             reader_http, writer_http = await _open_http_connection(http_port)
             try:
-                request = (
-                    "POST /api/refresh HTTP/1.1\r\n"
-                    "Host: 127.0.0.1\r\n"
-                    "Connection: close\r\n"
-                    "\r\n"
-                ).encode("ascii")
+                request = ("POST /api/refresh HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n").encode("ascii")
                 writer_http.write(request)
                 await writer_http.drain()
                 response = await asyncio.wait_for(reader_http.read(4096), timeout=2.0)

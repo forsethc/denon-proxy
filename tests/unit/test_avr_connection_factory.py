@@ -1,4 +1,5 @@
 """Unit tests: create_avr_connection factory (avr_connection)."""
+
 from denon_proxy.avr.connection import (
     AVRConnection,
     VirtualAVRConnection,
@@ -25,6 +26,7 @@ def test_create_avr_connection_returns_physical_when_avr_host_set():
     state, on_resp, on_disc, _ = _make_callbacks()
     config = {"avr_host": "192.168.1.100", "avr_port": 23}
     import logging
+
     conn = create_avr_connection(config, state, on_resp, on_disc, logging.getLogger("test"))
     assert isinstance(conn, AVRConnection)
     assert conn.host == "192.168.1.100"
@@ -38,6 +40,7 @@ def test_create_avr_connection_returns_virtual_when_avr_host_empty():
     state, on_resp, on_disc, _ = _make_callbacks()
     config = {"avr_host": "", "volume_step": 0.5}
     import logging
+
     conn = create_avr_connection(config, state, on_resp, on_disc, logging.getLogger("test"))
     assert isinstance(conn, VirtualAVRConnection)
     assert conn.get_details() == {"type": "virtual"}

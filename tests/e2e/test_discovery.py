@@ -24,12 +24,7 @@ async def _http_get(host: str, port: int, path: str) -> tuple[int, bytes]:
         timeout=2.0,
     )
     try:
-        request = (
-            f"GET {path} HTTP/1.1\r\n"
-            f"Host: {host}\r\n"
-            "Connection: close\r\n"
-            "\r\n"
-        ).encode("ascii")
+        request = (f"GET {path} HTTP/1.1\r\nHost: {host}\r\nConnection: close\r\n\r\n").encode("ascii")
         writer.write(request)
         await writer.drain()
         raw = await asyncio.wait_for(reader.read(65536), timeout=2.0)
@@ -92,7 +87,7 @@ async def test_discovery_description_xml_rendered(discovery_stack):
     assert "root" in text.lower() or "deviceType" in text
     assert "presentationURL" in text or "LOCATION" in text or "description.xml" in text
     assert "Test Discovery Proxy" in text
-    assert f":{port}/" in text or f":{port}\"" in text
+    assert f":{port}/" in text or f':{port}"' in text
 
 
 @pytest.mark.asyncio
@@ -141,9 +136,7 @@ async def test_discovery_appcommand_get_friendly_name(discovery_stack):
     assert http_servers
     port = proxy.runtime_state.ssdp_http_port or proxy.config.get("ssdp_http_port")
     body = b'<tx><cmd id="1">GetFriendlyName</cmd></tx>'
-    status, resp_body = await _http_post(
-        "127.0.0.1", port, "/goform/appcommand.xml", body
-    )
+    status, resp_body = await _http_post("127.0.0.1", port, "/goform/appcommand.xml", body)
     assert status == 200
     text = resp_body.decode("utf-8", errors="replace")
     assert "friendlyname" in text.lower()
@@ -173,7 +166,7 @@ async def test_discovery_msearch_handled_and_responded(discovery_stack):
     msearch = (
         "M-SEARCH * HTTP/1.1\r\n"
         f"HOST: {SSDP_MCAST_GRP}:{SSDP_MCAST_PORT}\r\n"
-        "MAN: \"ssdp:discover\"\r\n"
+        'MAN: "ssdp:discover"\r\n'
         "ST: urn:schemas-denon-com:device:AiosDevice:1\r\n"
         "\r\n"
     ).encode()
@@ -202,12 +195,15 @@ async def test_discovery_msearch_handled_and_responded(discovery_stack):
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("st_value", [
-    "ssdp:all",
-    "upnp:rootdevice",
-    "urn:schemas-upnp-org:device:MediaRenderer:1",
-    "urn:schemas-upnp-org:device:MediaServer:1",
-])
+@pytest.mark.parametrize(
+    "st_value",
+    [
+        "ssdp:all",
+        "upnp:rootdevice",
+        "urn:schemas-upnp-org:device:MediaRenderer:1",
+        "urn:schemas-upnp-org:device:MediaServer:1",
+    ],
+)
 async def test_discovery_msearch_all_match_st_receive_response(st_value, discovery_stack):
     """Each MATCH_ST search target receives a 200 response with LOCATION."""
     proxy, _ssdp_transport, http_servers = discovery_stack
@@ -217,7 +213,7 @@ async def test_discovery_msearch_all_match_st_receive_response(st_value, discove
     msearch = (
         "M-SEARCH * HTTP/1.1\r\n"
         f"HOST: {SSDP_MCAST_GRP}:{SSDP_MCAST_PORT}\r\n"
-        "MAN: \"ssdp:discover\"\r\n"
+        'MAN: "ssdp:discover"\r\n'
         f"ST: {st_value}\r\n"
         "\r\n"
     ).encode()

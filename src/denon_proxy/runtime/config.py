@@ -16,9 +16,7 @@ from denon_proxy.constants import (
     DEFAULT_SSDP_HTTP_PORT,
 )
 
-_VALID_COMMAND_GROUPS = frozenset(
-    {"power", "volume", "input", "mute", "sound_mode", "smart_select", "other"}
-)
+_VALID_COMMAND_GROUPS = frozenset({"power", "volume", "input", "mute", "sound_mode", "smart_select", "other"})
 
 
 def _apply_env_to_dict(
@@ -140,9 +138,7 @@ class Config(BaseModel, Mapping[str, Any]):
             if not isinstance(g, str):
                 raise ValueError(f"entry {i} must be a string, got {type(g).__name__}")
             if g not in _VALID_COMMAND_GROUPS:
-                raise ValueError(
-                    f"invalid group {g!r}, must be one of {sorted(_VALID_COMMAND_GROUPS)}"
-                )
+                raise ValueError(f"invalid group {g!r}, must be one of {sorted(_VALID_COMMAND_GROUPS)}")
         return v
 
     @field_validator("sources", mode="before")
@@ -203,4 +199,3 @@ class Config(BaseModel, Mapping[str, Any]):
         d: dict[str, Any] = dict(raw) if raw else {}
         _apply_env_to_dict(d, env)
         return cls.model_validate(d)
-

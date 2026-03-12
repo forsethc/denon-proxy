@@ -1,4 +1,5 @@
 """Unit tests: _parse_mvmax (now on AVRState)."""
+
 from denon_proxy.avr.state import _parse_mvmax
 
 
@@ -13,4 +14,3 @@ def test_parse_mvmax_valid_and_invalid_inputs():
     # Lower bound should never be negative
     val = _parse_mvmax("MAX -10")
     assert val is None or val >= 0.0
-

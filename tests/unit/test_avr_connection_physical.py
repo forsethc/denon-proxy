@@ -24,15 +24,20 @@ def _make_avr(host: str, port: int):
         disconnected.append(True)
 
     logger = logging.getLogger("test.avr_physical")
-    return AVRConnection(
-        host=host,
-        port=port,
-        on_response=on_response,
-        on_disconnect=on_disconnect,
-        avr_state=state,
-        logger=logger,
-        on_send_while_disconnected=lambda: disconnected.append(True),
-    ), state, responses, disconnected
+    return (
+        AVRConnection(
+            host=host,
+            port=port,
+            on_response=on_response,
+            on_disconnect=on_disconnect,
+            avr_state=state,
+            logger=logger,
+            on_send_while_disconnected=lambda: disconnected.append(True),
+        ),
+        state,
+        responses,
+        disconnected,
+    )
 
 
 def test_avr_connection_is_connected_and_get_details():
@@ -192,6 +197,7 @@ async def test_avr_connection_read_loop_updates_volume_max_from_mvmax():
 @pytest.mark.asyncio
 async def test_avr_connection_send_command_when_connected():
     """send_command when connected writes to writer and returns True."""
+
     async def server_cb(reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
         data = await reader.read(64)
         received.append(data)
@@ -268,6 +274,7 @@ async def test_avr_connection_request_state_sends_commands():
 @pytest.mark.asyncio
 async def test_avr_connection_connect_idempotent_when_already_connected():
     """connect() when already connected returns True without opening again."""
+
     async def server_cb(reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
         await asyncio.sleep(0.5)
 

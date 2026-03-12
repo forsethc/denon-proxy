@@ -193,5 +193,3 @@ def test_unknown_equality():
 def test_unknown_distinct_from_virtual():
     """Unknown (sync failed) is not the same as virtual (no physical AVR)."""
     assert AVRInfo.unknown() != AVRInfo.virtual()
-
-

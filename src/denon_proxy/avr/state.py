@@ -262,6 +262,7 @@ class AVRState:
 # Volume helpers (presentation: JSON, XML)
 # -----------------------------------------------------------------------------
 
+
 def _format_volume(level: float, max_volume: float = 98.0) -> str:
     """Format numeric level as Denon telnet volume string.
 
