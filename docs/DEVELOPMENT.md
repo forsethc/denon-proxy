@@ -58,8 +58,8 @@ Then run:
 
 ### Ruff
 
-- **Lint** (report only): `ruff check src tests`
-- **Lint and auto-fix**: `ruff check src tests --fix`
+- **Lint** (report only): `ruff check`
+- **Lint and auto-fix**: `ruff check --fix`
 
 Configuration is in `pyproject.toml` under `[tool.ruff]` and `[tool.ruff.lint]`.
 
