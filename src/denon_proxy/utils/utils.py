@@ -76,8 +76,8 @@ def resolve_listening_port(
 
 
 def get_resolved_port(
-    runtime_state: "RuntimeState",
-    config: "Config",
+    runtime_state: RuntimeState,
+    config: Config,
     config_key: str,
     default: int,
 ) -> int:

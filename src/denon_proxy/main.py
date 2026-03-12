@@ -364,7 +364,7 @@ class ClientHandler(asyncio.Protocol):
         self,
         avr: AVRConnection | VirtualAVRConnection,
         avr_state: AVRState,
-        clients: set["ClientHandler"],
+        clients: set[ClientHandler],
         logger: logging.Logger,
         runtime_state: RuntimeState,
         config: Config,

@@ -55,11 +55,11 @@ class RuntimeState:
         # Version from git describe (set at startup; used in JSON API and web UI)
         self.version: str = "unknown"
 
-    def get_resolved_port(self, config: "Config", config_key: str, default: int) -> int:
+    def get_resolved_port(self, config: Config, config_key: str, default: int) -> int:
         """Return effective port: resolved value if set, else config key with default."""
         return _get_resolved_port(self, config, config_key, default)
 
-    def get_friendly_name(self, config: "Config") -> str:
+    def get_friendly_name(self, config: Config) -> str:
         """Resolved proxy friendly name: config override, else AVR name + ' Proxy', else default.
 
         Computed on first access from config + avr_info and cached for the lifetime of this
