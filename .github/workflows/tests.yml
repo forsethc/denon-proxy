@@ -25,20 +25,11 @@ jobs:
 
       - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip
-          pip install -e ".[dev]"
+          make init
 
-      - name: Mypy
+      - name: Run code quality checks
         run: |
-          mypy src
-
-      - name: Ruff lint
-        run: |
-          ruff check src tests
-
-      - name: Ruff format
-        run: |
-          ruff format --check src tests
+          make code-quality
 
   tests:
     name: Tests (pytest unit, integration, e2e tests)
@@ -57,12 +48,11 @@ jobs:
 
       - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip
-          pip install -e ".[test]"
+          make init
 
       - name: Run tests
         run: |
-          pytest
+          make pytest
 
   docker:
     name: Docker tests (direct, docker compose)
@@ -74,28 +64,13 @@ jobs:
         with:
           fetch-depth: 0  # full clone + tags so setuptools-scm can derive version in Docker build
 
-      - name: Prepare config for Docker
-        run: cp config.sample.yaml config.yaml
-
       - name: Build and run (direct)
         run: |
-          docker build -t denon-proxy .
-          docker run -d --name denon-proxy-run \
-            --cap-add=NET_BIND_SERVICE \
-            -p 23:23 -p 8080:8080 -p 8081:8081 -p 60006:60006 \
-            -v "$(pwd)/config.yaml:/app/config.yaml:ro" \
-            denon-proxy
-          sleep 3
-          curl -sf http://localhost:8081/api/status
-          docker stop denon-proxy-run
-          docker rm denon-proxy-run
+          make docker-direct
 
       - name: Build and run (docker compose)
         run: |
-          docker compose up -d --build
-          sleep 3
-          curl -sf http://localhost:8081/api/status
-          docker compose down
+          make docker-compose
 
   tests_passed:
     name: Tests and code quality checks passed
