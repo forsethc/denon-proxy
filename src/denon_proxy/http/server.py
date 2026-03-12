@@ -16,7 +16,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from typing import Any, Set, cast
+from typing import Any, cast
 from collections.abc import Callable
 
 from denon_proxy.constants import DEFAULT_HTTP_PORT
