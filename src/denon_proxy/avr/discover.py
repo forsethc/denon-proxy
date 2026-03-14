@@ -13,11 +13,14 @@ TODO (short prompts, descending importance):
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 import re
-from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 from urllib.parse import urlparse
 
 from denon_proxy.constants import (
@@ -107,10 +110,8 @@ def _parse_ssdp_extra_headers(data: bytes) -> dict[str, Any]:
         extra["usn"] = usn_match.group(1).strip()
     cache_match = re.search(r"CACHE-CONTROL:\s*max-age\s*=\s*(\d+)", text, re.IGNORECASE)
     if cache_match:
-        try:
+        with contextlib.suppress(ValueError):
             extra["max_age"] = int(cache_match.group(1))
-        except ValueError:
-            pass
     return extra
 
 
@@ -315,6 +316,7 @@ def mdns_available() -> bool:
 def _run_mdns_sync(timeout: float) -> list[DiscoveredAVR]:
     """Run synchronous zeroconf browse in executor. Used by discover_via_mdns."""
     import time
+
     from zeroconf import ServiceBrowser, ServiceStateChange, Zeroconf
 
     found: list[DiscoveredAVR] = []
@@ -472,10 +474,8 @@ async def discover(
     finally:
         if progress_task is not None:
             progress_task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await progress_task
-            except asyncio.CancelledError:
-                pass
 
 
 __all__ = [

@@ -8,20 +8,17 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from denon_proxy.avr.discover import (
-    DISCOVER_TIMEOUT,
     DiscoveredAVR,
     discover,
     discover_via_mdns,
-    discover_via_ssdp,
     mdns_available,
 )
 from denon_proxy.avr.discover import _is_denon_proxy as is_denon_proxy
-from denon_proxy.constants import PROXY_NAME, PROXY_SERVER_PRODUCT
 from denon_proxy.avr.discover import _is_denon_ssdp_response as is_denon_ssdp_response
 from denon_proxy.avr.discover import _parse_friendly_name as parse_friendly_name
 from denon_proxy.avr.discover import _parse_ssdp_location as parse_ssdp_location
 from denon_proxy.avr.discover import _parse_ssdp_server_or_usn as parse_ssdp_server
-
+from denon_proxy.constants import PROXY_NAME, PROXY_SERVER_PRODUCT
 
 # --- _parse_ssdp_location ---
 

@@ -127,6 +127,7 @@ def _cmd_discover(args: argparse.Namespace) -> int:
     """Discover AVRs on the network and print host/port (and optional name)."""
     import asyncio
     import json
+
     from denon_proxy.avr.discover import DiscoveredAVR, discover, mdns_available
 
     verbosity = getattr(args, "verbosity", 0)
@@ -192,7 +193,8 @@ def _cmd_discover(args: argparse.Namespace) -> int:
         console.print("No AVRs found. Try --method both or increase --timeout.")
         if args.method == "both" and not mdns_available():
             console_err.print(
-                "(mDNS was skipped—zeroconf is missing; reinstall denon-proxy: pip install --force-reinstall denon-proxy)"
+                "(mDNS was skipped—zeroconf is missing; reinstall denon-proxy: "
+                "pip install --force-reinstall denon-proxy)"
             )
         return 0
 

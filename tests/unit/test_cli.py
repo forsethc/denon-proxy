@@ -98,6 +98,7 @@ def test_cli_discover_subcommand_prints_found_avrs(monkeypatch: pytest.MonkeyPat
 def test_cli_discover_subcommand_json_output(monkeypatch: pytest.MonkeyPatch) -> None:
     """discover --json outputs JSON array of discovered AVRs."""
     import json
+
     from denon_proxy.avr.discover import DiscoveredAVR
 
     async def fake_discover(*, method: str, timeout: float, **kwargs):
@@ -136,6 +137,7 @@ def test_cli_discover_subcommand_no_avrs_exits_0(monkeypatch: pytest.MonkeyPatch
 def test_cli_discover_show_all_includes_filtered(monkeypatch: pytest.MonkeyPatch) -> None:
     """discover --show-all shows matching devices on top, then a section for filtered devices."""
     import json
+
     from denon_proxy.avr.discover import DiscoveredAVR
 
     async def fake_discover(*, method: str, timeout: float, **kwargs):
