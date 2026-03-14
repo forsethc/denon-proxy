@@ -84,6 +84,7 @@ def test_cli_discover_subcommand_prints_found_avrs(monkeypatch: pytest.MonkeyPat
         ]
 
     import denon_proxy.avr.discover as discover_mod
+
     monkeypatch.setattr(discover_mod, "discover", fake_discover)
     stdout = StringIO()
     with pytest.MonkeyPatch().context() as m:
@@ -105,6 +106,7 @@ def test_cli_discover_subcommand_json_output(monkeypatch: pytest.MonkeyPatch) ->
         return [DiscoveredAVR("10.0.0.5", 80, None, None, "ssdp")]
 
     import denon_proxy.avr.discover as discover_mod
+
     monkeypatch.setattr(discover_mod, "discover", fake_discover)
     stdout = StringIO()
     with pytest.MonkeyPatch().context() as m:
@@ -121,10 +123,12 @@ def test_cli_discover_subcommand_json_output(monkeypatch: pytest.MonkeyPatch) ->
 
 def test_cli_discover_subcommand_no_avrs_exits_0(monkeypatch: pytest.MonkeyPatch) -> None:
     """discover with no results prints message and exits 0."""
+
     async def fake_discover(*, method: str, timeout: float, **kwargs):
         return []
 
     import denon_proxy.avr.discover as discover_mod
+
     monkeypatch.setattr(discover_mod, "discover", fake_discover)
     stdout = StringIO()
     with pytest.MonkeyPatch().context() as m:
@@ -147,6 +151,7 @@ def test_cli_discover_show_all_includes_filtered(monkeypatch: pytest.MonkeyPatch
         ]
 
     import denon_proxy.avr.discover as discover_mod
+
     monkeypatch.setattr(discover_mod, "discover", fake_discover)
     stdout = StringIO()
     with pytest.MonkeyPatch().context() as m:

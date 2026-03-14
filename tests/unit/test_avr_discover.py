@@ -24,11 +24,7 @@ from denon_proxy.constants import PROXY_NAME, PROXY_SERVER_PRODUCT
 
 
 def test_parse_ssdp_location_returns_host_port():
-    msg = (
-        "HTTP/1.1 200 OK\r\n"
-        "LOCATION: http://192.168.1.50:80/description.xml\r\n"
-        "CACHE-CONTROL: max-age=1800\r\n\r\n"
-    )
+    msg = "HTTP/1.1 200 OK\r\nLOCATION: http://192.168.1.50:80/description.xml\r\nCACHE-CONTROL: max-age=1800\r\n\r\n"
     assert parse_ssdp_location(msg.encode()) == ("192.168.1.50", 80)
 
 
@@ -90,9 +86,7 @@ def test_is_denon_ssdp_response_accepts_marantz_server():
 def test_is_denon_ssdp_response_accepts_knos_dmp_avr():
     """Some Denon AVRs advertise as KnOS/3.2 UPnP/1.0 DMP/3.5 (no 'Denon' in SERVER)."""
     msg = (
-        "HTTP/1.1 200 OK\r\n"
-        "SERVER: KnOS/3.2 UPnP/1.0 DMP/3.5\r\n"
-        "LOCATION: http://10.0.2.5:8080/description.xml\r\n\r\n"
+        "HTTP/1.1 200 OK\r\nSERVER: KnOS/3.2 UPnP/1.0 DMP/3.5\r\nLOCATION: http://10.0.2.5:8080/description.xml\r\n\r\n"
     )
     assert is_denon_ssdp_response(msg.encode()) is True
 

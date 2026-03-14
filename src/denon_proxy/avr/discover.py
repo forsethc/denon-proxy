@@ -308,6 +308,7 @@ def mdns_available() -> bool:
     """Return True if the zeroconf package is available for mDNS discovery (declared dependency)."""
     try:
         import zeroconf  # noqa: F401
+
         return True
     except ImportError:
         return False

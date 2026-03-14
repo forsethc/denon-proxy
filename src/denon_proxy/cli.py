@@ -133,6 +133,7 @@ def _cmd_discover(args: argparse.Namespace) -> int:
     verbosity = getattr(args, "verbosity", 0)
     if verbosity >= 1:
         from denon_proxy.runtime.logging import setup_logging
+
         setup_logging("DEBUG" if verbosity >= 2 else "INFO")
         logging.getLogger("zeroconf").setLevel(logging.WARNING)
         logging.getLogger("asyncio").setLevel(logging.WARNING)
