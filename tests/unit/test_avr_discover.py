@@ -15,6 +15,8 @@ from denon_proxy.avr.discover import (
     discover_via_ssdp,
     mdns_available,
 )
+from denon_proxy.avr.discover import _is_denon_proxy as is_denon_proxy
+from denon_proxy.constants import PROXY_NAME, PROXY_SERVER_PRODUCT
 from denon_proxy.avr.discover import _is_denon_ssdp_response as is_denon_ssdp_response
 from denon_proxy.avr.discover import _parse_friendly_name as parse_friendly_name
 from denon_proxy.avr.discover import _parse_ssdp_location as parse_ssdp_location
@@ -125,6 +127,31 @@ def test_is_denon_ssdp_response_rejects_unknown_vendor():
 def test_is_denon_ssdp_response_rejects_when_no_server_or_usn():
     msg = "HTTP/1.1 200 OK\r\nLOCATION: http://10.0.0.1/\r\n\r\n"
     assert is_denon_ssdp_response(msg.encode()) is False
+
+
+# --- _is_denon_proxy ---
+
+
+def test_is_denon_proxy_detects_ssdp_server():
+    """Proxy advertises SERVER: Linux/1.0 UPnP/1.0 {PROXY_SERVER_PRODUCT}/1.0."""
+    assert is_denon_proxy(f"Linux/1.0 UPnP/1.0 {PROXY_SERVER_PRODUCT}/1.0", None) is True
+
+
+def test_is_denon_proxy_detects_usn():
+    """Proxy USN is uuid:{PROXY_NAME}-<serial>::..."""
+    assert is_denon_proxy(None, f"uuid:{PROXY_NAME}-abc123::urn:schemas-upnp-org:device:root:1") is True
+
+
+def test_is_denon_proxy_detects_friendly_name():
+    """Friendly name may be 'Denon AVR Proxy' or contain PROXY_NAME."""
+    assert is_denon_proxy(None, "Denon AVR Proxy") is True
+    assert is_denon_proxy(None, f"Living Room ({PROXY_NAME})") is True
+
+
+def test_is_denon_proxy_rejects_real_avr():
+    """Real Denon AVR SERVER does not contain proxy markers."""
+    assert is_denon_proxy("Linux/1.0 UPnP/1.0 Denon/1.0", None) is False
+    assert is_denon_proxy(None, "Denon AVR-X2700H") is False
 
 
 # --- _parse_friendly_name ---

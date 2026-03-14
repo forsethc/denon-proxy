@@ -138,7 +138,7 @@ def test_cli_discover_show_all_includes_filtered(monkeypatch: pytest.MonkeyPatch
     import json
     from denon_proxy.avr.discover import DiscoveredAVR
 
-    async def fake_discover(*, method: str, timeout: float, include_filtered: bool = False, **kwargs):
+    async def fake_discover(*, method: str, timeout: float, **kwargs):
         return [
             DiscoveredAVR("192.168.1.1", 80, "Denon AVR", None, "ssdp", matched=True),
             DiscoveredAVR("192.168.1.2", 80, "Other Device", None, "ssdp", matched=False),

@@ -47,6 +47,8 @@ from denon_proxy.constants import (
     DEMO_SOURCES,
     DENON_AIOS_HTTP_PORT,
     DISCOVERY_HTTP_PORT,
+    PROXY_NAME,
+    PROXY_SERVER_PRODUCT,
     SOCKET_TIMEOUT,
     SSDP_MCAST_GRP,
     SSDP_MCAST_PORT,
@@ -408,7 +410,7 @@ def _description_xml(config: Config, advertise_ip: str, runtime_state: RuntimeSt
     <manufacturer>{_escape_xml_text(manufacturer)}</manufacturer>
     <modelName>{_escape_xml_text(model_name)}</modelName>
     <serialNumber>{serial}</serialNumber>
-    <UDN>uuid:denon-proxy-{serial}</UDN>
+    <UDN>uuid:{PROXY_NAME}-{serial}</UDN>
     <presentationURL>http://{advertise_ip}:{http_port}/description.xml</presentationURL>
   </device>
 </root>"""
@@ -428,14 +430,14 @@ def _ssdp_response(config: Config, advertise_ip: str, st: str, runtime_state: Ru
     location = f"http://{advertise_ip}:{http_port}/description.xml"
     avr_info = runtime_state.avr_info or AVRInfo.unknown()
     serial = avr_info.udn_serial(advertise_ip)
-    usn = f"uuid:denon-proxy-{serial}::{st}"
+    usn = f"uuid:{PROXY_NAME}-{serial}::{st}"
     return "\r\n".join(
         [
             "HTTP/1.1 200 OK",
             "CACHE-CONTROL: max-age=1800",
             "EXT:",
             f"LOCATION: {location}",
-            "SERVER: Linux/1.0 UPnP/1.0 Denon-AVR-Proxy/1.0",
+            f"SERVER: Linux/1.0 UPnP/1.0 {PROXY_SERVER_PRODUCT}/1.0",
             f"ST: {st}",
             f"USN: {usn}",
             "",

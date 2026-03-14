@@ -7,6 +7,10 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from rich.console import Console
+from rich.progress import Progress, SpinnerColumn, TextColumn
+from rich.table import Table
+
 from denon_proxy.main import run_proxy
 from denon_proxy.runtime.config_io import load_config_and_report_errors
 from denon_proxy.utils.utils import get_version
@@ -98,7 +102,7 @@ def _add_discover_subcommand(subparsers: argparse._SubParsersAction[Any]) -> Non
 
 def _cmd_version(args: argparse.Namespace) -> int:  # noqa: ARG001
     """Print the current denon-proxy version."""
-    print(get_version())
+    Console().print(get_version())
     return 0
 
 
@@ -108,7 +112,7 @@ def _cmd_check_config(args: argparse.Namespace) -> int:
     if config is None:
         return 1
 
-    print("Configuration is valid.")
+    Console().print("[green]Configuration is valid.[/green]")
     return 0
 
 
@@ -129,26 +133,32 @@ def _cmd_discover(args: argparse.Namespace) -> int:
         logging.getLogger("zeroconf").setLevel(logging.WARNING)
         logging.getLogger("asyncio").setLevel(logging.WARNING)
 
+    console_err = Console(stderr=True)
     if args.method == "mdns" and not mdns_available():
-        print(
-            "mDNS discovery requires the 'zeroconf' package.\n"
-            "Install it with: pip install zeroconf\n"
-            "Or install denon-proxy with the discover extra: pip install denon-proxy[discover]",
-            file=sys.stderr,
+        console_err.print(
+            "[red]zeroconf (required for mDNS) is not available.[/red]\n"
+            "Reinstall denon-proxy to restore dependencies: pip install --force-reinstall denon-proxy"
         )
         return 1
 
-    async def run() -> list:
-        return await discover(
-            method=args.method,
-            timeout=args.timeout,
-            include_filtered=getattr(args, "show_all", False),
-        )
+    async def run_discover() -> list:
+        return await discover(method=args.method, timeout=args.timeout)
 
+    verbose = getattr(args, "verbose", False)
     try:
-        results = asyncio.run(run())
+        if verbose:
+            results = asyncio.run(run_discover())
+        else:
+            with Progress(
+                SpinnerColumn(),
+                TextColumn("[progress.description]{task.description}"),
+                console=console_err,
+                transient=True,
+            ) as progress:
+                progress.add_task("Searching for AVRs...", total=None)
+                results = asyncio.run(run_discover())
     except (OSError, asyncio.TimeoutError) as e:
-        print(f"Discovery failed: {e}", file=sys.stderr)
+        Console(stderr=True).print(f"[red]Discovery failed: {e}[/red]")
         return 1
 
     def _ip_sort_key(avr: Any) -> tuple[int, Any]:
@@ -174,18 +184,14 @@ def _cmd_discover(args: argparse.Namespace) -> int:
         print(json.dumps(out, indent=2))
         return 0
 
+    console = Console()
     if not results:
-        print("No AVRs found. Try --method both or increase --timeout.")
+        console.print("No AVRs found. Try --method both or increase --timeout.")
         if args.method == "both" and not mdns_available():
-            print("(mDNS was skipped; install 'zeroconf' for mDNS: pip install zeroconf)", file=sys.stderr)
+            console_err.print(
+                "(mDNS was skipped—zeroconf is missing; reinstall denon-proxy: pip install --force-reinstall denon-proxy)"
+            )
         return 0
-
-    # Human-readable: table-style output with aligned columns (name | parsed | method)
-    HOST_PORT_WIDTH = 22  # e.g. "192.168.1.100:80   "
-    NAME_WIDTH = 26       # friendly name / SERVER string
-    PARSED_WIDTH = 18     # brand + model (blank column when none)
-    METHOD_WIDTH = 8      # "ssdp   " / "mdns   "
-    TABLE_WIDTH = 2 + HOST_PORT_WIDTH + 2 + NAME_WIDTH + 2 + PARSED_WIDTH + 2 + METHOD_WIDTH
 
     def _name_cell(avr: Any) -> str:
         """Display name (friendly name or SERVER); use — when missing."""
@@ -197,37 +203,38 @@ def _cmd_discover(args: argparse.Namespace) -> int:
             return " ".join(x for x in (avr.brand, avr.model) if x)
         return ""
 
-    def _print_avr_table(avrs: list[Any], show_filtered_suffix: bool = False) -> None:
+    def _build_avr_table(avrs: list[Any], title: str | None = None) -> Table:
+        table = Table(title=title, show_header=True, header_style="bold")
+        table.add_column("Host:Port", style="cyan")
+        table.add_column("Name")
+        table.add_column("Model")
+        table.add_column("Method")
         for avr in avrs:
-            addr = f"{avr.host}:{avr.port}"[:HOST_PORT_WIDTH]
-            name_cell = _name_cell(avr)[:NAME_WIDTH]
-            parsed_cell = _parsed_cell(avr)[:PARSED_WIDTH]
-            method = avr.method.upper()
-            suffix = "  (filtered)" if show_filtered_suffix else ""
-            print(
-                f"  {addr:<{HOST_PORT_WIDTH}}  {name_cell:<{NAME_WIDTH}}  {parsed_cell:<{PARSED_WIDTH}}  {method:<{METHOD_WIDTH}}{suffix}"
+            table.add_row(
+                f"{avr.host}:{avr.port}",
+                _name_cell(avr),
+                _parsed_cell(avr),
+                avr.method.upper(),
             )
+        return table
 
-    total = len(matched) + (len(filtered) if show_all else 0)
-    if show_all and filtered:
-        print(f"Found {len(matched)} AVR(s), {len(filtered)} other device(s)\n")
+    # Always show both counts when we have any results
+    if filtered:
+        console.print(f"Found {len(matched)} AVR(s), {len(filtered)} other device(s)\n")
+        if not show_all:
+            console.print("[dim]Add -a to list other discovered devices.[/dim]\n")
     else:
-        print(f"Found {total} AVR(s):\n")
+        console.print(f"Found {len(matched)} AVR(s):\n")
 
     if show_all:
         if matched:
-            print("  Denon/Marantz AVRs")
-            print("  " + "-" * TABLE_WIDTH)
-            _print_avr_table(matched)
+            console.print(_build_avr_table(matched, "Denon/Marantz AVRs"))
         if filtered:
             if matched:
-                print()
-            print("  Other devices (filtered)")
-            print("  " + "-" * TABLE_WIDTH)
-            _print_avr_table(filtered, show_filtered_suffix=False)
+                console.print()
+            console.print(_build_avr_table(filtered, "Other devices (filtered)"))
     else:
-        print("  " + "-" * TABLE_WIDTH)
-        _print_avr_table(matched)
+        console.print(_build_avr_table(matched))
     return 0
 
 

@@ -7,7 +7,6 @@ set avr_host in config (or pass to run).
 TODO (short prompts, descending importance):
 - Lint, format, type-check, test, and review this module.
 - Add verbosity levels: -v = basic, -vv = current verbose.
-- Show progress (e.g. dots) while searching.
 - Add interactive mode: pick device and write config.
 - Remove or repurpose scripts dir if unused.
 
@@ -18,11 +17,17 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 from urllib.parse import urlparse
 
-from denon_proxy.constants import SSDP_MCAST_GRP, SSDP_MCAST_PORT
+from denon_proxy.constants import (
+    PROXY_NAME,
+    PROXY_SERVER_PRODUCT,
+    SSDP_MCAST_GRP,
+    SSDP_MCAST_PORT,
+)
 
 _logger = logging.getLogger(__name__)
 
@@ -45,6 +50,14 @@ DISCOVER_TIMEOUT = 5.0
 # reports (KnOS/3.2 DMP/3.5), and URNs (urn:schemas-denon-com:device:AiosDevice:1).
 # aios = Denon/Marantz Aios platform / AiosDevice.
 SSDP_VENDOR_MARKERS = ("denon", "marantz", "heos", "knos", "dmp", "aios")
+
+# Markers that identify this codebase's proxy (constants.PROXY_*), not a physical AVR.
+# Derived from PROXY_NAME and PROXY_SERVER_PRODUCT so discovery identity stays in sync.
+PROXY_MARKERS = (
+    PROXY_NAME,
+    PROXY_SERVER_PRODUCT.lower(),
+    PROXY_SERVER_PRODUCT.lower().replace("-", " "),
+)
 
 # Patterns to extract brand and model from friendly name or SERVER string.
 # Denon: AVR-X*, AVR-S*, AVR-X*H, etc. Marantz: SR*, NR*, etc.
@@ -180,6 +193,12 @@ def _is_denon_ssdp_response(data: bytes) -> bool:
     return any(m in s for m in SSDP_VENDOR_MARKERS)
 
 
+def _is_denon_proxy(server_or_usn: str | None, name: str | None) -> bool:
+    """Return True if the device is a denon-proxy instance (this project), not a physical AVR."""
+    combined = " ".join(x for x in ((server_or_usn or ""), (name or "")) if x).lower()
+    return any(m in combined for m in PROXY_MARKERS)
+
+
 async def _send_msearch(transport: asyncio.DatagramTransport, st: str) -> None:
     """Send one M-SEARCH packet for the given search target."""
     msearch = (
@@ -194,20 +213,16 @@ async def _send_msearch(transport: asyncio.DatagramTransport, st: str) -> None:
     _logger.debug("SSDP M-SEARCH sent (ST=%s)", st)
 
 
-async def discover_via_ssdp(
-    timeout: float = DISCOVER_TIMEOUT,
-    include_filtered: bool = False,
-) -> list[DiscoveredAVR]:
+async def discover_via_ssdp(timeout: float = DISCOVER_TIMEOUT) -> list[DiscoveredAVR]:
     """
     Discover Denon/Marantz AVRs on the LAN using SSDP (UPnP M-SEARCH).
 
     Sends M-SEARCH for multiple search targets (AiosDevice, ssdp:all, rootdevice,
     MediaRenderer, ACT-Denon) since real AVRs vary by model. Collects HTTP 200
-    responses and returns unique devices by (host, port). Filters by SERVER/USN
-    using SSDP_VENDOR_MARKERS (denon, marantz, heos, knos, dmp, aios) so that AVRs that
-    advertise as e.g. "KnOS/3.2 UPnP/1.0 DMP/3.5" are still included. Does not require root
-    if binding to a random port (we only send to multicast and receive unicast
-    replies). If the real AVR still does not appear, try --method mdns or both.
+    responses and returns unique devices by (host, port). Devices matching
+    SERVER/USN with SSDP_VENDOR_MARKERS (denon, marantz, heos, knos, dmp, aios) have
+    matched=True; others are included with matched=False. Does not require root
+    if binding to a random port. If the real AVR still does not appear, try --method mdns or both.
     """
     results: dict[tuple[str, int], DiscoveredAVR] = {}
     received: asyncio.Queue[bytes] = asyncio.Queue()
@@ -239,13 +254,6 @@ async def discover_via_ssdp(
             if loc:
                 host, port = loc
                 is_denon = _is_denon_ssdp_response(data)
-                if not is_denon and not include_filtered:
-                    _logger.debug(
-                        "SSDP response %s:%d skipped (SERVER/USN has no known AVR marker)",
-                        host,
-                        port,
-                    )
-                    continue
                 key = (host, port)
                 if key not in results:
                     name = _parse_ssdp_server_or_usn(data)
@@ -254,8 +262,12 @@ async def discover_via_ssdp(
                         if line.upper().startswith("LOCATION:"):
                             location_url = line.split(":", 1)[1].strip()
                             break
-                    brand, model = _parse_friendly_name(name)
                     extra = _parse_ssdp_extra_headers(data)
+                    usn = (extra or {}).get("usn")
+                    if _is_denon_proxy(name, usn):
+                        brand, model = PROXY_NAME, None
+                    else:
+                        brand, model = _parse_friendly_name(name)
                     results[key] = DiscoveredAVR(
                         host=host,
                         port=port,
@@ -286,7 +298,7 @@ async def discover_via_ssdp(
 
 
 def mdns_available() -> bool:
-    """Return True if the optional 'zeroconf' package is installed for mDNS discovery."""
+    """Return True if the zeroconf package is available for mDNS discovery (declared dependency)."""
     try:
         import zeroconf  # noqa: F401
         return True
@@ -294,7 +306,7 @@ def mdns_available() -> bool:
         return False
 
 
-def _run_mdns_sync(timeout: float, include_filtered: bool = False) -> list[DiscoveredAVR]:
+def _run_mdns_sync(timeout: float) -> list[DiscoveredAVR]:
     """Run synchronous zeroconf browse in executor. Used by discover_via_mdns."""
     import time
     from zeroconf import ServiceBrowser, ServiceStateChange, Zeroconf
@@ -322,53 +334,48 @@ def _run_mdns_sync(timeout: float, include_filtered: bool = False) -> list[Disco
             return
         name_lower = (name or "").lower()
         is_denon = any(m in name_lower for m in SSDP_VENDOR_MARKERS)
-        if is_denon or include_filtered:
-            found_keys.add(key)
-            brand, model = _parse_friendly_name(name)
-            extra: dict[str, Any] = {}
-            if getattr(info, "server", None):
-                extra["server"] = (info.server or "").strip() or None
-            if getattr(info, "properties", None) and info.properties:
-                try:
-                    decoded = getattr(info, "decoded_properties", None)
-                    if callable(decoded):
-                        extra["properties"] = decoded()
-                    else:
-                        extra["properties"] = {
-                            k: v.decode("utf-8", errors="replace") if isinstance(v, bytes) else v
-                            for k, v in info.properties.items()
-                        }
-                except Exception:  # noqa: BLE001
-                    pass
-            if not extra:
-                extra = None
-            found.append(
-                DiscoveredAVR(
-                    host=host,
-                    port=port,
-                    name=name,
-                    location=None,
-                    method="mdns",
-                    matched=is_denon,
-                    model=model,
-                    brand=brand,
-                    extra=extra,
-                )
-            )
-            _logger.debug(
-                "mDNS %s: %s:%d (%s)",
-                "match" if is_denon else "filtered",
-                host,
-                port,
-                name,
-            )
+        found_keys.add(key)
+        if _is_denon_proxy(None, name):
+            brand, model = PROXY_NAME, None
         else:
-            _logger.debug(
-                "mDNS service %r (%s:%d) skipped (name has no known AVR marker)",
-                name,
-                host,
-                port,
+            brand, model = _parse_friendly_name(name)
+        extra: dict[str, Any] = {}
+        if getattr(info, "server", None):
+            extra["server"] = (info.server or "").strip() or None
+        if getattr(info, "properties", None) and info.properties:
+            try:
+                decoded = getattr(info, "decoded_properties", None)
+                if callable(decoded):
+                    extra["properties"] = decoded()
+                else:
+                    extra["properties"] = {
+                        k: v.decode("utf-8", errors="replace") if isinstance(v, bytes) else v
+                        for k, v in info.properties.items()
+                    }
+            except Exception:  # noqa: BLE001
+                pass
+        if not extra:
+            extra = None
+        found.append(
+            DiscoveredAVR(
+                host=host,
+                port=port,
+                name=name,
+                location=None,
+                method="mdns",
+                matched=is_denon,
+                model=model,
+                brand=brand,
+                extra=extra,
             )
+        )
+        _logger.debug(
+            "mDNS %s: %s:%d (%s)",
+            "match" if is_denon else "filtered",
+            host,
+            port,
+            name,
+        )
 
     _logger.debug("mDNS discovery starting (timeout=%.1fs, browsing _http._tcp.local.)", timeout)
     zc = Zeroconf()
@@ -381,59 +388,75 @@ def _run_mdns_sync(timeout: float, include_filtered: bool = False) -> list[Disco
     return found
 
 
-async def discover_via_mdns(
-    timeout: float = DISCOVER_TIMEOUT,
-    include_filtered: bool = False,
-) -> list[DiscoveredAVR]:
+async def discover_via_mdns(timeout: float = DISCOVER_TIMEOUT) -> list[DiscoveredAVR]:
     """
     Discover Denon/Marantz AVRs via mDNS/Bonjour (zeroconf).
 
     Browses _http._tcp for service names containing any SSDP_VENDOR_MARKERS
-    (denon, marantz, heos, knos, dmp, aios).
-    Requires the optional dependency 'zeroconf'. Returns empty list if not installed.
+    (denon, marantz, heos, knos, dmp, aios). All devices are returned; matched is set
+    from the name. Requires zeroconf (a denon-proxy dependency). Returns empty list if import fails.
     """
     if not mdns_available():
         return []
     loop = asyncio.get_running_loop()
-    return await loop.run_in_executor(None, _run_mdns_sync, timeout, include_filtered)
+    return await loop.run_in_executor(None, _run_mdns_sync, timeout)
 
 
 async def discover(
     method: str = "ssdp",
     timeout: float = DISCOVER_TIMEOUT,
-    include_filtered: bool = False,
+    *,
+    progress_callback: Callable[[], None] | None = None,
 ) -> list[DiscoveredAVR]:
     """
     Discover AVRs using the given method: "ssdp", "mdns", or "both".
 
     "both" runs SSDP and mDNS in parallel and merges results (deduplicated by host:port).
-    When include_filtered is True, devices that did not match Denon/Marantz markers are
-    also returned, with matched=False.
+    All discovered devices are returned; those matching Denon/Marantz markers have
+    matched=True, others have matched=False.
+
+    If progress_callback is provided, it is called periodically (e.g. every 0.5s) while
+    searching, so the caller can show progress (e.g. dots on stderr).
     """
-    _logger.debug("discover method=%s timeout=%.1f include_filtered=%s", method, timeout, include_filtered)
-    if method == "ssdp":
-        return await discover_via_ssdp(timeout=timeout, include_filtered=include_filtered)
-    if method == "mdns":
-        return await discover_via_mdns(timeout=timeout, include_filtered=include_filtered)
-    if method == "both":
-        ssdp_task = asyncio.create_task(
-            discover_via_ssdp(timeout=timeout, include_filtered=include_filtered)
-        )
-        mdns_task = asyncio.create_task(
-            discover_via_mdns(timeout=timeout, include_filtered=include_filtered)
-        )
-        ssdp_results, mdns_results = await asyncio.gather(ssdp_task, mdns_task)
-        _logger.debug("both: SSDP %d, mDNS %d", len(ssdp_results), len(mdns_results))
-        seen: set[tuple[str, int]] = set()
-        merged: list[DiscoveredAVR] = []
-        for avr in ssdp_results + mdns_results:
-            key = (avr.host, avr.port)
-            if key not in seen:
-                seen.add(key)
-                merged.append(avr)
-        _logger.debug("both: merged %d unique device(s)", len(merged))
-        return merged
-    raise ValueError(f"method must be 'ssdp', 'mdns', or 'both'; got {method!r}")
+    _logger.debug("discover method=%s timeout=%.1f", method, timeout)
+
+    progress_task: asyncio.Task[None] | None = None
+    if progress_callback is not None:
+
+        async def _progress_loop() -> None:
+            while True:
+                progress_callback()
+                await asyncio.sleep(0.5)
+
+        progress_task = asyncio.create_task(_progress_loop())
+
+    try:
+        if method == "ssdp":
+            return await discover_via_ssdp(timeout=timeout)
+        if method == "mdns":
+            return await discover_via_mdns(timeout=timeout)
+        if method == "both":
+            ssdp_task = asyncio.create_task(discover_via_ssdp(timeout=timeout))
+            mdns_task = asyncio.create_task(discover_via_mdns(timeout=timeout))
+            ssdp_results, mdns_results = await asyncio.gather(ssdp_task, mdns_task)
+            _logger.debug("both: SSDP %d, mDNS %d", len(ssdp_results), len(mdns_results))
+            seen: set[tuple[str, int]] = set()
+            merged: list[DiscoveredAVR] = []
+            for avr in ssdp_results + mdns_results:
+                key = (avr.host, avr.port)
+                if key not in seen:
+                    seen.add(key)
+                    merged.append(avr)
+            _logger.debug("both: merged %d unique device(s)", len(merged))
+            return merged
+        raise ValueError(f"method must be 'ssdp', 'mdns', or 'both'; got {method!r}")
+    finally:
+        if progress_task is not None:
+            progress_task.cancel()
+            try:
+                await progress_task
+            except asyncio.CancelledError:
+                pass
 
 
 __all__ = [

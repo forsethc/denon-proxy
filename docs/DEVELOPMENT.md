@@ -85,6 +85,8 @@ See [tests/README.md](../tests/README.md) for details.
 
 Runtime dependencies are declared in `pyproject.toml` under `[project.dependencies]`. This is the single source of truth for what `pip install .` should install.
 
+When code detects a missing declared dependency (e.g. zeroconf, PyYAML), we treat it as a broken or partial install. Error messages tell the user to **reinstall denon-proxy** (`pip install --force-reinstall denon-proxy`) rather than installing the single package, so the environment matches the declared dependencies.
+
 If you need a pinned `requirements.txt` (for CI, Docker, or deployment), generate it from `pyproject.toml` using `pip-tools`:
 
 ```bash
