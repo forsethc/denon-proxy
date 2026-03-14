@@ -3,6 +3,17 @@ Discover Denon/Marantz AVRs on the local network via SSDP or mDNS.
 
 Use this for the `denon-proxy discover` CLI: find physical AVRs so you can
 set avr_host in config (or pass to run).
+
+TODO (short prompts):
+- Improve discover CLI output formatting.
+- Show more AVR info (parse friendly name; check mDNS/SSDP for extra fields).
+- Lint, format, type-check, test, and review this module.
+- Remove or repurpose scripts dir if unused.
+- Add interactive mode: pick device and write config.
+- Show progress (e.g. dots) while searching.
+- Add verbosity levels: -v = basic, -vv = current verbose.
+- Include discovery method (SSDP vs mDNS) in each result.
+
 """
 
 from __future__ import annotations
