@@ -6,7 +6,6 @@ set avr_host in config (or pass to run).
 
 TODO (short prompts, descending importance):
 - Lint, format, type-check, test, and review this module.
-- Add verbosity levels: -v = basic, -vv = current verbose.
 - Add interactive mode: pick device and write config.
 - Remove or repurpose scripts dir if unused.
 
@@ -279,6 +278,12 @@ async def discover_via_ssdp(timeout: float = DISCOVER_TIMEOUT) -> list[Discovere
                         brand=brand,
                         extra=extra or None,
                     )
+                    _logger.info(
+                        "Discovered %s:%d via SSDP%s",
+                        host,
+                        port,
+                        f" — {name}" if name else (" (Denon/Marantz)" if is_denon else ""),
+                    )
                     _logger.debug(
                         "SSDP response: %s:%d (name=%r)%s",
                         host,
@@ -369,6 +374,12 @@ def _run_mdns_sync(timeout: float) -> list[DiscoveredAVR]:
                 extra=extra,
             )
         )
+        _logger.info(
+            "Discovered %s:%d via mDNS%s",
+            host,
+            port,
+            f" — {name}" if name else (" (Denon/Marantz)" if is_denon else ""),
+        )
         _logger.debug(
             "mDNS %s: %s:%d (%s)",
             "match" if is_denon else "filtered",
@@ -418,6 +429,7 @@ async def discover(
     If progress_callback is provided, it is called periodically (e.g. every 0.5s) while
     searching, so the caller can show progress (e.g. dots on stderr).
     """
+    _logger.info("Discovering AVRs via %s (timeout=%.1fs)", method if method != "both" else "SSDP and mDNS", timeout)
     _logger.debug("discover method=%s timeout=%.1f", method, timeout)
 
     progress_task: asyncio.Task[None] | None = None
@@ -432,9 +444,13 @@ async def discover(
 
     try:
         if method == "ssdp":
-            return await discover_via_ssdp(timeout=timeout)
+            results = await discover_via_ssdp(timeout=timeout)
+            _logger.info("Discovery complete: %d device(s)", len(results))
+            return results
         if method == "mdns":
-            return await discover_via_mdns(timeout=timeout)
+            results = await discover_via_mdns(timeout=timeout)
+            _logger.info("Discovery complete: %d device(s)", len(results))
+            return results
         if method == "both":
             ssdp_task = asyncio.create_task(discover_via_ssdp(timeout=timeout))
             mdns_task = asyncio.create_task(discover_via_mdns(timeout=timeout))
@@ -448,6 +464,7 @@ async def discover(
                     seen.add(key)
                     merged.append(avr)
             _logger.debug("both: merged %d unique device(s)", len(merged))
+            _logger.info("Discovery complete: %d device(s)", len(merged))
             return merged
         raise ValueError(f"method must be 'ssdp', 'mdns', or 'both'; got {method!r}")
     finally:

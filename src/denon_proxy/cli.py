@@ -94,8 +94,10 @@ def _add_discover_subcommand(subparsers: argparse._SubParsersAction[Any]) -> Non
     parser.add_argument(
         "-v",
         "--verbose",
-        action="store_true",
-        help="Enable debug logging (SSDP/mDNS discovery details)",
+        action="count",
+        default=0,
+        dest="verbosity",
+        help="Verbosity: -v/--verbose = basic progress (INFO), -vv = debug (SSDP/mDNS details)",
     )
     parser.set_defaults(func=_cmd_discover)
 
@@ -127,9 +129,10 @@ def _cmd_discover(args: argparse.Namespace) -> int:
     import json
     from denon_proxy.avr.discover import discover, mdns_available
 
-    if getattr(args, "verbose", False):
+    verbosity = getattr(args, "verbosity", 0)
+    if verbosity >= 1:
         from denon_proxy.runtime.logging import setup_logging
-        setup_logging("DEBUG")
+        setup_logging("DEBUG" if verbosity >= 2 else "INFO")
         logging.getLogger("zeroconf").setLevel(logging.WARNING)
         logging.getLogger("asyncio").setLevel(logging.WARNING)
 
@@ -144,9 +147,8 @@ def _cmd_discover(args: argparse.Namespace) -> int:
     async def run_discover() -> list:
         return await discover(method=args.method, timeout=args.timeout)
 
-    verbose = getattr(args, "verbose", False)
     try:
-        if verbose:
+        if verbosity >= 1:
             results = asyncio.run(run_discover())
         else:
             with Progress(
