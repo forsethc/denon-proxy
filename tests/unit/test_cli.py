@@ -152,12 +152,12 @@ def test_cli_discover_show_all_includes_filtered(monkeypatch: pytest.MonkeyPatch
         rc = cli_main(["discover", "--show-all", "--timeout", "1"])
     assert rc == 0
     out = stdout.getvalue()
-    assert "Denon/Marantz AVRs:" in out
+    assert "Denon/Marantz AVRs" in out
     assert "192.168.1.1:80" in out
-    assert "Other discovered devices (filtered):" in out
+    assert "Other devices (filtered)" in out
     assert "192.168.1.2:80" in out
     # Matched section appears before filtered section
-    assert out.index("Denon/Marantz AVRs:") < out.index("Other discovered devices (filtered):")
+    assert out.index("Denon/Marantz AVRs") < out.index("Other devices (filtered)")
     assert out.index("192.168.1.1:80") < out.index("192.168.1.2:80")
 
     stdout2 = StringIO()

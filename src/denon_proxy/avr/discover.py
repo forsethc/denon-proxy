@@ -6,7 +6,6 @@ set avr_host in config (or pass to run).
 
 TODO (short prompts, descending importance):
 - Lint, format, type-check, test, and review this module.
-- Improve discover CLI output formatting.
 - Add verbosity levels: -v = basic, -vv = current verbose.
 - Show progress (e.g. dots) while searching.
 - Add interactive mode: pick device and write config.

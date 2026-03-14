@@ -180,32 +180,54 @@ def _cmd_discover(args: argparse.Namespace) -> int:
             print("(mDNS was skipped; install 'zeroconf' for mDNS: pip install zeroconf)", file=sys.stderr)
         return 0
 
-    def _print_avr_list(avrs: list, show_filtered_suffix: bool = False) -> None:
+    # Human-readable: table-style output with aligned columns (name | parsed | method)
+    HOST_PORT_WIDTH = 22  # e.g. "192.168.1.100:80   "
+    NAME_WIDTH = 26       # friendly name / SERVER string
+    PARSED_WIDTH = 18     # brand + model (blank column when none)
+    METHOD_WIDTH = 8      # "ssdp   " / "mdns   "
+    TABLE_WIDTH = 2 + HOST_PORT_WIDTH + 2 + NAME_WIDTH + 2 + PARSED_WIDTH + 2 + METHOD_WIDTH
+
+    def _name_cell(avr: Any) -> str:
+        """Display name (friendly name or SERVER); use — when missing."""
+        return (avr.name or "").strip() or "—"
+
+    def _parsed_cell(avr: Any) -> str:
+        """Display parsed brand + model; blank when none."""
+        if avr.brand or avr.model:
+            return " ".join(x for x in (avr.brand, avr.model) if x)
+        return ""
+
+    def _print_avr_table(avrs: list[Any], show_filtered_suffix: bool = False) -> None:
         for avr in avrs:
-            # Show name, then always show parsed brand/model when available
-            info_parts: list[str] = []
-            if avr.name:
-                info_parts.append(avr.name)
-            if avr.brand or avr.model:
-                detail = " ".join(x for x in (avr.brand, avr.model) if x)
-                if detail:
-                    info_parts.append(detail)
-            name_part = f"  # {' | '.join(info_parts)}" if info_parts else ""
-            method_part = f"  [{avr.method}]"
+            addr = f"{avr.host}:{avr.port}"[:HOST_PORT_WIDTH]
+            name_cell = _name_cell(avr)[:NAME_WIDTH]
+            parsed_cell = _parsed_cell(avr)[:PARSED_WIDTH]
+            method = avr.method.upper()
             suffix = "  (filtered)" if show_filtered_suffix else ""
-            print(f"{avr.host}:{avr.port}{name_part}{method_part}{suffix}")
+            print(
+                f"  {addr:<{HOST_PORT_WIDTH}}  {name_cell:<{NAME_WIDTH}}  {parsed_cell:<{PARSED_WIDTH}}  {method:<{METHOD_WIDTH}}{suffix}"
+            )
+
+    total = len(matched) + (len(filtered) if show_all else 0)
+    if show_all and filtered:
+        print(f"Found {len(matched)} AVR(s), {len(filtered)} other device(s)\n")
+    else:
+        print(f"Found {total} AVR(s):\n")
 
     if show_all:
         if matched:
-            print("Denon/Marantz AVRs:")
-            _print_avr_list(matched)
+            print("  Denon/Marantz AVRs")
+            print("  " + "-" * TABLE_WIDTH)
+            _print_avr_table(matched)
         if filtered:
             if matched:
                 print()
-            print("Other discovered devices (filtered):")
-            _print_avr_list(filtered, show_filtered_suffix=False)
+            print("  Other devices (filtered)")
+            print("  " + "-" * TABLE_WIDTH)
+            _print_avr_table(filtered, show_filtered_suffix=False)
     else:
-        _print_avr_list(matched)
+        print("  " + "-" * TABLE_WIDTH)
+        _print_avr_table(matched)
     return 0
 
 
