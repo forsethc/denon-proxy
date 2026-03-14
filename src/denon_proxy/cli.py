@@ -127,7 +127,7 @@ def _cmd_discover(args: argparse.Namespace) -> int:
     """Discover AVRs on the network and print host/port (and optional name)."""
     import asyncio
     import json
-    from denon_proxy.avr.discover import discover, mdns_available
+    from denon_proxy.avr.discover import DiscoveredAVR, discover, mdns_available
 
     verbosity = getattr(args, "verbosity", 0)
     if verbosity >= 1:
@@ -144,7 +144,7 @@ def _cmd_discover(args: argparse.Namespace) -> int:
         )
         return 1
 
-    async def run_discover() -> list:
+    async def run_discover() -> list[DiscoveredAVR]:
         return await discover(method=args.method, timeout=args.timeout)
 
     try:
@@ -176,6 +176,7 @@ def _cmd_discover(args: argparse.Namespace) -> int:
     filtered.sort(key=_ip_sort_key)
 
     if args.json:
+        out: dict[str, list[Any]] | list[Any]
         if show_all:
             out = {
                 "matched": [r.as_dict() for r in matched],

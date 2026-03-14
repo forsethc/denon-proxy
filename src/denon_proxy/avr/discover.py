@@ -7,7 +7,6 @@ set avr_host in config (or pass to run).
 TODO (short prompts, descending importance):
 - Lint, format, type-check, test, and review this module.
 - Add interactive mode: pick device and write config.
-- Remove or repurpose scripts dir if unused.
 
 """
 
@@ -255,7 +254,7 @@ async def discover_via_ssdp(timeout: float = DISCOVER_TIMEOUT) -> list[Discovere
                 is_denon = _is_denon_ssdp_response(data)
                 key = (host, port)
                 if key not in results:
-                    name = _parse_ssdp_server_or_usn(data)
+                    name: str | None = _parse_ssdp_server_or_usn(data)
                     location_url = None
                     for line in data.decode("utf-8", errors="replace").split("\r\n"):
                         if line.upper().startswith("LOCATION:"):
@@ -263,6 +262,8 @@ async def discover_via_ssdp(timeout: float = DISCOVER_TIMEOUT) -> list[Discovere
                             break
                     extra = _parse_ssdp_extra_headers(data)
                     usn = (extra or {}).get("usn")
+                    brand: str | None
+                    model: str | None
                     if _is_denon_proxy(name, usn):
                         brand, model = PROXY_NAME, None
                     else:
@@ -340,27 +341,28 @@ def _run_mdns_sync(timeout: float) -> list[DiscoveredAVR]:
         name_lower = (name or "").lower()
         is_denon = any(m in name_lower for m in SSDP_VENDOR_MARKERS)
         found_keys.add(key)
+        brand: str | None
+        model: str | None
         if _is_denon_proxy(None, name):
             brand, model = PROXY_NAME, None
         else:
             brand, model = _parse_friendly_name(name)
-        extra: dict[str, Any] = {}
+        extra_dict: dict[str, Any] = {}
         if getattr(info, "server", None):
-            extra["server"] = (info.server or "").strip() or None
+            extra_dict["server"] = (info.server or "").strip() or None
         if getattr(info, "properties", None) and info.properties:
             try:
                 decoded = getattr(info, "decoded_properties", None)
                 if callable(decoded):
-                    extra["properties"] = decoded()
+                    extra_dict["properties"] = decoded()
                 else:
-                    extra["properties"] = {
+                    extra_dict["properties"] = {
                         k: v.decode("utf-8", errors="replace") if isinstance(v, bytes) else v
                         for k, v in info.properties.items()
                     }
             except Exception:  # noqa: BLE001
                 pass
-        if not extra:
-            extra = None
+        extra = extra_dict if extra_dict else None
         found.append(
             DiscoveredAVR(
                 host=host,
