@@ -4,15 +4,13 @@ Discover Denon/Marantz AVRs on the local network via SSDP or mDNS.
 Use this for the `denon-proxy discover` CLI: find physical AVRs so you can
 set avr_host in config (or pass to run).
 
-TODO (short prompts):
-- Improve discover CLI output formatting.
-- Show more AVR info (parse friendly name; check mDNS/SSDP for extra fields).
+TODO (short prompts, descending importance):
 - Lint, format, type-check, test, and review this module.
-- Remove or repurpose scripts dir if unused.
-- Add interactive mode: pick device and write config.
-- Show progress (e.g. dots) while searching.
+- Improve discover CLI output formatting.
 - Add verbosity levels: -v = basic, -vv = current verbose.
-- Include discovery method (SSDP vs mDNS) in each result.
+- Show progress (e.g. dots) while searching.
+- Add interactive mode: pick device and write config.
+- Remove or repurpose scripts dir if unused.
 
 """
 
@@ -49,10 +47,66 @@ DISCOVER_TIMEOUT = 5.0
 # aios = Denon/Marantz Aios platform / AiosDevice.
 SSDP_VENDOR_MARKERS = ("denon", "marantz", "heos", "knos", "dmp", "aios")
 
+# Patterns to extract brand and model from friendly name or SERVER string.
+# Denon: AVR-X*, AVR-S*, AVR-X*H, etc. Marantz: SR*, NR*, etc.
+_RE_BRAND_MODEL = re.compile(
+    r"(?:(Denon|Marantz)\s+)?"
+    r"(AVR-[A-Z0-9-]+|AVR-[A-Z0-9]+H|SR[0-9]+|NR[0-9]+|DNP-[A-Z0-9]+|PMA-[A-Z0-9-]+)?",
+    re.IGNORECASE,
+)
+# Content in parentheses often holds full "Denon AVR-X2700H" when outer is "Living Room (...)"
+_RE_PAREN_CONTENT = re.compile(r"\(([^)]+)\)")
+
+
+def _parse_friendly_name(raw: str | None) -> tuple[str | None, str | None]:
+    """Parse friendly name or SERVER string into (brand, model). Best-effort."""
+    if not raw or not raw.strip():
+        return (None, None)
+    text = raw.strip()
+    # Prefer content in parentheses (e.g. "Living Room (Denon AVR-X2700H)")
+    paren = _RE_PAREN_CONTENT.search(text)
+    if paren:
+        text = paren.group(1).strip()
+    # Strip mDNS suffix for display parsing
+    if "._http._tcp.local." in text.lower():
+        text = text.split("._http._tcp.local.")[0].strip()
+    brand, model = None, None
+    match = _RE_BRAND_MODEL.search(text)
+    if match:
+        brand_grp, model_grp = match.group(1), match.group(2)
+        if brand_grp:
+            brand = brand_grp.strip()
+        if model_grp:
+            model = model_grp.strip()
+    # If we only see "Denon" or "Marantz" (e.g. SERVER: Linux/1.0 UPnP/1.0 Denon/1.0)
+    if not brand and not model:
+        lower = text.lower()
+        if "denon" in lower:
+            brand = "Denon"
+        elif "marantz" in lower:
+            brand = "Marantz"
+    return (brand, model)
+
+
+def _parse_ssdp_extra_headers(data: bytes) -> dict[str, Any]:
+    """Extract extra SSDP headers (USN, CACHE-CONTROL) for display/debug."""
+    text = data.decode("utf-8", errors="replace")
+    extra: dict[str, Any] = {}
+    usn_match = re.search(r"USN:\s*([^\r\n]+)", text, re.IGNORECASE)
+    if usn_match:
+        extra["usn"] = usn_match.group(1).strip()
+    cache_match = re.search(r"CACHE-CONTROL:\s*max-age\s*=\s*(\d+)", text, re.IGNORECASE)
+    if cache_match:
+        try:
+            extra["max_age"] = int(cache_match.group(1))
+        except ValueError:
+            pass
+    return extra
+
 
 @dataclass(frozen=True)
 class DiscoveredAVR:
-    """A single discovered AVR (host, port, optional friendly name and LOCATION URL)."""
+    """A single discovered AVR (host, port, optional friendly name, LOCATION, and parsed info)."""
 
     host: str
     port: int
@@ -60,9 +114,12 @@ class DiscoveredAVR:
     location: str | None
     method: str  # "ssdp" or "mdns"
     matched: bool = True  # False when discovered but filtered out (non-Denon/Marantz)
+    model: str | None = None  # Parsed from friendly name (e.g. AVR-X2700H)
+    brand: str | None = None  # Parsed from friendly name (Denon or Marantz)
+    extra: dict[str, Any] | None = None  # USN, max_age, mdns server/properties, etc.
 
     def as_dict(self) -> dict[str, Any]:
-        return {
+        out: dict[str, Any] = {
             "host": self.host,
             "port": self.port,
             "name": self.name,
@@ -70,6 +127,13 @@ class DiscoveredAVR:
             "method": self.method,
             "matched": self.matched,
         }
+        if self.model is not None:
+            out["model"] = self.model
+        if self.brand is not None:
+            out["brand"] = self.brand
+        if self.extra:
+            out["extra"] = self.extra
+        return out
 
 
 def _parse_ssdp_location(data: bytes) -> tuple[str, int] | None:
@@ -97,6 +161,10 @@ def _parse_ssdp_server_or_usn(data: bytes) -> str | None:
     text = data.decode("utf-8", errors="replace")
     # SERVER: often "Linux/1.0 UPnP/1.0 Denon/1.0" or similar
     match = re.search(r"SERVER:\s*([^\r\n]+)", text, re.IGNORECASE)
+    if match:
+        return match.group(1).strip() or None
+    # Fallback: USN (e.g. uuid:...::urn:schemas-denon-com:device:AiosDevice:1) for display/parsing
+    match = re.search(r"USN:\s*([^\r\n]+)", text, re.IGNORECASE)
     if match:
         return match.group(1).strip() or None
     return None
@@ -187,6 +255,8 @@ async def discover_via_ssdp(
                         if line.upper().startswith("LOCATION:"):
                             location_url = line.split(":", 1)[1].strip()
                             break
+                    brand, model = _parse_friendly_name(name)
+                    extra = _parse_ssdp_extra_headers(data)
                     results[key] = DiscoveredAVR(
                         host=host,
                         port=port,
@@ -194,6 +264,9 @@ async def discover_via_ssdp(
                         location=location_url,
                         method="ssdp",
                         matched=is_denon,
+                        model=model,
+                        brand=brand,
+                        extra=extra or None,
                     )
                     _logger.debug(
                         "SSDP response: %s:%d (name=%r)%s",
@@ -252,6 +325,24 @@ def _run_mdns_sync(timeout: float, include_filtered: bool = False) -> list[Disco
         is_denon = any(m in name_lower for m in SSDP_VENDOR_MARKERS)
         if is_denon or include_filtered:
             found_keys.add(key)
+            brand, model = _parse_friendly_name(name)
+            extra: dict[str, Any] = {}
+            if getattr(info, "server", None):
+                extra["server"] = (info.server or "").strip() or None
+            if getattr(info, "properties", None) and info.properties:
+                try:
+                    decoded = getattr(info, "decoded_properties", None)
+                    if callable(decoded):
+                        extra["properties"] = decoded()
+                    else:
+                        extra["properties"] = {
+                            k: v.decode("utf-8", errors="replace") if isinstance(v, bytes) else v
+                            for k, v in info.properties.items()
+                        }
+                except Exception:  # noqa: BLE001
+                    pass
+            if not extra:
+                extra = None
             found.append(
                 DiscoveredAVR(
                     host=host,
@@ -260,6 +351,9 @@ def _run_mdns_sync(timeout: float, include_filtered: bool = False) -> list[Disco
                     location=None,
                     method="mdns",
                     matched=is_denon,
+                    model=model,
+                    brand=brand,
+                    extra=extra,
                 )
             )
             _logger.debug(

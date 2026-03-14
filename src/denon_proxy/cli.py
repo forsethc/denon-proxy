@@ -182,9 +182,18 @@ def _cmd_discover(args: argparse.Namespace) -> int:
 
     def _print_avr_list(avrs: list, show_filtered_suffix: bool = False) -> None:
         for avr in avrs:
-            name_part = f"  # {avr.name}" if avr.name else ""
+            # Show name, then always show parsed brand/model when available
+            info_parts: list[str] = []
+            if avr.name:
+                info_parts.append(avr.name)
+            if avr.brand or avr.model:
+                detail = " ".join(x for x in (avr.brand, avr.model) if x)
+                if detail:
+                    info_parts.append(detail)
+            name_part = f"  # {' | '.join(info_parts)}" if info_parts else ""
+            method_part = f"  [{avr.method}]"
             suffix = "  (filtered)" if show_filtered_suffix else ""
-            print(f"{avr.host}:{avr.port}{name_part}{suffix}")
+            print(f"{avr.host}:{avr.port}{name_part}{method_part}{suffix}")
 
     if show_all:
         if matched:

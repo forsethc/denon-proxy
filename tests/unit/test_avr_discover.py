@@ -16,6 +16,7 @@ from denon_proxy.avr.discover import (
     mdns_available,
 )
 from denon_proxy.avr.discover import _is_denon_ssdp_response as is_denon_ssdp_response
+from denon_proxy.avr.discover import _parse_friendly_name as parse_friendly_name
 from denon_proxy.avr.discover import _parse_ssdp_location as parse_ssdp_location
 from denon_proxy.avr.discover import _parse_ssdp_server_or_usn as parse_ssdp_server
 
@@ -63,6 +64,15 @@ def test_parse_ssdp_server_extracts_server_header():
 def test_parse_ssdp_server_missing_returns_none():
     msg = "HTTP/1.1 200 OK\r\nLOCATION: http://a/b\r\n\r\n"
     assert parse_ssdp_server(msg.encode()) is None
+
+
+def test_parse_ssdp_server_fallback_to_usn_when_no_server():
+    msg = (
+        "HTTP/1.1 200 OK\r\n"
+        "USN: uuid:abc::urn:schemas-denon-com:device:AiosDevice:1\r\n"
+        "LOCATION: http://192.168.1.50:80/description.xml\r\n\r\n"
+    )
+    assert "urn:schemas-denon-com" in (parse_ssdp_server(msg.encode()) or "")
 
 
 # --- _is_denon_ssdp_response ---
@@ -117,6 +127,39 @@ def test_is_denon_ssdp_response_rejects_when_no_server_or_usn():
     assert is_denon_ssdp_response(msg.encode()) is False
 
 
+# --- _parse_friendly_name ---
+
+
+def test_parse_friendly_name_denon_avr_model():
+    assert parse_friendly_name("Denon AVR-X2700H") == ("Denon", "AVR-X2700H")
+    assert parse_friendly_name("Denon AVR-X2700H._http._tcp.local.") == ("Denon", "AVR-X2700H")
+
+
+def test_parse_friendly_name_marantz_model():
+    assert parse_friendly_name("Marantz SR5015") == ("Marantz", "SR5015")
+
+
+def test_parse_friendly_name_parentheses():
+    assert parse_friendly_name("Living Room (Denon AVR-X2700H)") == ("Denon", "AVR-X2700H")
+
+
+def test_parse_friendly_name_server_string():
+    assert parse_friendly_name("Linux/1.0 UPnP/1.0 Denon/1.0") == ("Denon", None)
+
+
+def test_parse_friendly_name_empty_or_none():
+    assert parse_friendly_name(None) == (None, None)
+    assert parse_friendly_name("") == (None, None)
+
+
+def test_parse_friendly_name_usn_returns_brand():
+    """USN string (no SERVER) still yields brand from 'denon' in urn."""
+    assert parse_friendly_name("uuid:xyz::urn:schemas-denon-com:device:AiosDevice:1") == (
+        "Denon",
+        None,
+    )
+
+
 # --- DiscoveredAVR ---
 
 
@@ -129,6 +172,24 @@ def test_discovered_avr_as_dict():
     assert d["location"] == "http://192.168.1.1/d"
     assert d["method"] == "ssdp"
     assert d["matched"] is True
+
+
+def test_discovered_avr_as_dict_includes_parsed_info_when_present():
+    avr = DiscoveredAVR(
+        "192.168.1.1",
+        80,
+        "Denon AVR-X2700H",
+        "http://192.168.1.1/desc.xml",
+        "ssdp",
+        model="AVR-X2700H",
+        brand="Denon",
+        extra={"usn": "uuid:abc::urn:denon:device:1", "max_age": 1800},
+    )
+    d = avr.as_dict()
+    assert d["model"] == "AVR-X2700H"
+    assert d["brand"] == "Denon"
+    assert d["extra"]["usn"] == "uuid:abc::urn:denon:device:1"
+    assert d["extra"]["max_age"] == 1800
 
 
 # --- discover(method="both") merge ---
