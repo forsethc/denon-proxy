@@ -424,3 +424,101 @@ async def test_discover_via_mdns_finds_denon_service_when_zeroconf_reports_one()
     assert results[0].port == 80
     assert results[0].name == "Denon Test AVR._http._tcp.local."
     assert results[0].method == "mdns"
+
+
+async def _run_mdns_with_mock_info(mock_info):
+    """Run discover_via_mdns with Zeroconf/ServiceBrowser patched so get_service_info returns mock_info."""
+    from zeroconf import ServiceStateChange
+
+    mock_zc = MagicMock()
+    mock_zc.get_service_info.return_value = mock_info
+
+    def capture_browser(zc, service_type, handlers=None, **kwargs):
+        for h in handlers or []:
+            h(mock_zc, "_http._tcp.local.", "Denon AVR._http._tcp.local.", ServiceStateChange.Added)
+
+    with (
+        patch("zeroconf.Zeroconf", return_value=mock_zc),
+        patch("zeroconf.ServiceBrowser", side_effect=capture_browser),
+        patch("time.sleep"),
+    ):
+        return await discover_via_mdns(timeout=0.0)
+
+
+@pytest.mark.asyncio
+async def test_discover_via_mdns_properties_from_decoded_properties_callable():
+    """When info has callable decoded_properties, its return value is used for extra['properties']."""
+    mock_info = MagicMock()
+    mock_info.parsed_addresses.return_value = ["192.168.1.50"]
+    mock_info.port = 80
+    mock_info.decoded_properties = lambda: {"path": "/api", "version": "1.0"}
+    mock_info.properties = {"_": "_"}  # must be truthy to enter properties block; decoded_properties is then used
+
+    results = await _run_mdns_with_mock_info(mock_info)
+
+    assert len(results) == 1
+    assert results[0].extra is not None
+    assert results[0].extra["properties"] == {"path": "/api", "version": "1.0"}
+
+
+@pytest.mark.asyncio
+async def test_discover_via_mdns_properties_from_raw_properties_dict():
+    """When info has no decoded_properties, properties dict is decoded (bytes -> str) into extra['properties']."""
+    mock_info = MagicMock()
+    mock_info.parsed_addresses.return_value = ["192.168.1.50"]
+    mock_info.port = 80
+    mock_info.decoded_properties = None
+    mock_info.properties = {"path": b"/api", "model": "already-str"}
+
+    results = await _run_mdns_with_mock_info(mock_info)
+
+    assert len(results) == 1
+    assert results[0].extra is not None
+    assert results[0].extra["properties"] == {"path": "/api", "model": "already-str"}
+
+
+@pytest.mark.asyncio
+async def test_discover_via_mdns_properties_decoding_errors_tolerated():
+    """UnicodeDecodeError, AttributeError, and TypeError during properties decoding are caught; device still discovered without properties."""
+    for exc_cls in (UnicodeDecodeError, AttributeError, TypeError):
+        mock_info = MagicMock()
+        mock_info.parsed_addresses.return_value = ["192.168.1.50"]
+        mock_info.port = 80
+        if exc_cls is UnicodeDecodeError:
+
+            def raise_unicode():
+                raise UnicodeDecodeError("utf-8", b"x", 0, 1, "invalid")
+
+            mock_info.decoded_properties = raise_unicode
+            mock_info.properties = {"_": "_"}  # truthy so we enter block and call decoded_properties()
+        elif exc_cls is AttributeError:
+            mock_info.decoded_properties = None
+            mock_info.properties = MagicMock()
+            mock_info.properties.items.side_effect = AttributeError("no items")
+        else:
+            mock_info.decoded_properties = None
+            mock_info.properties = MagicMock()
+            mock_info.properties.items.side_effect = TypeError("not iterable")
+
+        results = await _run_mdns_with_mock_info(mock_info)
+
+        assert len(results) == 1, f"Expected one device when {exc_cls.__name__} is raised"
+        assert results[0].host == "192.168.1.50"
+        assert results[0].extra is None or "properties" not in (results[0].extra or {})
+
+
+@pytest.mark.asyncio
+async def test_discover_via_mdns_properties_other_exception_propagates():
+    """Exceptions other than UnicodeDecodeError/AttributeError/TypeError during properties decoding propagate."""
+
+    def raise_keyerror():
+        raise KeyError("missing")
+
+    mock_info = MagicMock()
+    mock_info.parsed_addresses.return_value = ["192.168.1.50"]
+    mock_info.port = 80
+    mock_info.decoded_properties = raise_keyerror
+    mock_info.properties = {"_": "_"}  # must be truthy to enter properties block so decoded_properties() is called
+
+    with pytest.raises(KeyError, match="missing"):
+        await _run_mdns_with_mock_info(mock_info)

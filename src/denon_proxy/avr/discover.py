@@ -377,7 +377,7 @@ def _run_mdns_sync(timeout: float) -> list[DiscoveredAVR]:
                         k: v.decode("utf-8", errors="replace") if isinstance(v, bytes) else v
                         for k, v in info.properties.items()
                     }
-            except Exception:  # noqa: BLE001
+            except (UnicodeDecodeError, AttributeError, TypeError):
                 pass
         extra = extra_dict if extra_dict else None
         found.append(
