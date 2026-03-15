@@ -4,8 +4,9 @@ Discover Denon/Marantz AVRs on the local network via SSDP or mDNS.
 Use this for the `denon-proxy discover` CLI: find physical AVRs so you can
 set avr_host in config (or pass to run).
 
-TODO (short prompts, descending importance):
-- Add interactive mode: pick device and write config.
+TODO:
+- Add interactive mode: pick device and write config
+- Allow discovery from web UI (only in demo mode probably)
 
 """
 
@@ -241,7 +242,7 @@ async def discover_via_ssdp(timeout: float = DISCOVER_TIMEOUT) -> list[Discovere
     matched=True; others are included with matched=False. Does not require root
     if binding to a random port. If the real AVR still does not appear, try --method mdns or both.
     """
-    results: dict[tuple[str, int], DiscoveredAVR] = {}
+    results: dict[tuple[str, int], DiscoveredAVR] = {}  # host, port -> DiscoveredAVR
     received: asyncio.Queue[bytes] = asyncio.Queue()
 
     class OneShotProtocol(asyncio.DatagramProtocol):
@@ -334,8 +335,7 @@ def _run_mdns_sync(timeout: float) -> list[DiscoveredAVR]:
 
     from zeroconf import ServiceBrowser, ServiceStateChange, Zeroconf
 
-    found: list[DiscoveredAVR] = []
-    found_keys: set[tuple[str, int]] = set()
+    results: dict[tuple[str, int], DiscoveredAVR] = {}  # host, port -> DiscoveredAVR
 
     def on_service_state_change(
         zeroconf: Zeroconf,
@@ -352,12 +352,11 @@ def _run_mdns_sync(timeout: float) -> list[DiscoveredAVR]:
         host = info.parsed_addresses()[0]
         port = info.port or 80
         key = (host, port)
-        if key in found_keys:
+        if key in results:
             _logger.debug("mDNS service %r: %s:%d (duplicate)", name, host, port)
             return
         name_lower = (name or "").lower()
         is_denon = any(m in name_lower for m in SSDP_VENDOR_MARKERS)
-        found_keys.add(key)
         brand: str | None
         model: str | None
         if _is_denon_proxy(None, name):
@@ -380,18 +379,16 @@ def _run_mdns_sync(timeout: float) -> list[DiscoveredAVR]:
             except (UnicodeDecodeError, AttributeError, TypeError):
                 pass
         extra = extra_dict if extra_dict else None
-        found.append(
-            DiscoveredAVR(
-                host=host,
-                port=port,
-                name=name,
-                location=None,
-                method="mdns",
-                matched=is_denon,
-                model=model,
-                brand=brand,
-                extra=extra,
-            )
+        results[key] = DiscoveredAVR(
+            host=host,
+            port=port,
+            name=name,
+            location=None,
+            method="mdns",
+            matched=is_denon,
+            model=model,
+            brand=brand,
+            extra=extra,
         )
         _logger.info(
             "Discovered %s:%d via mDNS%s",
@@ -414,8 +411,8 @@ def _run_mdns_sync(timeout: float) -> list[DiscoveredAVR]:
         time.sleep(timeout)
     finally:
         zc.close()
-    _logger.debug("mDNS discovery finished: %d device(s)", len(found))
-    return found
+    _logger.debug("mDNS discovery finished: %d device(s)", len(results))
+    return list(results.values())
 
 
 async def discover_via_mdns(timeout: float = DISCOVER_TIMEOUT) -> list[DiscoveredAVR]:
@@ -446,7 +443,7 @@ async def discover(
     matched=True, others have matched=False.
 
     If progress_callback is provided, it is called periodically (e.g. every 0.5s) while
-    searching, so the caller can show progress (e.g. dots on stderr).
+    searching, so the caller can show progress.
     """
     _logger.info("Discovering AVRs via %s (timeout=%.1fs)", method if method != "both" else "SSDP and mDNS", timeout)
     _logger.debug("discover method=%s timeout=%.1f", method, timeout)

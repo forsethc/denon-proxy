@@ -61,15 +61,14 @@ def _add_discover_subcommand(subparsers: argparse._SubParsersAction[Any]) -> Non
     parser = subparsers.add_parser(
         "discover",
         help="Find Denon/Marantz AVRs on the network",
-        description="Discover AVRs via SSDP (UPnP) and/or mDNS (Bonjour). Use --method to choose. "
-        "If SSDP finds the proxy but not the real AVR, try --method mdns or --method both.",
+        description="Discover AVRs via SSDP (UPnP) and/or mDNS (Bonjour).",
     )
     parser.add_argument(
         "--method",
         "-m",
         choices=("ssdp", "mdns", "both"),
         default="both",
-        help="Discovery method: ssdp (UPnP M-SEARCH), mdns (Bonjour; requires zeroconf), or both (default: both)",
+        help="Discovery method: ssdp (UPnP M-SEARCH), mdns (Bonjour), or both (default: both)",
     )
     parser.add_argument(
         "--timeout",
@@ -165,7 +164,7 @@ def _cmd_discover(args: argparse.Namespace) -> int:
         Console(stderr=True).print(f"[red]Discovery failed: {e}[/red]")
         return 1
 
-    def _ip_sort_key(avr: Any) -> tuple[int, Any]:
+    def _ip_sort_key(avr: DiscoveredAVR) -> tuple[int, Any]:
         try:
             return (0, ipaddress.ip_address(avr.host))
         except ValueError:
