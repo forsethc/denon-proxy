@@ -25,11 +25,13 @@ def test_main_returns_1_when_config_not_found():
 
 def test_main_returns_0_on_keyboard_interrupt():
     """When the user hits Ctrl-C (KeyboardInterrupt), main() returns 0."""
+
     async def noop_main_async(_config):
         pass
 
     def run_then_keyboard_interrupt(coro):
         import asyncio as asyncio_stdlib
+
         loop = asyncio_stdlib.new_event_loop()
         try:
             loop.run_until_complete(coro)
@@ -55,11 +57,13 @@ def test_main_returns_0_on_keyboard_interrupt():
 
 def test_main_returns_0_on_successful_run():
     """When the proxy runs and exits normally, main() returns 0."""
+
     async def noop_main_async(_config):
         pass
 
     def run_coro(coro):
         import asyncio as asyncio_stdlib
+
         loop = asyncio_stdlib.new_event_loop()
         try:
             return loop.run_until_complete(coro)
@@ -90,11 +94,13 @@ def test_run_proxy_returns_1_when_config_load_fails():
 
 def test_run_proxy_import_error_prints_and_returns_1(capsys):
     """run_proxy catches ImportError from asyncio.run and prints a message."""
+
     async def noop_main_async(_config):
         pass
 
     def run_then_import_error(coro):
         import asyncio as asyncio_stdlib
+
         loop = asyncio_stdlib.new_event_loop()
         try:
             loop.run_until_complete(coro)
@@ -118,6 +124,7 @@ def test_run_proxy_import_error_prints_and_returns_1(capsys):
 
 def test_run_proxy_success_path():
     """run_proxy returns 0 when asyncio.run(main_async) completes successfully."""
+
     async def noop_main_async(_config):
         pass
 
@@ -131,6 +138,7 @@ def test_run_proxy_success_path():
         # Make asyncio.run actually run the coroutine so it gets awaited
         def run_coro(coro):
             import asyncio as asyncio_stdlib
+
             loop = asyncio_stdlib.new_event_loop()
             try:
                 return loop.run_until_complete(coro)

@@ -263,9 +263,7 @@ async def test_discover_via_ssdp_returns_devices_from_ssdp_responses():
         protocol.datagram_received(fake, ("239.255.255.250", 1900))
         return (transport, protocol)
 
-    with patch(
-        "denon_proxy.avr.discover.asyncio.get_running_loop"
-    ) as get_loop_mock:
+    with patch("denon_proxy.avr.discover.asyncio.get_running_loop") as get_loop_mock:
         mock_loop = MagicMock()
         mock_loop.create_datagram_endpoint = mock_create_datagram_endpoint
         mock_loop.time.side_effect = [0, 0, 0, 10]  # deadline, while checks; 10 > deadline to exit
@@ -353,9 +351,7 @@ async def test_discover_progress_callback_invoked_while_searching():
         "denon_proxy.avr.discover.discover_via_ssdp",
         side_effect=slow_ssdp,
     ):
-        await discover(
-            method="ssdp", timeout=2.0, progress_callback=lambda: calls.append(1)
-        )
+        await discover(method="ssdp", timeout=2.0, progress_callback=lambda: calls.append(1))
     assert len(calls) >= 1
 
 
