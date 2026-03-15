@@ -9,19 +9,17 @@ import pytest
 
 from denon_proxy.avr.discover import (
     DiscoveredAVR,
-    discover,
-    discover_via_mdns,
-    discover_via_ssdp,
-    mdns_available,
-)
-from denon_proxy.avr.discover import _is_denon_proxy as is_denon_proxy
-from denon_proxy.avr.discover import _is_denon_ssdp_response as is_denon_ssdp_response
-from denon_proxy.avr.discover import _parse_friendly_name as parse_friendly_name
-from denon_proxy.avr.discover import (
+    _is_denon_proxy,
+    _is_denon_ssdp_response,
+    _parse_friendly_name,
     _parse_ssdp_extra_headers_text,
     _parse_ssdp_location_text,
     _parse_ssdp_response,
     _parse_ssdp_server_or_usn_text,
+    discover,
+    discover_via_mdns,
+    discover_via_ssdp,
+    mdns_available,
 )
 from denon_proxy.constants import PROXY_NAME, PROXY_SERVER_PRODUCT
 
@@ -103,65 +101,57 @@ def test_parse_ssdp_server_fallback_to_usn_when_no_server():
 
 def test_is_denon_ssdp_response_accepts_denon_server():
     parsed = _parse_ssdp_response(
-        "HTTP/1.1 200 OK\r\nSERVER: Linux/1.0 UPnP/1.0 Denon/1.0\r\nLOCATION: http://10.0.0.1/\r\n\r\n".encode()
+        b"HTTP/1.1 200 OK\r\nSERVER: Linux/1.0 UPnP/1.0 Denon/1.0\r\nLOCATION: http://10.0.0.1/\r\n\r\n"
     )
-    assert is_denon_ssdp_response(parsed.server_or_usn if parsed else None) is True
+    assert _is_denon_ssdp_response(parsed.server_or_usn if parsed else None) is True
 
 
 def test_is_denon_ssdp_response_accepts_marantz_server():
     parsed = _parse_ssdp_response(
-        "HTTP/1.1 200 OK\r\nSERVER: Marantz/1.0 UPnP/1.0\r\nLOCATION: http://10.0.0.1/\r\n\r\n".encode()
+        b"HTTP/1.1 200 OK\r\nSERVER: Marantz/1.0 UPnP/1.0\r\nLOCATION: http://10.0.0.1/\r\n\r\n"
     )
-    assert is_denon_ssdp_response(parsed.server_or_usn if parsed else None) is True
+    assert _is_denon_ssdp_response(parsed.server_or_usn if parsed else None) is True
 
 
 def test_is_denon_ssdp_response_accepts_knos_dmp_avr():
     """Some Denon AVRs advertise as KnOS/3.2 UPnP/1.0 DMP/3.5 (no 'Denon' in SERVER)."""
     parsed = _parse_ssdp_response(
-        (
-            "HTTP/1.1 200 OK\r\n"
-            "SERVER: KnOS/3.2 UPnP/1.0 DMP/3.5\r\n"
-            "LOCATION: http://10.0.2.5:8080/description.xml\r\n\r\n"
-        ).encode()
+        b"HTTP/1.1 200 OK\r\n"
+        b"SERVER: KnOS/3.2 UPnP/1.0 DMP/3.5\r\n"
+        b"LOCATION: http://10.0.2.5:8080/description.xml\r\n\r\n"
     )
-    assert is_denon_ssdp_response(parsed.server_or_usn if parsed else None) is True
+    assert _is_denon_ssdp_response(parsed.server_or_usn if parsed else None) is True
 
 
 def test_is_denon_ssdp_response_accepts_denon_in_usn_when_no_server():
     parsed = _parse_ssdp_response(
-        (
-            "HTTP/1.1 200 OK\r\n"
-            "USN: uuid:abc::urn:schemas-denon-com:device:AiosDevice:1\r\n"
-            "LOCATION: http://10.0.0.1/\r\n\r\n"
-        ).encode()
+        b"HTTP/1.1 200 OK\r\n"
+        b"USN: uuid:abc::urn:schemas-denon-com:device:AiosDevice:1\r\n"
+        b"LOCATION: http://10.0.0.1/\r\n\r\n"
     )
-    assert is_denon_ssdp_response(parsed.server_or_usn if parsed else None) is True
+    assert _is_denon_ssdp_response(parsed.server_or_usn if parsed else None) is True
 
 
 def test_is_denon_ssdp_response_accepts_aios_in_usn():
     """USN often contains AiosDevice (Denon Aios platform); aios is a marker."""
     parsed = _parse_ssdp_response(
-        (
-            "HTTP/1.1 200 OK\r\n"
-            "USN: uuid:xyz::urn:example:device:AiosDevice:1\r\n"
-            "LOCATION: http://192.168.1.10:8080/\r\n\r\n"
-        ).encode()
+        b"HTTP/1.1 200 OK\r\n"
+        b"USN: uuid:xyz::urn:example:device:AiosDevice:1\r\n"
+        b"LOCATION: http://192.168.1.10:8080/\r\n\r\n"
     )
-    assert is_denon_ssdp_response(parsed.server_or_usn if parsed else None) is True
+    assert _is_denon_ssdp_response(parsed.server_or_usn if parsed else None) is True
 
 
 def test_is_denon_ssdp_response_rejects_unknown_vendor():
     parsed = _parse_ssdp_response(
-        "HTTP/1.1 200 OK\r\nSERVER: SomeOther/1.0 UPnP/1.0\r\nLOCATION: http://10.0.0.1/\r\n\r\n".encode()
+        b"HTTP/1.1 200 OK\r\nSERVER: SomeOther/1.0 UPnP/1.0\r\nLOCATION: http://10.0.0.1/\r\n\r\n"
     )
-    assert is_denon_ssdp_response(parsed.server_or_usn if parsed else None) is False
+    assert _is_denon_ssdp_response(parsed.server_or_usn if parsed else None) is False
 
 
 def test_is_denon_ssdp_response_rejects_when_no_server_or_usn():
-    parsed = _parse_ssdp_response(
-        "HTTP/1.1 200 OK\r\nLOCATION: http://10.0.0.1/\r\n\r\n".encode()
-    )
-    assert is_denon_ssdp_response(parsed.server_or_usn if parsed else None) is False
+    parsed = _parse_ssdp_response(b"HTTP/1.1 200 OK\r\nLOCATION: http://10.0.0.1/\r\n\r\n")
+    assert _is_denon_ssdp_response(parsed.server_or_usn if parsed else None) is False
 
 
 # --- _is_denon_proxy ---
@@ -169,54 +159,54 @@ def test_is_denon_ssdp_response_rejects_when_no_server_or_usn():
 
 def test_is_denon_proxy_detects_ssdp_server():
     """Proxy advertises SERVER: Linux/1.0 UPnP/1.0 {PROXY_SERVER_PRODUCT}/1.0."""
-    assert is_denon_proxy(f"Linux/1.0 UPnP/1.0 {PROXY_SERVER_PRODUCT}/1.0", None) is True
+    assert _is_denon_proxy(f"Linux/1.0 UPnP/1.0 {PROXY_SERVER_PRODUCT}/1.0", None) is True
 
 
 def test_is_denon_proxy_detects_usn():
     """Proxy USN is uuid:{PROXY_NAME}-<serial>::..."""
-    assert is_denon_proxy(None, f"uuid:{PROXY_NAME}-abc123::urn:schemas-upnp-org:device:root:1") is True
+    assert _is_denon_proxy(None, f"uuid:{PROXY_NAME}-abc123::urn:schemas-upnp-org:device:root:1") is True
 
 
 def test_is_denon_proxy_detects_friendly_name():
     """Friendly name may be 'Denon AVR Proxy' or contain PROXY_NAME."""
-    assert is_denon_proxy(None, "Denon AVR Proxy") is True
-    assert is_denon_proxy(None, f"Living Room ({PROXY_NAME})") is True
+    assert _is_denon_proxy(None, "Denon AVR Proxy") is True
+    assert _is_denon_proxy(None, f"Living Room ({PROXY_NAME})") is True
 
 
 def test_is_denon_proxy_rejects_real_avr():
     """Real Denon AVR SERVER does not contain proxy markers."""
-    assert is_denon_proxy("Linux/1.0 UPnP/1.0 Denon/1.0", None) is False
-    assert is_denon_proxy(None, "Denon AVR-X2700H") is False
+    assert _is_denon_proxy("Linux/1.0 UPnP/1.0 Denon/1.0", None) is False
+    assert _is_denon_proxy(None, "Denon AVR-X2700H") is False
 
 
 # --- _parse_friendly_name ---
 
 
 def test_parse_friendly_name_denon_avr_model():
-    assert parse_friendly_name("Denon AVR-X2700H") == ("Denon", "AVR-X2700H")
-    assert parse_friendly_name("Denon AVR-X2700H._http._tcp.local.") == ("Denon", "AVR-X2700H")
+    assert _parse_friendly_name("Denon AVR-X2700H") == ("Denon", "AVR-X2700H")
+    assert _parse_friendly_name("Denon AVR-X2700H._http._tcp.local.") == ("Denon", "AVR-X2700H")
 
 
 def test_parse_friendly_name_marantz_model():
-    assert parse_friendly_name("Marantz SR5015") == ("Marantz", "SR5015")
+    assert _parse_friendly_name("Marantz SR5015") == ("Marantz", "SR5015")
 
 
 def test_parse_friendly_name_parentheses():
-    assert parse_friendly_name("Living Room (Denon AVR-X2700H)") == ("Denon", "AVR-X2700H")
+    assert _parse_friendly_name("Living Room (Denon AVR-X2700H)") == ("Denon", "AVR-X2700H")
 
 
 def test_parse_friendly_name_server_string():
-    assert parse_friendly_name("Linux/1.0 UPnP/1.0 Denon/1.0") == ("Denon", None)
+    assert _parse_friendly_name("Linux/1.0 UPnP/1.0 Denon/1.0") == ("Denon", None)
 
 
 def test_parse_friendly_name_empty_or_none():
-    assert parse_friendly_name(None) == (None, None)
-    assert parse_friendly_name("") == (None, None)
+    assert _parse_friendly_name(None) == (None, None)
+    assert _parse_friendly_name("") == (None, None)
 
 
 def test_parse_friendly_name_usn_returns_brand():
     """USN string (no SERVER) still yields brand from 'denon' in urn."""
-    assert parse_friendly_name("uuid:xyz::urn:schemas-denon-com:device:AiosDevice:1") == (
+    assert _parse_friendly_name("uuid:xyz::urn:schemas-denon-com:device:AiosDevice:1") == (
         "Denon",
         None,
     )
@@ -224,7 +214,7 @@ def test_parse_friendly_name_usn_returns_brand():
 
 def test_parse_friendly_name_marantz_only_fallback():
     """When only 'Marantz' appears (no model in regex), brand is Marantz."""
-    assert parse_friendly_name("Marantz/1.0 UPnP/1.0") == ("Marantz", None)
+    assert _parse_friendly_name("Marantz/1.0 UPnP/1.0") == ("Marantz", None)
 
 
 # --- DiscoveredAVR ---
@@ -479,7 +469,10 @@ async def test_discover_via_mdns_properties_from_raw_properties_dict():
 
 @pytest.mark.asyncio
 async def test_discover_via_mdns_properties_decoding_errors_tolerated():
-    """UnicodeDecodeError, AttributeError, and TypeError during properties decoding are caught; device still discovered without properties."""
+    """
+    UnicodeDecodeError, AttributeError, and TypeError during properties decoding are caught;
+    device still discovered without properties.
+    """
     for exc_cls in (UnicodeDecodeError, AttributeError, TypeError):
         mock_info = MagicMock()
         mock_info.parsed_addresses.return_value = ["192.168.1.50"]
