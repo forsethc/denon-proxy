@@ -5,7 +5,6 @@ Use this for the `denon-proxy discover` CLI: find physical AVRs so you can
 set avr_host in config (or pass to run).
 
 TODO (short prompts, descending importance):
-- Lint, format, type-check, test, and review this module.
 - Add interactive mode: pick device and write config.
 
 """
@@ -397,7 +396,7 @@ def _run_mdns_sync(timeout: float) -> list[DiscoveredAVR]:
     zc = Zeroconf()
     try:
         ServiceBrowser(zc, "_http._tcp.local.", handlers=[on_service_state_change])
-        time.sleep(min(timeout, 5.0))
+        time.sleep(timeout)
     finally:
         zc.close()
     _logger.debug("mDNS discovery finished: %d device(s)", len(found))

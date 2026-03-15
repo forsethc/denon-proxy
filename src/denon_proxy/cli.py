@@ -83,7 +83,7 @@ def _add_discover_subcommand(subparsers: argparse._SubParsersAction[Any]) -> Non
         "-j",
         "--json",
         action="store_true",
-        help="Output results as JSON (one object per line or single list)",
+        help="Output results as a single JSON document (object or list)",
     )
     parser.add_argument(
         "-a",
