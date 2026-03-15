@@ -53,8 +53,8 @@ test: init
 	pytest
 
 docker: init
-	docker-direct
-	docker-compose
+	$(MAKE) docker-direct
+	$(MAKE) docker-compose
 
 mypy: init
 	mypy src
