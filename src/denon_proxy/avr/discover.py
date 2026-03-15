@@ -182,13 +182,8 @@ def _parse_ssdp_server_or_usn(data: bytes) -> str | None:
 
 def _is_denon_ssdp_response(data: bytes) -> bool:
     """Return True if the SSDP response looks like a Denon/Marantz AVR (SERVER or USN)."""
-    server_or_usn = _parse_ssdp_server_or_usn(data)
-    if not server_or_usn:
-        text = data.decode("utf-8", errors="replace")
-        match = re.search(r"USN:\s*([^\r\n]+)", text, re.IGNORECASE)
-        server_or_usn = match.group(1).strip() if match else ""
-    s = (server_or_usn or "").lower()
-    return any(m in s for m in SSDP_VENDOR_MARKERS)
+    server_or_usn = _parse_ssdp_server_or_usn(data) or ""
+    return any(m in server_or_usn.lower() for m in SSDP_VENDOR_MARKERS)
 
 
 def _is_denon_proxy(server_or_usn: str | None, name: str | None) -> bool:
