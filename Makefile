@@ -13,10 +13,14 @@ DOCKER_HEALTHCHECK_CMD = sleep 3 && curl -sf http://localhost:8081/api/status
 
 
 default: code-quality
-.PHONY: default version run check check-all code-quality test docker mypy fix lint format format-fix lint-fix pytest docker-direct docker-compose version
+.PHONY: default version run check check-all code-quality test docker mypy fix lint format format-fix lint-fix pytest docker-direct docker-compose version clean
+
+clean:
+	rm -f $(INIT_STAMP) $(MAKE_CONFIG_FILE)
+
 
 init: $(INIT_STAMP)
-	@echo "Python environment already initialized."
+	@echo "Python environment initialized."
 
 $(INIT_STAMP): $(DEPS_FILES)
 	@echo "Initializing Python environment..."
@@ -45,16 +49,12 @@ code-quality: init
 	printf '\n\n'; \
 	exit $$rc
 
-fix: init
-	lint-fix
-	format-fix
+fix: init lint-fix format-fix
 
 test: init
 	pytest
 
-docker: init
-	docker-direct
-	docker-compose
+docker: init docker-direct docker-compose
 
 mypy: init
 	mypy src

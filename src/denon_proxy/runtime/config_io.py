@@ -24,7 +24,10 @@ def _load_config_dict_from_file(config_path: Path | None) -> dict[str, Any]:
     separately from I/O.
     """
     if yaml is None:
-        raise ImportError("PyYAML is required. Install with: pip install pyyaml")
+        raise ImportError(
+            "PyYAML is a dependency of denon-proxy but is not available. "
+            "Reinstall denon-proxy: pip install --force-reinstall denon-proxy"
+        )
 
     if config_path:
         if not config_path.exists():
@@ -64,9 +67,12 @@ def load_config_and_report_errors(config_path: Path | None) -> Config | None:
     except FileNotFoundError as e:
         print(str(e), file=sys.stderr)
     except ImportError as e:
-        # Handle missing PyYAML (or other imports) during config load.
+        # Handle missing declared dependency (e.g. PyYAML) during config load.
         if "yaml" in str(e).lower():
-            print("Install PyYAML: pip install pyyaml", file=sys.stderr)
+            print(
+                "PyYAML is missing. Reinstall denon-proxy: pip install --force-reinstall denon-proxy",
+                file=sys.stderr,
+            )
         else:
             print(f"Import error while loading config: {e}", file=sys.stderr)
     except ValidationError as e:

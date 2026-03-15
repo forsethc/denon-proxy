@@ -4,6 +4,11 @@ Shared constants for denon-proxy.
 Port defaults, volume scale, discovery/SSDP values, and timeouts in one place.
 """
 
+# Proxy identity: used in SSDP SERVER header, USN, UDN, and discover CLI display.
+# Change these to update how the proxy advertises and how discovery identifies it.
+PROXY_NAME = "denon-proxy"  # USN/UDN prefix (uuid:denon-proxy-...), display brand in discover
+PROXY_SERVER_PRODUCT = "Denon-AVR-Proxy"  # SERVER header product token (Linux/1.0 UPnP/1.0 .../1.0)
+
 # Timeouts and delays (seconds)
 # Telnet connect to AVR and HTTP fetch of AVR description.xml.
 AVR_NETWORK_TIMEOUT = 5.0

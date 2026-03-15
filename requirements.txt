@@ -34,13 +34,23 @@ idna==3.11
     # via
     #   anyio
     #   httpx
+ifaddr==0.2.0
+    # via zeroconf
+markdown-it-py==4.0.0
+    # via rich
+mdurl==0.1.2
+    # via markdown-it-py
 netifaces==0.11.0
     # via denonavr
 pydantic==2.12.5
     # via denon-proxy (pyproject.toml)
 pydantic-core==2.41.5
     # via pydantic
+pygments==2.19.2
+    # via rich
 pyyaml==6.0.3
+    # via denon-proxy (pyproject.toml)
+rich==14.3.3
     # via denon-proxy (pyproject.toml)
 typing-extensions==4.15.0
     # via
@@ -51,3 +61,5 @@ typing-inspection==0.4.2
     # via pydantic
 wcwidth==0.6.0
     # via ftfy
+zeroconf==0.148.0
+    # via denon-proxy (pyproject.toml)
