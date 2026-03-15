@@ -100,9 +100,8 @@ def _parse_friendly_name(raw: str | None) -> tuple[str | None, str | None]:
     return (brand, model)
 
 
-def _parse_ssdp_extra_headers(data: bytes) -> dict[str, Any]:
-    """Extract extra SSDP headers (USN, CACHE-CONTROL) for display/debug."""
-    text = data.decode("utf-8", errors="replace")
+def _parse_ssdp_extra_headers_text(text: str) -> dict[str, Any]:
+    """Extract extra SSDP headers (USN, CACHE-CONTROL) from decoded response text."""
     extra: dict[str, Any] = {}
     usn_match = re.search(r"USN:\s*([^\r\n]+)", text, re.IGNORECASE)
     if usn_match:
@@ -146,9 +145,8 @@ class DiscoveredAVR:
         return out
 
 
-def _parse_ssdp_location(data: bytes) -> tuple[str, int] | None:
-    """Parse SSDP response and return (host, port) from LOCATION header, or None."""
-    text = data.decode("utf-8", errors="replace")
+def _parse_ssdp_location_text(text: str) -> tuple[str, int, str] | None:
+    """Parse SSDP response text and return (host, port, location_url) from LOCATION header, or None."""
     if "HTTP/1.1 200" not in text and "200 OK" not in text:
         return None
     match = re.search(r"LOCATION:\s*(\S+)", text, re.IGNORECASE)
@@ -160,30 +158,56 @@ def _parse_ssdp_location(data: bytes) -> tuple[str, int] | None:
         host = parsed.hostname or ""
         port = parsed.port or (80 if parsed.scheme == "http" else 443)
         if host:
-            return (host, port)
+            return (host, port, url_str)
     except (ValueError, AttributeError):
         pass
     return None
 
 
-def _parse_ssdp_server_or_usn(data: bytes) -> str | None:
-    """Extract friendly name from SERVER or USN in SSDP response (best-effort)."""
-    text = data.decode("utf-8", errors="replace")
-    # SERVER: often "Linux/1.0 UPnP/1.0 Denon/1.0" or similar
+def _parse_ssdp_server_or_usn_text(text: str) -> str | None:
+    """Extract friendly name from SERVER or USN in SSDP response text (best-effort)."""
     match = re.search(r"SERVER:\s*([^\r\n]+)", text, re.IGNORECASE)
     if match:
         return match.group(1).strip() or None
-    # Fallback: USN (e.g. uuid:...::urn:schemas-denon-com:device:AiosDevice:1) for display/parsing
     match = re.search(r"USN:\s*([^\r\n]+)", text, re.IGNORECASE)
     if match:
         return match.group(1).strip() or None
     return None
 
 
-def _is_denon_ssdp_response(data: bytes) -> bool:
-    """Return True if the SSDP response looks like a Denon/Marantz AVR (SERVER or USN)."""
-    server_or_usn = _parse_ssdp_server_or_usn(data) or ""
-    return any(m in server_or_usn.lower() for m in SSDP_VENDOR_MARKERS)
+def _is_denon_ssdp_response(server_or_usn: str | None) -> bool:
+    """Return True if SERVER/USN looks like a Denon/Marantz AVR."""
+    s = (server_or_usn or "").lower()
+    return any(m in s for m in SSDP_VENDOR_MARKERS)
+
+
+@dataclass
+class _ParsedSSDPResponse:
+    """Parsed SSDP response (single decode)."""
+
+    host: str
+    port: int
+    location_url: str
+    server_or_usn: str | None
+    extra: dict[str, Any]
+
+
+def _parse_ssdp_response(data: bytes) -> _ParsedSSDPResponse | None:
+    """Decode SSDP response once and return parsed fields, or None if invalid/missing LOCATION."""
+    text = data.decode("utf-8", errors="replace")
+    loc = _parse_ssdp_location_text(text)
+    if not loc:
+        return None
+    host, port, location_url = loc
+    server_or_usn = _parse_ssdp_server_or_usn_text(text)
+    extra = _parse_ssdp_extra_headers_text(text)
+    return _ParsedSSDPResponse(
+        host=host,
+        port=port,
+        location_url=location_url,
+        server_or_usn=server_or_usn,
+        extra=extra,
+    )
 
 
 def _is_denon_proxy(server_or_usn: str | None, name: str | None) -> bool:
@@ -243,19 +267,15 @@ async def discover_via_ssdp(timeout: float = DISCOVER_TIMEOUT) -> list[Discovere
                 data = await asyncio.wait_for(received.get(), timeout=remaining)
             except asyncio.TimeoutError:
                 break
-            loc = _parse_ssdp_location(data)
-            if loc:
-                host, port = loc
-                is_denon = _is_denon_ssdp_response(data)
+            parsed = _parse_ssdp_response(data)
+            if parsed:
+                host, port = parsed.host, parsed.port
+                location_url = parsed.location_url
+                name = parsed.server_or_usn
+                extra = parsed.extra
+                is_denon = _is_denon_ssdp_response(name)
                 key = (host, port)
                 if key not in results:
-                    name: str | None = _parse_ssdp_server_or_usn(data)
-                    location_url = None
-                    for line in data.decode("utf-8", errors="replace").split("\r\n"):
-                        if line.upper().startswith("LOCATION:"):
-                            location_url = line.split(":", 1)[1].strip()
-                            break
-                    extra = _parse_ssdp_extra_headers(data)
                     usn = (extra or {}).get("usn")
                     brand: str | None
                     model: str | None
@@ -457,6 +477,7 @@ async def discover(
             _logger.debug("both: SSDP %d, mDNS %d", len(ssdp_results), len(mdns_results))
             seen: set[tuple[str, int]] = set()
             merged: list[DiscoveredAVR] = []
+            # SSDP first so duplicates (same host,port) keep SSDP; it typically has better metadata.
             for avr in ssdp_results + mdns_results:
                 key = (avr.host, avr.port)
                 if key not in seen:

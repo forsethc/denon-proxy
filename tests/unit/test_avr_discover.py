@@ -17,50 +17,51 @@ from denon_proxy.avr.discover import (
 from denon_proxy.avr.discover import _is_denon_proxy as is_denon_proxy
 from denon_proxy.avr.discover import _is_denon_ssdp_response as is_denon_ssdp_response
 from denon_proxy.avr.discover import _parse_friendly_name as parse_friendly_name
-from denon_proxy.avr.discover import _parse_ssdp_extra_headers as parse_ssdp_extra_headers
-from denon_proxy.avr.discover import _parse_ssdp_location as parse_ssdp_location
-from denon_proxy.avr.discover import _parse_ssdp_server_or_usn as parse_ssdp_server
+from denon_proxy.avr.discover import (
+    _parse_ssdp_extra_headers_text,
+    _parse_ssdp_location_text,
+    _parse_ssdp_response,
+    _parse_ssdp_server_or_usn_text,
+)
 from denon_proxy.constants import PROXY_NAME, PROXY_SERVER_PRODUCT
 
-# --- _parse_ssdp_location ---
+# --- _parse_ssdp_location_text ---
 
 
-def test_parse_ssdp_location_returns_host_port():
+def test_parse_ssdp_location_returns_host_port_and_url():
     msg = "HTTP/1.1 200 OK\r\nLOCATION: http://192.168.1.50:80/description.xml\r\nCACHE-CONTROL: max-age=1800\r\n\r\n"
-    assert parse_ssdp_location(msg.encode()) == ("192.168.1.50", 80)
+    assert _parse_ssdp_location_text(msg) == ("192.168.1.50", 80, "http://192.168.1.50:80/description.xml")
 
 
 def test_parse_ssdp_location_default_port_80():
     msg = "HTTP/1.1 200 OK\r\nLOCATION: http://10.0.0.1/foo.xml\r\n\r\n"
-    assert parse_ssdp_location(msg.encode()) == ("10.0.0.1", 80)
+    assert _parse_ssdp_location_text(msg) == ("10.0.0.1", 80, "http://10.0.0.1/foo.xml")
 
 
 def test_parse_ssdp_location_non_200_returns_none():
-    msg = "HTTP/1.1 404 Not Found\r\n\r\n"
-    assert parse_ssdp_location(msg.encode()) is None
+    assert _parse_ssdp_location_text("HTTP/1.1 404 Not Found\r\n\r\n") is None
 
 
 def test_parse_ssdp_location_no_location_returns_none():
     msg = "HTTP/1.1 200 OK\r\nCACHE-CONTROL: max-age=1800\r\n\r\n"
-    assert parse_ssdp_location(msg.encode()) is None
+    assert _parse_ssdp_location_text(msg) is None
 
 
 def test_parse_ssdp_location_case_insensitive():
     msg = "HTTP/1.1 200 OK\r\nlocation: http://127.0.0.1:8080/desc.xml\r\n\r\n"
-    assert parse_ssdp_location(msg.encode()) == ("127.0.0.1", 8080)
+    assert _parse_ssdp_location_text(msg) == ("127.0.0.1", 8080, "http://127.0.0.1:8080/desc.xml")
 
 
 def test_parse_ssdp_location_https_default_port_443():
     msg = "HTTP/1.1 200 OK\r\nLOCATION: https://192.168.1.1/desc.xml\r\n\r\n"
-    assert parse_ssdp_location(msg.encode()) == ("192.168.1.1", 443)
+    assert _parse_ssdp_location_text(msg) == ("192.168.1.1", 443, "https://192.168.1.1/desc.xml")
 
 
 def test_parse_ssdp_location_invalid_url_returns_none():
-    msg = "HTTP/1.1 200 OK\r\nLOCATION: :://not-a-valid-url\r\n\r\n"
-    assert parse_ssdp_location(msg.encode()) is None
+    assert _parse_ssdp_location_text("HTTP/1.1 200 OK\r\nLOCATION: :://not-a-valid-url\r\n\r\n") is None
 
 
-# --- _parse_ssdp_extra_headers ---
+# --- _parse_ssdp_extra_headers_text ---
 
 
 def test_parse_ssdp_extra_headers_extracts_usn_and_max_age():
@@ -70,22 +71,22 @@ def test_parse_ssdp_extra_headers_extracts_usn_and_max_age():
         "USN: uuid:abc-123::urn:denon:device:1\r\n"
         "CACHE-CONTROL: max-age=1800\r\n\r\n"
     )
-    extra = parse_ssdp_extra_headers(msg.encode())
+    extra = _parse_ssdp_extra_headers_text(msg)
     assert extra["usn"] == "uuid:abc-123::urn:denon:device:1"
     assert extra["max_age"] == 1800
 
 
-# --- _parse_ssdp_server_or_usn ---
+# --- _parse_ssdp_server_or_usn_text ---
 
 
 def test_parse_ssdp_server_extracts_server_header():
     msg = "HTTP/1.1 200 OK\r\nSERVER: Linux/1.0 UPnP/1.0 Denon/1.0\r\n\r\n"
-    assert parse_ssdp_server(msg.encode()) == "Linux/1.0 UPnP/1.0 Denon/1.0"
+    assert _parse_ssdp_server_or_usn_text(msg) == "Linux/1.0 UPnP/1.0 Denon/1.0"
 
 
 def test_parse_ssdp_server_missing_returns_none():
     msg = "HTTP/1.1 200 OK\r\nLOCATION: http://a/b\r\n\r\n"
-    assert parse_ssdp_server(msg.encode()) is None
+    assert _parse_ssdp_server_or_usn_text(msg) is None
 
 
 def test_parse_ssdp_server_fallback_to_usn_when_no_server():
@@ -94,57 +95,73 @@ def test_parse_ssdp_server_fallback_to_usn_when_no_server():
         "USN: uuid:abc::urn:schemas-denon-com:device:AiosDevice:1\r\n"
         "LOCATION: http://192.168.1.50:80/description.xml\r\n\r\n"
     )
-    assert "urn:schemas-denon-com" in (parse_ssdp_server(msg.encode()) or "")
+    assert "urn:schemas-denon-com" in (_parse_ssdp_server_or_usn_text(msg) or "")
 
 
 # --- _is_denon_ssdp_response ---
 
 
 def test_is_denon_ssdp_response_accepts_denon_server():
-    msg = "HTTP/1.1 200 OK\r\nSERVER: Linux/1.0 UPnP/1.0 Denon/1.0\r\nLOCATION: http://10.0.0.1/\r\n\r\n"
-    assert is_denon_ssdp_response(msg.encode()) is True
+    parsed = _parse_ssdp_response(
+        "HTTP/1.1 200 OK\r\nSERVER: Linux/1.0 UPnP/1.0 Denon/1.0\r\nLOCATION: http://10.0.0.1/\r\n\r\n".encode()
+    )
+    assert is_denon_ssdp_response(parsed.server_or_usn if parsed else None) is True
 
 
 def test_is_denon_ssdp_response_accepts_marantz_server():
-    msg = "HTTP/1.1 200 OK\r\nSERVER: Marantz/1.0 UPnP/1.0\r\nLOCATION: http://10.0.0.1/\r\n\r\n"
-    assert is_denon_ssdp_response(msg.encode()) is True
+    parsed = _parse_ssdp_response(
+        "HTTP/1.1 200 OK\r\nSERVER: Marantz/1.0 UPnP/1.0\r\nLOCATION: http://10.0.0.1/\r\n\r\n".encode()
+    )
+    assert is_denon_ssdp_response(parsed.server_or_usn if parsed else None) is True
 
 
 def test_is_denon_ssdp_response_accepts_knos_dmp_avr():
     """Some Denon AVRs advertise as KnOS/3.2 UPnP/1.0 DMP/3.5 (no 'Denon' in SERVER)."""
-    msg = (
-        "HTTP/1.1 200 OK\r\nSERVER: KnOS/3.2 UPnP/1.0 DMP/3.5\r\nLOCATION: http://10.0.2.5:8080/description.xml\r\n\r\n"
+    parsed = _parse_ssdp_response(
+        (
+            "HTTP/1.1 200 OK\r\n"
+            "SERVER: KnOS/3.2 UPnP/1.0 DMP/3.5\r\n"
+            "LOCATION: http://10.0.2.5:8080/description.xml\r\n\r\n"
+        ).encode()
     )
-    assert is_denon_ssdp_response(msg.encode()) is True
+    assert is_denon_ssdp_response(parsed.server_or_usn if parsed else None) is True
 
 
 def test_is_denon_ssdp_response_accepts_denon_in_usn_when_no_server():
-    msg = (
-        "HTTP/1.1 200 OK\r\n"
-        "USN: uuid:abc::urn:schemas-denon-com:device:AiosDevice:1\r\n"
-        "LOCATION: http://10.0.0.1/\r\n\r\n"
+    parsed = _parse_ssdp_response(
+        (
+            "HTTP/1.1 200 OK\r\n"
+            "USN: uuid:abc::urn:schemas-denon-com:device:AiosDevice:1\r\n"
+            "LOCATION: http://10.0.0.1/\r\n\r\n"
+        ).encode()
     )
-    assert is_denon_ssdp_response(msg.encode()) is True
+    assert is_denon_ssdp_response(parsed.server_or_usn if parsed else None) is True
 
 
 def test_is_denon_ssdp_response_accepts_aios_in_usn():
     """USN often contains AiosDevice (Denon Aios platform); aios is a marker."""
-    msg = (
-        "HTTP/1.1 200 OK\r\n"
-        "USN: uuid:xyz::urn:example:device:AiosDevice:1\r\n"
-        "LOCATION: http://192.168.1.10:8080/\r\n\r\n"
+    parsed = _parse_ssdp_response(
+        (
+            "HTTP/1.1 200 OK\r\n"
+            "USN: uuid:xyz::urn:example:device:AiosDevice:1\r\n"
+            "LOCATION: http://192.168.1.10:8080/\r\n\r\n"
+        ).encode()
     )
-    assert is_denon_ssdp_response(msg.encode()) is True
+    assert is_denon_ssdp_response(parsed.server_or_usn if parsed else None) is True
 
 
 def test_is_denon_ssdp_response_rejects_unknown_vendor():
-    msg = "HTTP/1.1 200 OK\r\nSERVER: SomeOther/1.0 UPnP/1.0\r\nLOCATION: http://10.0.0.1/\r\n\r\n"
-    assert is_denon_ssdp_response(msg.encode()) is False
+    parsed = _parse_ssdp_response(
+        "HTTP/1.1 200 OK\r\nSERVER: SomeOther/1.0 UPnP/1.0\r\nLOCATION: http://10.0.0.1/\r\n\r\n".encode()
+    )
+    assert is_denon_ssdp_response(parsed.server_or_usn if parsed else None) is False
 
 
 def test_is_denon_ssdp_response_rejects_when_no_server_or_usn():
-    msg = "HTTP/1.1 200 OK\r\nLOCATION: http://10.0.0.1/\r\n\r\n"
-    assert is_denon_ssdp_response(msg.encode()) is False
+    parsed = _parse_ssdp_response(
+        "HTTP/1.1 200 OK\r\nLOCATION: http://10.0.0.1/\r\n\r\n".encode()
+    )
+    assert is_denon_ssdp_response(parsed.server_or_usn if parsed else None) is False
 
 
 # --- _is_denon_proxy ---
