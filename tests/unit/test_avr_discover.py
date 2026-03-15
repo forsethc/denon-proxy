@@ -11,11 +11,13 @@ from denon_proxy.avr.discover import (
     DiscoveredAVR,
     discover,
     discover_via_mdns,
+    discover_via_ssdp,
     mdns_available,
 )
 from denon_proxy.avr.discover import _is_denon_proxy as is_denon_proxy
 from denon_proxy.avr.discover import _is_denon_ssdp_response as is_denon_ssdp_response
 from denon_proxy.avr.discover import _parse_friendly_name as parse_friendly_name
+from denon_proxy.avr.discover import _parse_ssdp_extra_headers as parse_ssdp_extra_headers
 from denon_proxy.avr.discover import _parse_ssdp_location as parse_ssdp_location
 from denon_proxy.avr.discover import _parse_ssdp_server_or_usn as parse_ssdp_server
 from denon_proxy.constants import PROXY_NAME, PROXY_SERVER_PRODUCT
@@ -46,6 +48,31 @@ def test_parse_ssdp_location_no_location_returns_none():
 def test_parse_ssdp_location_case_insensitive():
     msg = "HTTP/1.1 200 OK\r\nlocation: http://127.0.0.1:8080/desc.xml\r\n\r\n"
     assert parse_ssdp_location(msg.encode()) == ("127.0.0.1", 8080)
+
+
+def test_parse_ssdp_location_https_default_port_443():
+    msg = "HTTP/1.1 200 OK\r\nLOCATION: https://192.168.1.1/desc.xml\r\n\r\n"
+    assert parse_ssdp_location(msg.encode()) == ("192.168.1.1", 443)
+
+
+def test_parse_ssdp_location_invalid_url_returns_none():
+    msg = "HTTP/1.1 200 OK\r\nLOCATION: :://not-a-valid-url\r\n\r\n"
+    assert parse_ssdp_location(msg.encode()) is None
+
+
+# --- _parse_ssdp_extra_headers ---
+
+
+def test_parse_ssdp_extra_headers_extracts_usn_and_max_age():
+    msg = (
+        "HTTP/1.1 200 OK\r\n"
+        "LOCATION: http://192.168.1.1/\r\n"
+        "USN: uuid:abc-123::urn:denon:device:1\r\n"
+        "CACHE-CONTROL: max-age=1800\r\n\r\n"
+    )
+    extra = parse_ssdp_extra_headers(msg.encode())
+    assert extra["usn"] == "uuid:abc-123::urn:denon:device:1"
+    assert extra["max_age"] == 1800
 
 
 # --- _parse_ssdp_server_or_usn ---
@@ -178,6 +205,11 @@ def test_parse_friendly_name_usn_returns_brand():
     )
 
 
+def test_parse_friendly_name_marantz_only_fallback():
+    """When only 'Marantz' appears (no model in regex), brand is Marantz."""
+    assert parse_friendly_name("Marantz/1.0 UPnP/1.0") == ("Marantz", None)
+
+
 # --- DiscoveredAVR ---
 
 
@@ -210,6 +242,48 @@ def test_discovered_avr_as_dict_includes_parsed_info_when_present():
     assert d["extra"]["max_age"] == 1800
 
 
+# --- discover_via_ssdp ---
+
+
+@pytest.mark.asyncio
+async def test_discover_via_ssdp_returns_devices_from_ssdp_responses():
+    """discover_via_ssdp parses SSDP responses and returns DiscoveredAVR list."""
+
+    async def mock_create_datagram_endpoint(protocol_factory, *, local_addr=None):
+        protocol = protocol_factory()
+        transport = MagicMock()
+        # Inject a Denon SSDP response so the discovery loop processes it
+        fake = (
+            b"HTTP/1.1 200 OK\r\n"
+            b"SERVER: Linux/1.0 UPnP/1.0 Denon/1.0\r\n"
+            b"LOCATION: http://192.168.1.100:80/description.xml\r\n"
+            b"USN: uuid:abc::urn:schemas-denon-com:device:AiosDevice:1\r\n"
+            b"CACHE-CONTROL: max-age=1800\r\n\r\n"
+        )
+        protocol.datagram_received(fake, ("239.255.255.250", 1900))
+        return (transport, protocol)
+
+    with patch(
+        "denon_proxy.avr.discover.asyncio.get_running_loop"
+    ) as get_loop_mock:
+        mock_loop = MagicMock()
+        mock_loop.create_datagram_endpoint = mock_create_datagram_endpoint
+        mock_loop.time.side_effect = [0, 0, 0, 10]  # deadline, while checks; 10 > deadline to exit
+        get_loop_mock.return_value = mock_loop
+
+        results = await discover_via_ssdp(timeout=0.5)
+
+    assert len(results) == 1
+    assert results[0].host == "192.168.1.100"
+    assert results[0].port == 80
+    assert results[0].method == "ssdp"
+    assert results[0].matched is True
+    assert results[0].brand == "Denon"
+    assert results[0].extra is not None
+    assert "usn" in results[0].extra
+    assert results[0].extra.get("max_age") == 1800
+
+
 # --- discover(method="both") merge ---
 
 
@@ -236,6 +310,61 @@ async def test_discover_both_merges_and_deduplicates():
 def test_discover_invalid_method_raises():
     with pytest.raises(ValueError, match="method must be"):
         asyncio.run(discover(method="invalid", timeout=1.0))
+
+
+@pytest.mark.asyncio
+async def test_discover_ssdp_delegates_to_discover_via_ssdp():
+    """discover(method='ssdp') calls discover_via_ssdp and returns its results."""
+    avr = DiscoveredAVR("192.168.1.1", 80, "Denon AVR", None, "ssdp")
+    with patch(
+        "denon_proxy.avr.discover.discover_via_ssdp",
+        new_callable=AsyncMock,
+        return_value=[avr],
+    ) as ssdp_mock:
+        results = await discover(method="ssdp", timeout=2.0)
+    assert results == [avr]
+    ssdp_mock.assert_called_once_with(timeout=2.0)
+
+
+@pytest.mark.asyncio
+async def test_discover_mdns_delegates_to_discover_via_mdns():
+    """discover(method='mdns') calls discover_via_mdns and returns its results."""
+    avr = DiscoveredAVR("192.168.1.1", 80, "Denon AVR", None, "mdns")
+    with patch(
+        "denon_proxy.avr.discover.discover_via_mdns",
+        new_callable=AsyncMock,
+        return_value=[avr],
+    ) as mdns_mock:
+        results = await discover(method="mdns", timeout=2.0)
+    assert results == [avr]
+    mdns_mock.assert_called_once_with(timeout=2.0)
+
+
+@pytest.mark.asyncio
+async def test_discover_progress_callback_invoked_while_searching():
+    """When progress_callback is provided, it is called while discovery runs."""
+    calls = []
+
+    async def slow_ssdp(*, timeout=None):
+        await asyncio.sleep(0.6)  # Ensure progress runs at least once
+        return [DiscoveredAVR("192.168.1.1", 80, None, None, "ssdp")]
+
+    with patch(
+        "denon_proxy.avr.discover.discover_via_ssdp",
+        side_effect=slow_ssdp,
+    ):
+        await discover(
+            method="ssdp", timeout=2.0, progress_callback=lambda: calls.append(1)
+        )
+    assert len(calls) >= 1
+
+
+@pytest.mark.asyncio
+async def test_discover_via_mdns_returns_empty_when_zeroconf_unavailable():
+    """discover_via_mdns returns [] when zeroconf is not available."""
+    with patch("denon_proxy.avr.discover.mdns_available", return_value=False):
+        results = await discover_via_mdns(timeout=1.0)
+    assert results == []
 
 
 # --- mdns_available ---
