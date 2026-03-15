@@ -49,16 +49,12 @@ code-quality: init
 	printf '\n\n'; \
 	exit $$rc
 
-fix: init
-	lint-fix
-	format-fix
+fix: init lint-fix format-fix
 
 test: init
 	pytest
 
-docker: init
-	$(MAKE) docker-direct
-	$(MAKE) docker-compose
+docker: init docker-direct docker-compose
 
 mypy: init
 	mypy src
