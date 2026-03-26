@@ -300,9 +300,7 @@ async def test_avr_connection_send_logs_info_when_command_group_configured(caplo
         await asyncio.sleep(0.05)
         with caplog.at_level(logging.INFO, logger=logger.name):
             await avr.send_command("PWSTANDBY")
-        assert any(
-            r.levelno == logging.INFO and "Sent to AVR: PWSTANDBY" in r.message for r in caplog.records
-        )
+        assert any(r.levelno == logging.INFO and "Sent to AVR: PWSTANDBY" in r.message for r in caplog.records)
     finally:
         avr.close()
         server.close()

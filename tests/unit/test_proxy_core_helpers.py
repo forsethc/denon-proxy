@@ -5,12 +5,11 @@ import pytest
 
 from denon_proxy.avr.info import AVRInfo
 from denon_proxy.avr.state import AVRState
+from denon_proxy.command_log import command_group, should_log_command_info
 from denon_proxy.proxy.core import (
     DenonProxyServer,
     _client_ip_for_display,
-    _command_group,
     _is_valid_client_command,
-    _should_log_command_info,
     avr_response_broadcast_lines,
     build_json_state,
 )
@@ -44,20 +43,20 @@ def test_is_valid_client_command_filters_short_and_control_bytes():
 
 
 def test_command_group_and_should_log_command_info():
-    assert _command_group("PWON") == "power"
-    assert _command_group("ZMON") == "power"
-    assert _command_group("MV50") == "volume"
-    assert _command_group("MVMAX 60") == "other"
-    assert _command_group("MSSMART1") == "smart_select"
-    assert _command_group("UNKNOWN") == "other"
+    assert command_group("PWON") == "power"
+    assert command_group("ZMON") == "power"
+    assert command_group("MV50") == "volume"
+    assert command_group("MVMAX 60") == "other"
+    assert command_group("MSSMART1") == "smart_select"
+    assert command_group("UNKNOWN") == "other"
     # Empty or single-char command -> other
-    assert _command_group("") == "other"
-    assert _command_group("P") == "other"
+    assert command_group("") == "other"
+    assert command_group("P") == "other"
 
     cfg = {"log_command_groups_info": ["power", "volume"]}
-    assert _should_log_command_info(cfg, "PWON") is True
-    assert _should_log_command_info(cfg, "MV50") is True
-    assert _should_log_command_info(cfg, "SIHDMI1") is False
+    assert should_log_command_info(cfg, "PWON") is True
+    assert should_log_command_info(cfg, "MV50") is True
+    assert should_log_command_info(cfg, "SIHDMI1") is False
 
 
 class _FakeClient:
@@ -314,7 +313,7 @@ def test_denon_proxy_server_broadcast_logs_avr_source(caplog: pytest.LogCaptureF
     with caplog.at_level(logging.INFO, logger=logger.name):
         server._broadcast("PWON", source="avr")
 
-    assert any("Broadcast (AVR) to 1 client(s): PWON" == r.message for r in caplog.records)
+    assert any(r.message == "Broadcast (AVR) to 1 client(s): PWON" for r in caplog.records)
 
 
 def test_denon_proxy_server_broadcast_logs_optimistic_source(caplog: pytest.LogCaptureFixture) -> None:
@@ -332,9 +331,7 @@ def test_denon_proxy_server_broadcast_logs_optimistic_source(caplog: pytest.LogC
     with caplog.at_level(logging.INFO, logger=logger.name):
         server._broadcast("PWON", source="optimistic")
 
-    assert any(
-        "Broadcast (optimistic state) to 1 client(s): PWON" == r.message for r in caplog.records
-    )
+    assert any(r.message == "Broadcast (optimistic state) to 1 client(s): PWON" for r in caplog.records)
 
 
 def test_denon_proxy_server_partial_broadcast_matches_factory_wiring(
@@ -355,6 +352,4 @@ def test_denon_proxy_server_partial_broadcast_matches_factory_wiring(
     with caplog.at_level(logging.INFO, logger=logger.name):
         optimistic_broadcast("PWON")
 
-    assert any(
-        "Broadcast (optimistic state) to 1 client(s): PWON" == r.message for r in caplog.records
-    )
+    assert any(r.message == "Broadcast (optimistic state) to 1 client(s): PWON" for r in caplog.records)

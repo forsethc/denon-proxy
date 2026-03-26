@@ -16,11 +16,12 @@ except ImportError:
 import httpx
 
 from denon_proxy.avr.discovery import get_advertise_ip
-from denon_proxy.command_log import command_group as _command_group
-from denon_proxy.command_log import should_log_command_info as _should_log_command_info
 from denon_proxy.avr.info import AVRInfo
 from denon_proxy.avr.state import AVRState, volume_to_level
 from denon_proxy.avr.telnet_utils import parse_telnet_lines, telnet_line_to_bytes
+from denon_proxy.command_log import (
+    should_log_command_info as _should_log_command_info,
+)
 from denon_proxy.constants import (
     DEFAULT_AVR_PORT,
     DEFAULT_HTTP_PORT,

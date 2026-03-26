@@ -9,19 +9,18 @@ proxy does not need to know which is in use.
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any
 
 from denon_proxy.avr.telnet_utils import parse_telnet_lines, telnet_line_to_bytes
 from denon_proxy.command_log import should_log_command_info
 from denon_proxy.constants import AVR_NETWORK_TIMEOUT, REQUEST_STATE_INTERVAL
-from denon_proxy.runtime.config import Config
 
 if TYPE_CHECKING:
     import logging
-    from collections.abc import Callable
+    from collections.abc import Callable, Mapping
 
     from denon_proxy.avr.state import AVRState
+    from denon_proxy.runtime.config import Config
 
 # -----------------------------------------------------------------------------
 # AVR Connection - telnet connection to physical AVR
@@ -97,9 +96,11 @@ class AVRConnection:
                     payload = msg[2:] if len(msg) > 2 else ""
                     # AVR responses that contain "?" in the payload are invalid
                     # (e.g. buggy echoes like "MSQUICK ?"); don't update state or echo to clients.
-                    if not (payload and "?" in payload):
-                        self.avr_state.update_from_message(msg)
-                        self.on_response(msg)
+                    if payload and "?" in payload:
+                        self.logger.debug("AVR line ignored (payload contains '?'): %s", msg)
+                        continue
+                    self.avr_state.update_from_message(msg)
+                    self.on_response(msg)
         except asyncio.CancelledError:
             pass
         except OSError as e:

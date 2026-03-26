@@ -7,8 +7,10 @@ and outbound sends share the same log_command_groups_info rules.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping
 
 _COMMAND_GROUPS = {
     "PW": "power",
