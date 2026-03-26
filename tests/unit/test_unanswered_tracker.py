@@ -9,6 +9,7 @@ import pytest
 
 from denon_proxy.avr.unanswered_tracker import (
     UnansweredCommandTracker,
+    command_stem,
     is_avr_query_command,
     normalize_command_key,
     response_matches_command,
@@ -68,6 +69,17 @@ def test_response_matches_command_cases(cmd: str, resp: str, expect: bool) -> No
     assert response_matches_command(key, resp) is expect
 
 
+@pytest.mark.parametrize("resp", ["", " ", "M"])
+def test_response_matches_command_rejects_short_or_empty_response(resp: str) -> None:
+    assert not response_matches_command(normalize_command_key("MV?"), resp)
+
+
+def test_command_stem_splits_question_from_first_token() -> None:
+    assert command_stem("PSIMAX ?") == "PSIMAX"
+    assert command_stem("MV?") == "MV"
+    assert command_stem("PWON") == "PWON"
+
+
 @pytest.mark.asyncio
 async def test_suppress_after_n_timeouts() -> None:
     log = logging.getLogger("test.unanswered.suppress")
@@ -122,3 +134,36 @@ async def test_suppression_cleared_when_matching_response_has_no_pending() -> No
     assert t.should_suppress("PSIMAX ?")
     t.on_response("PSIMAX50")
     assert not t.should_suppress("PSIMAX ?")
+
+
+@pytest.mark.asyncio
+async def test_unsolicited_unsuppress_prefers_longest_matching_stem() -> None:
+    """When several suppressed keys match one AVR line, drop the longest stem (most specific)."""
+    log = logging.getLogger("test.unanswered.longest_stem")
+    t = UnansweredCommandTracker(log, suppress_after=1, response_timeout=0.05)
+    t.note_sent("PS ?")
+    t.note_sent("PSIMAX ?")
+    await asyncio.sleep(0.08)
+    assert t.should_suppress("PS ?")
+    assert t.should_suppress("PSIMAX ?")
+    t.on_response("PSIMAX50")
+    assert not t.should_suppress("PSIMAX ?")
+    assert t.should_suppress("PS ?")
+
+
+@pytest.mark.asyncio
+async def test_should_suppress_uses_normalized_query_key() -> None:
+    log = logging.getLogger("test.unanswered.normalize")
+    t = UnansweredCommandTracker(log, suppress_after=1, response_timeout=0.05)
+    t.note_sent("PSIMAX ?")
+    await asyncio.sleep(0.08)
+    assert t.should_suppress("  psimax  ?  ")
+
+
+@pytest.mark.asyncio
+async def test_should_suppress_false_for_non_query_even_if_key_would_match() -> None:
+    """Defensive: non-query commands are never suppressed."""
+    log = logging.getLogger("test.unanswered.defensive")
+    t = UnansweredCommandTracker(log, suppress_after=1, response_timeout=0.05)
+    t._suppressed.add(normalize_command_key("MV?"))  # type: ignore[attr-defined]
+    assert not t.should_suppress("MV50")
