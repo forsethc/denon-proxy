@@ -27,6 +27,16 @@ denonavr_log_level: "INFO"
 # Groups: power, volume, input, mute, sound_mode, smart_select, other. Default: none (all DEBUG when log_level is DEBUG).
 log_command_groups_info: []
 
+# Physical AVR only: reduce log noise from telnet *queries* (lines ending with '?') the AVR never answers.
+# When dynamic_command_filtering is true and avr_host is set, the proxy tracks unanswered query sends; after
+# avr_unanswered_log_suppress_after misses, suppresses "Client … command" and "Sent to AVR" for that query
+# until a matching response or restart. Set commands are never tracked or suppressed. Set dynamic_command_filtering to false to disable.
+dynamic_command_filtering: true
+# Unanswered sends (see avr_unanswered_response_timeout) before suppressing logs for that command. Minimum 1 (default 1).
+avr_unanswered_log_suppress_after: 3
+# Seconds to wait after each send for a matching AVR response line before counting that send as unanswered.
+avr_unanswered_response_timeout: 1.0
+
 # Custom input sources: map Denon function codes to display names in Home Assistant.
 # Use this if you only use certain inputs and want names to match your AVR's custom names.
 # Format: dict (func_code: "Display Name"). Set to null to use device/default list.

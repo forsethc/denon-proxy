@@ -72,6 +72,15 @@ class Config(BaseModel, Mapping[str, Any]):
     client_activity_log_max_entries: int = Field(200, ge=1)
     # When true, query commands (e.g. PW?, MV?, SI?) are excluded from the activity log in the UI
     client_activity_log_hide_queries: bool = False
+    # Physical AVR: learn which telnet *query* lines (ending with '?') get no response and optionally
+    # stop logging them (uses avr_unanswered_log_suppress_after / avr_unanswered_response_timeout).
+    # Set false to disable.
+    dynamic_command_filtering: bool = True
+    # Suppress client + "Sent to AVR" logs after this many unanswered sends per command (must be > 0).
+    avr_unanswered_log_suppress_after: int = Field(3, gt=0)
+    # Seconds to wait after each physical AVR send for a matching response line; if none arrives, that
+    # send counts toward avr_unanswered_log_suppress_after (dynamic_command_filtering only).
+    avr_unanswered_response_timeout: float = Field(1.0, ge=0.1, le=120.0)
 
     # Optional/less common config keys
     ssdp_friendly_name: str | None = None
