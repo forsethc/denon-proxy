@@ -147,6 +147,18 @@ def test_get_status_dump_power_off_includes_zm():
     assert zm_off_i < zm_sb_i < pw_i
 
 
+def test_get_status_dump_standby_omits_volume_and_rest():
+    """When power is STANDBY, dump is power/ZM only even if internal state still has volume/input/etc."""
+    state = AVRState()
+    state.power = "STANDBY"
+    state.volume = "45"
+    state.input_source = "HDMI1"
+    state.sound_mode = "STEREO"
+    dump = state.get_status_dump()
+    lines = [ln.strip() for ln in dump.strip().splitlines() if ln.strip()]
+    assert lines == ["ZMOFF", "ZMSTANDBY", "PWSTANDBY"]
+
+
 def test_apply_payload_normalizes_smart_select():
     """apply_payload normalizes smart_select to SMART{n} (raw values accepted)."""
     state = AVRState()
