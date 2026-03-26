@@ -3,7 +3,8 @@ from __future__ import annotations
 import asyncio
 import time
 from collections import deque
-from typing import TYPE_CHECKING, Any, cast
+from functools import partial
+from typing import TYPE_CHECKING, Any, Literal, cast
 
 try:
     import denonavr
@@ -18,6 +19,9 @@ from denon_proxy.avr.discovery import get_advertise_ip
 from denon_proxy.avr.info import AVRInfo
 from denon_proxy.avr.state import AVRState, volume_to_level
 from denon_proxy.avr.telnet_utils import parse_telnet_lines, telnet_line_to_bytes
+from denon_proxy.command_log import (
+    should_log_command_info as _should_log_command_info,
+)
 from denon_proxy.constants import (
     DEFAULT_AVR_PORT,
     DEFAULT_HTTP_PORT,
@@ -50,37 +54,6 @@ __all__ = [
     "build_json_state",
     "state_and_config_updates_from_denonavr",
 ]
-
-
-_COMMAND_GROUPS = {
-    "PW": "power",
-    "ZM": "power",
-    "MV": "volume",
-    "SI": "input",
-    "MU": "mute",
-    "MS": "sound_mode",
-}
-
-
-def _command_group(cmd: str) -> str:
-    """Return the group name for a Denon telnet command (e.g. PWON -> power)."""
-    if not cmd or len(cmd) < 2:
-        return "other"
-    # MSSMART is Smart Select slot, not sound mode; must check before MS
-    if cmd.upper().startswith("MSSMART"):
-        return "smart_select"
-    prefix = cmd[:2].upper()
-    if prefix == "MV" and len(cmd) > 2 and "MAX" in cmd.upper():
-        return "other"  # MVMAX is config, not state
-    return _COMMAND_GROUPS.get(prefix, "other")
-
-
-def _should_log_command_info(config: Config, cmd: str) -> bool:
-    """True if this command's group is configured for INFO-level logging."""
-    groups = config.get("log_command_groups_info") or []
-    if not groups:
-        return False
-    return _command_group(cmd) in groups
 
 
 def _client_ip_for_display(client: ClientHandler) -> str:
@@ -247,6 +220,7 @@ class ClientHandler(asyncio.Protocol):
         runtime_state: RuntimeState,
         config: Config,
         record_command: Callable[[str, str], None] | None = None,
+        broadcast_to_all: Callable[[str], None] | None = None,
     ) -> None:
         self.avr = avr
         self.avr_state = avr_state
@@ -254,6 +228,7 @@ class ClientHandler(asyncio.Protocol):
         self.logger = logger
         self.config = config
         self.runtime_state = runtime_state
+        self.broadcast_to_all = broadcast_to_all
         self.record_command = record_command or (lambda _cid, _cmd: None)
         self.transport: asyncio.Transport | None = None
         self._buffer = b""
@@ -311,11 +286,18 @@ class ClientHandler(asyncio.Protocol):
     def _broadcast_state(self) -> None:
         """Broadcast current state to all clients (emulates AVR confirmation)."""
         status = self.avr_state.get_status_dump()
-        if status:
-            for line in status.strip().splitlines():
-                if line.strip():
-                    for c in list(self.clients):
-                        c.broadcast(line.strip())
+        if not status:
+            return
+        broadcast = self.broadcast_to_all
+        for line in status.strip().splitlines():
+            s = line.strip()
+            if not s:
+                continue
+            if broadcast is not None:
+                broadcast(s)
+            else:
+                for c in list(self.clients):
+                    c.broadcast(s)
 
     async def _handle_command_async(self, command: str) -> None:
         """Apply optimistic state, send to AVR, revert only if send failed with AVR connected."""
@@ -437,16 +419,22 @@ class DenonProxyServer:
         self._client_activity_log[cid].append((ts, msg))
         self._notify_web_state()
 
-    def _broadcast(self, message: str) -> None:
-        """Broadcast an AVR response to all connected clients."""
+    def _broadcast(
+        self,
+        message: str,
+        *,
+        source: Literal["avr", "optimistic"] = "avr",
+    ) -> None:
+        """Broadcast a telnet line to all connected clients."""
         client_list = list(self.clients)
         for client in client_list:
             client.broadcast(message)
         if client_list:
+            src = "AVR" if source == "avr" else "optimistic state"
             if _should_log_command_info(self.config, message):
-                self.logger.info("Broadcast to %d client(s): %s", len(client_list), message)
+                self.logger.info("Broadcast (%s) to %d client(s): %s", src, len(client_list), message)
             else:
-                self.logger.debug("Broadcast to %d client(s): %s", len(client_list), message)
+                self.logger.debug("Broadcast (%s) to %d client(s): %s", src, len(client_list), message)
 
     def _on_avr_response(self, message: str) -> None:
         """Called when the AVR sends a response."""
@@ -545,6 +533,7 @@ class DenonProxyServer:
                 runtime_state=self.runtime_state,
                 config=self.config,
                 record_command=self.record_command,
+                broadcast_to_all=partial(self._broadcast, source="optimistic"),
             )
 
         host = self.config["proxy_host"]

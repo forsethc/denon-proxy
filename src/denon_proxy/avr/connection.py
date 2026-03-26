@@ -12,11 +12,12 @@ import asyncio
 from typing import TYPE_CHECKING, Any
 
 from denon_proxy.avr.telnet_utils import parse_telnet_lines, telnet_line_to_bytes
+from denon_proxy.command_log import should_log_command_info
 from denon_proxy.constants import AVR_NETWORK_TIMEOUT, REQUEST_STATE_INTERVAL
 
 if TYPE_CHECKING:
     import logging
-    from collections.abc import Callable
+    from collections.abc import Callable, Mapping
 
     from denon_proxy.avr.state import AVRState
     from denon_proxy.runtime.config import Config
@@ -45,6 +46,7 @@ class AVRConnection:
         avr_state: AVRState,
         logger: logging.Logger,
         on_send_while_disconnected: Callable[[], None] | None = None,
+        config: Config | None = None,
     ) -> None:
         self.host = host
         self.port = port
@@ -53,6 +55,7 @@ class AVRConnection:
         self.on_send_while_disconnected = on_send_while_disconnected
         self.avr_state = avr_state
         self.logger = logger
+        self._config: Mapping[str, Any] = config if config is not None else {}
         self.reader: asyncio.StreamReader | None = None
         self.writer: asyncio.StreamWriter | None = None
         self._buffer = b""
@@ -93,9 +96,11 @@ class AVRConnection:
                     payload = msg[2:] if len(msg) > 2 else ""
                     # AVR responses that contain "?" in the payload are invalid
                     # (e.g. buggy echoes like "MSQUICK ?"); don't update state or echo to clients.
-                    if not (payload and "?" in payload):
-                        self.avr_state.update_from_message(msg)
-                        self.on_response(msg)
+                    if payload and "?" in payload:
+                        self.logger.debug("AVR line ignored (payload contains '?'): %s", msg)
+                        continue
+                    self.avr_state.update_from_message(msg)
+                    self.on_response(msg)
         except asyncio.CancelledError:
             pass
         except OSError as e:
@@ -128,7 +133,11 @@ class AVRConnection:
             data = telnet_line_to_bytes(command)
             writer.write(data)
             await writer.drain()
-            self.logger.debug("Sent to AVR: %s", command.strip())
+            stripped = command.strip()
+            if should_log_command_info(self._config, stripped):
+                self.logger.info("Sent to AVR: %s", stripped)
+            else:
+                self.logger.debug("Sent to AVR: %s", stripped)
             return True
         except OSError as e:
             self.logger.warning("Failed to send command to AVR: %s - %s", command, e)
@@ -260,6 +269,7 @@ def create_avr_connection(
             avr_state=avr_state,
             logger=logger,
             on_send_while_disconnected=on_send_while_disconnected,
+            config=config,
         )
     return VirtualAVRConnection(
         avr_state=avr_state,
