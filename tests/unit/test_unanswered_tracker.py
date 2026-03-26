@@ -9,6 +9,7 @@ import pytest
 
 from denon_proxy.avr.unanswered_tracker import (
     UnansweredCommandTracker,
+    is_avr_query_command,
     normalize_command_key,
     response_matches_command,
 )
@@ -16,6 +17,31 @@ from denon_proxy.avr.unanswered_tracker import (
 
 def test_normalize_command_key_collapses_whitespace() -> None:
     assert normalize_command_key("  PSIMAX  ?  ") == "PSIMAX ?"
+
+
+@pytest.mark.parametrize(
+    ("cmd", "expect"),
+    [
+        ("MV?", True),
+        ("  PSIMAX ? ", True),
+        ("MSSMART ?", True),
+        ("PWON", False),
+        ("PWON?", True),
+        ("", False),
+        ("  ", False),
+    ],
+)
+def test_is_avr_query_command(cmd: str, expect: bool) -> None:
+    assert is_avr_query_command(cmd) is expect
+
+
+@pytest.mark.asyncio
+async def test_non_query_never_tracked_or_suppressed() -> None:
+    log = logging.getLogger("test.unanswered.nonquery")
+    t = UnansweredCommandTracker(log, suppress_after=1, response_timeout=0.05)
+    t.note_sent("PWON")
+    await asyncio.sleep(0.08)
+    assert not t.should_suppress("PWON")
 
 
 def test_tracker_rejects_non_positive_suppress_after() -> None:

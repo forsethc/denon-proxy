@@ -19,7 +19,7 @@ from denon_proxy.avr.discovery import get_advertise_ip
 from denon_proxy.avr.info import AVRInfo
 from denon_proxy.avr.state import AVRState, volume_to_level
 from denon_proxy.avr.telnet_utils import parse_telnet_lines, telnet_line_to_bytes
-from denon_proxy.avr.unanswered_tracker import UnansweredCommandTracker
+from denon_proxy.avr.unanswered_tracker import UnansweredCommandTracker, is_avr_query_command
 from denon_proxy.command_log import (
     should_log_command_info as _should_log_command_info,
 )
@@ -294,7 +294,11 @@ class ClientHandler(asyncio.Protocol):
         client_ip = self._peername[0] if self._peername else "?"
         self.record_command(client_ip, command)
         client_display = self.config.client_display_for_log(client_ip)
-        if not (self.unanswered_tracker and self.unanswered_tracker.should_suppress(command)):
+        if not (
+            self.unanswered_tracker
+            and is_avr_query_command(command)
+            and self.unanswered_tracker.should_suppress(command)
+        ):
             if _should_log_command_info(self.config, command):
                 self.logger.info("Client %s command: %s", client_display, command)
             else:

@@ -12,6 +12,7 @@ import asyncio
 from typing import TYPE_CHECKING, Any
 
 from denon_proxy.avr.telnet_utils import parse_telnet_lines, telnet_line_to_bytes
+from denon_proxy.avr.unanswered_tracker import is_avr_query_command
 from denon_proxy.command_log import should_log_command_info
 from denon_proxy.constants import AVR_NETWORK_TIMEOUT, REQUEST_STATE_INTERVAL
 
@@ -137,9 +138,13 @@ class AVRConnection:
             writer.write(data)
             await writer.drain()
             stripped = command.strip()
-            if self._unanswered_tracker:
+            if self._unanswered_tracker and is_avr_query_command(stripped):
                 self._unanswered_tracker.note_sent(stripped)
-            suppress = bool(self._unanswered_tracker and self._unanswered_tracker.should_suppress(stripped))
+            suppress = bool(
+                self._unanswered_tracker
+                and is_avr_query_command(stripped)
+                and self._unanswered_tracker.should_suppress(stripped)
+            )
             if not suppress:
                 if should_log_command_info(self._config, stripped):
                     self.logger.info("Sent to AVR: %s", stripped)

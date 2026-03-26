@@ -1,6 +1,7 @@
 """
-Track telnet commands the physical AVR does not answer and optionally suppress
-their client / outbound logs after a configured number of timeouts.
+Track telnet *query* lines (commands ending with '?') the physical AVR does not
+answer, and optionally suppress their client / outbound logs after a configured
+number of timeouts. Non-query commands are not tracked or suppressed.
 
 Matching a response to a pending command uses Denon-style stems (including MV vs
 MVMAX and MS vs MSSMART). Pending entries are cleared without counting when the
@@ -20,6 +21,12 @@ if TYPE_CHECKING:
 def normalize_command_key(cmd: str) -> str:
     """Stable key for a telnet line (strip, upper, collapse whitespace)."""
     return " ".join(cmd.strip().upper().split())
+
+
+def is_avr_query_command(cmd: str) -> bool:
+    """True if the line is treated as a Denon telnet query (trimmed line ends with '?')."""
+    s = cmd.strip()
+    return len(s) > 0 and s.endswith("?")
 
 
 def command_stem(cmd_key: str) -> str:
@@ -59,12 +66,12 @@ class _Pending:
 
 class UnansweredCommandTracker:
     """
-    For each successful physical send, wait for a matching AVR response within
-    timeout. If none arrives, increment per-command count; at threshold, mark
-    the command suppressed for should_suppress(). A later matching AVR line
-    (for a pending send or unsolicited) clears suppression and the unanswered
-    count. cancel_all_pending() drops waiters without counting (e.g. AVR
-    disconnect).
+    For each successful physical send of a *query* line (see is_avr_query_command),
+    wait for a matching AVR response within timeout. If none arrives, increment
+    per-command count; at threshold, mark the query suppressed for should_suppress().
+    A later matching AVR line (for a pending send or unsolicited) clears
+    suppression and the unanswered count. cancel_all_pending() drops waiters
+    without counting (e.g. AVR disconnect).
     """
 
     def __init__(
@@ -85,9 +92,13 @@ class UnansweredCommandTracker:
         self._suppressed: set[str] = set()
 
     def should_suppress(self, cmd: str) -> bool:
+        if not is_avr_query_command(cmd):
+            return False
         return normalize_command_key(cmd) in self._suppressed
 
     def note_sent(self, cmd: str) -> None:
+        if not is_avr_query_command(cmd):
+            return
         key = normalize_command_key(cmd)
         uid = self._next_uid
         self._next_uid += 1
@@ -139,7 +150,7 @@ class UnansweredCommandTracker:
         if n >= self._suppress_after and key not in self._suppressed:
             self._suppressed.add(key)
             self._logger.info(
-                "AVR command %r had no matching response within %.2fs "
+                "AVR query %r had no matching response within %.2fs "
                 "%d time(s); suppressing logs until a matching response or "
                 "process restart (set dynamic_command_filtering: false to disable).",
                 key,
