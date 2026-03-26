@@ -181,13 +181,13 @@ def avr_response_broadcast_lines(message: str) -> list[str]:
     Return the list of lines to broadcast for an AVR response.
     HA denonavr only processes ZM (not PW) for telnet updates; we add ZM equivalents
     for power so the UI updates without needing an integration reload.
+    Standby/off lines follow typical AVR ordering (ZMOFF before PWSTANDBY) for picky clients.
     """
-    lines = [message]
     if message == "PWON":
-        lines.append("ZMON")
-    elif message in ("PWSTANDBY", "PWSTANDBY ") or "STANDBY" in message.upper():
-        lines.extend(["ZMSTANDBY", "ZMOFF"])
-    return lines
+        return [message, "ZMON"]
+    if "STANDBY" in message.upper():
+        return ["ZMOFF", "ZMSTANDBY", message]
+    return [message]
 
 
 def _is_valid_client_command(command: str) -> tuple[bool, str | None]:

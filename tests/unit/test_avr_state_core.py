@@ -133,13 +133,18 @@ def test_apply_command_and_get_status_dump_and_snapshot_restore():
 
 
 def test_get_status_dump_power_off_includes_zm():
-    """When power is STANDBY/OFF, status dump includes ZMSTANDBY and ZMOFF."""
+    """When power is STANDBY/OFF, status dump includes ZM lines and PW in AVR-typical order."""
     state = AVRState()
     state.power = "STANDBY"
     dump = state.get_status_dump()
     assert "PWSTANDBY" in dump
     assert "ZMSTANDBY" in dump
     assert "ZMOFF" in dump
+    ordered = [ln.strip() for ln in dump.strip().splitlines() if ln.strip()]
+    zm_off_i = ordered.index("ZMOFF")
+    zm_sb_i = ordered.index("ZMSTANDBY")
+    pw_i = ordered.index("PWSTANDBY")
+    assert zm_off_i < zm_sb_i < pw_i
 
 
 def test_apply_payload_normalizes_smart_select():
