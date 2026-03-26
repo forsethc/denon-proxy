@@ -124,7 +124,7 @@ class AVRState:
                 self.sound_mode = param
 
     def get_status_dump(self) -> str:
-        """Return Denon telnet-format status lines for new clients."""
+        """Return Denon telnet-format status lines for new clients and telnet sync."""
         lines = []
         if self.power:
             # ZM (Zone Main) so HA denonavr receives power updates via telnet (it ignores PW).
@@ -139,6 +139,10 @@ class AVRState:
                 lines.append(f"PW{self.power}")
             else:
                 lines.append(f"PW{self.power}")
+        # When main zone is off, real AVRs typically do not emit MV/SI/MU/MS/MSSMART; omit them
+        # so broadcasts and initial telnet dumps do not confuse clients with stale zone state.
+        if self.power in ("STANDBY", "OFF"):
+            return "\r\n".join(lines) + "\r\n" if lines else ""
         if self.volume:
             lines.append(f"MV{self.volume}")
         if self.input_source:

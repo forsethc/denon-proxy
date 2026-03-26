@@ -14,10 +14,10 @@ from denon_proxy.avr.state import AVRState
 async def test_virtual_avr_request_state_pushes_status_dump_lines():
     """
     request_state() pushes each line from AVRState.get_status_dump() via on_response,
-    so the proxy receives the full status (PW, ZM, MV, SI, MU, MS, MSSMART) for sync.
+    so the proxy receives the full status (PW, ZM, MV, SI, MU, MS, MSSMART) when ON.
     """
     state = AVRState()
-    state.power = "STANDBY"
+    state.power = "ON"
     state.volume = "45"
     state.input_source = "HDMI1"
     state.mute = True
@@ -55,6 +55,31 @@ async def test_virtual_avr_request_state_pushes_status_dump_lines():
     assert any(line.startswith("MU") for line in recorded)
     assert any(line.startswith("MS") for line in recorded)
     assert any(line.startswith("MSSMART") for line in recorded)
+
+
+@pytest.mark.asyncio
+async def test_virtual_avr_request_state_standby_pushes_power_lines_only():
+    """When STANDBY, get_status_dump omits MV/SI/etc.; request_state matches."""
+    state = AVRState()
+    state.power = "STANDBY"
+    state.volume = "45"
+    state.input_source = "HDMI1"
+
+    recorded: list[str] = []
+
+    avr = VirtualAVRConnection(
+        avr_state=state,
+        on_response=recorded.append,
+        on_disconnect=lambda: None,
+        logger=logging.getLogger("test.avr_virtual.stby"),
+        volume_step=0.5,
+    )
+    await avr.connect()
+    await avr.request_state()
+
+    expected = [line.strip() for line in state.get_status_dump().strip().splitlines() if line.strip()]
+    assert recorded == expected
+    assert recorded == ["ZMOFF", "ZMSTANDBY", "PWSTANDBY"]
 
 
 @pytest.mark.asyncio
