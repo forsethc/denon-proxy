@@ -20,6 +20,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable, Mapping
 
     from denon_proxy.avr.state import AVRState
+    from denon_proxy.avr.unanswered_tracker import UnansweredCommandTracker
     from denon_proxy.runtime.config import Config
 
 # -----------------------------------------------------------------------------
@@ -47,6 +48,7 @@ class AVRConnection:
         logger: logging.Logger,
         on_send_while_disconnected: Callable[[], None] | None = None,
         config: Config | None = None,
+        unanswered_tracker: UnansweredCommandTracker | None = None,
     ) -> None:
         self.host = host
         self.port = port
@@ -55,6 +57,7 @@ class AVRConnection:
         self.on_send_while_disconnected = on_send_while_disconnected
         self.avr_state = avr_state
         self.logger = logger
+        self._unanswered_tracker = unanswered_tracker
         self._config: Mapping[str, Any] = config if config is not None else {}
         self.reader: asyncio.StreamReader | None = None
         self.writer: asyncio.StreamWriter | None = None
@@ -134,10 +137,14 @@ class AVRConnection:
             writer.write(data)
             await writer.drain()
             stripped = command.strip()
-            if should_log_command_info(self._config, stripped):
-                self.logger.info("Sent to AVR: %s", stripped)
-            else:
-                self.logger.debug("Sent to AVR: %s", stripped)
+            if self._unanswered_tracker:
+                self._unanswered_tracker.note_sent(stripped)
+            suppress = bool(self._unanswered_tracker and self._unanswered_tracker.should_suppress(stripped))
+            if not suppress:
+                if should_log_command_info(self._config, stripped):
+                    self.logger.info("Sent to AVR: %s", stripped)
+                else:
+                    self.logger.debug("Sent to AVR: %s", stripped)
             return True
         except OSError as e:
             self.logger.warning("Failed to send command to AVR: %s - %s", command, e)
@@ -252,6 +259,7 @@ def create_avr_connection(
     on_disconnect: Callable[[], None],
     logger: logging.Logger,
     on_send_while_disconnected: Callable[[], None] | None = None,
+    unanswered_tracker: UnansweredCommandTracker | None = None,
 ) -> AVRConnection | VirtualAVRConnection:
     """
     Create an AVR connection based on config. Returns AVRConnection for a
@@ -270,6 +278,7 @@ def create_avr_connection(
             logger=logger,
             on_send_while_disconnected=on_send_while_disconnected,
             config=config,
+            unanswered_tracker=unanswered_tracker,
         )
     return VirtualAVRConnection(
         avr_state=avr_state,

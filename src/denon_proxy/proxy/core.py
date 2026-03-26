@@ -19,6 +19,7 @@ from denon_proxy.avr.discovery import get_advertise_ip
 from denon_proxy.avr.info import AVRInfo
 from denon_proxy.avr.state import AVRState, volume_to_level
 from denon_proxy.avr.telnet_utils import parse_telnet_lines, telnet_line_to_bytes
+from denon_proxy.avr.unanswered_tracker import UnansweredCommandTracker
 from denon_proxy.command_log import (
     should_log_command_info as _should_log_command_info,
 )
@@ -42,10 +43,24 @@ from denon_proxy.utils.utils import (
 if TYPE_CHECKING:
     import logging
     from collections.abc import Callable, Iterable, Mapping
+    from typing import TypeAlias
 
     from denon_proxy.avr.connection import AVRConnection, VirtualAVRConnection
     from denon_proxy.runtime.config import Config
     from denon_proxy.runtime.state import RuntimeState
+
+    AVRFactory: TypeAlias = Callable[
+        [
+            Config,
+            AVRState,
+            Callable[[str], None],
+            Callable[[], None],
+            logging.Logger,
+            Callable[[], None] | None,
+            UnansweredCommandTracker | None,
+        ],
+        AVRConnection | VirtualAVRConnection,
+    ]
 
 
 __all__ = [
@@ -221,6 +236,7 @@ class ClientHandler(asyncio.Protocol):
         config: Config,
         record_command: Callable[[str, str], None] | None = None,
         broadcast_to_all: Callable[[str], None] | None = None,
+        unanswered_tracker: UnansweredCommandTracker | None = None,
     ) -> None:
         self.avr = avr
         self.avr_state = avr_state
@@ -229,6 +245,7 @@ class ClientHandler(asyncio.Protocol):
         self.config = config
         self.runtime_state = runtime_state
         self.broadcast_to_all = broadcast_to_all
+        self.unanswered_tracker = unanswered_tracker
         self.record_command = record_command or (lambda _cid, _cmd: None)
         self.transport: asyncio.Transport | None = None
         self._buffer = b""
@@ -277,10 +294,11 @@ class ClientHandler(asyncio.Protocol):
         client_ip = self._peername[0] if self._peername else "?"
         self.record_command(client_ip, command)
         client_display = self.config.client_display_for_log(client_ip)
-        if _should_log_command_info(self.config, command):
-            self.logger.info("Client %s command: %s", client_display, command)
-        else:
-            self.logger.debug("Client %s command: %s", client_display, command)
+        if not (self.unanswered_tracker and self.unanswered_tracker.should_suppress(command)):
+            if _should_log_command_info(self.config, command):
+                self.logger.info("Client %s command: %s", client_display, command)
+            else:
+                self.logger.debug("Client %s command: %s", client_display, command)
         asyncio.create_task(self._handle_command_async(command))
 
     def _broadcast_state(self) -> None:
@@ -365,17 +383,7 @@ class DenonProxyServer:
         self,
         config: Config,
         logger: logging.Logger,
-        avr_factory: Callable[
-            [
-                Config,
-                AVRState,
-                Callable[[str], None],
-                Callable[[], None],
-                logging.Logger,
-                Callable[[], None] | None,
-            ],
-            AVRConnection | VirtualAVRConnection,
-        ],
+        avr_factory: AVRFactory,
         runtime_state: RuntimeState,
     ) -> None:
         self.config = config
@@ -384,6 +392,7 @@ class DenonProxyServer:
         self.avr_state = AVRState()
         self.clients: set[ClientHandler] = set()
         self.avr: (AVRConnection | VirtualAVRConnection) | None = None
+        self._unanswered_tracker: UnansweredCommandTracker | None = None
         self._server: asyncio.Server | None = None
         self._json_api_server: asyncio.Server | None = None
         self._notify_web_state: Callable[[], None] = lambda: None
@@ -438,6 +447,8 @@ class DenonProxyServer:
 
     def _on_avr_response(self, message: str) -> None:
         """Called when the AVR sends a response."""
+        if self._unanswered_tracker:
+            self._unanswered_tracker.on_response(message)
         if _should_log_command_info(self.config, message):
             self.logger.info("AVR response: %s", message)
         else:
@@ -448,6 +459,8 @@ class DenonProxyServer:
 
     def _on_avr_disconnect(self) -> None:
         """Called when AVR disconnects or send attempted while disconnected - schedule reconnect (idempotent)."""
+        if self._unanswered_tracker:
+            self._unanswered_tracker.cancel_all_pending()
         # Push updated connection status to Web UI / SSE
         self.runtime_state.notify_web_state()
         if self._reconnect_task is not None and not self._reconnect_task.done():
@@ -509,6 +522,16 @@ class DenonProxyServer:
         else:
             self.runtime_state.avr_info = AVRInfo.virtual()
 
+        ua_n = int(self.config.get("avr_unanswered_log_suppress_after", 1))
+        self._unanswered_tracker = None
+        filtering = bool(self.config.get("dynamic_command_filtering", True))
+        if filtering and (self.config.get("avr_host") or "").strip():
+            self._unanswered_tracker = UnansweredCommandTracker(
+                self.logger,
+                suppress_after=ua_n,
+                response_timeout=float(self.config.get("avr_unanswered_response_timeout", 1.0)),
+            )
+
         self.avr = self._avr_factory(
             self.config,
             self.avr_state,
@@ -516,6 +539,7 @@ class DenonProxyServer:
             self._on_avr_disconnect,
             self.logger,
             self._on_avr_disconnect,  # on_send_while_disconnected: trigger same reconnect
+            self._unanswered_tracker,
         )
         connected = await self.avr.connect()
         if connected:
@@ -534,6 +558,7 @@ class DenonProxyServer:
                 config=self.config,
                 record_command=self.record_command,
                 broadcast_to_all=partial(self._broadcast, source="optimistic"),
+                unanswered_tracker=self._unanswered_tracker,
             )
 
         host = self.config["proxy_host"]

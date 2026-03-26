@@ -147,6 +147,31 @@ INVALID_CONFIGS = [
         ["log_level", "string"],
         id="log_level_wrong_type",
     ),
+    pytest.param(
+        {"avr_unanswered_log_suppress_after": -1},
+        ["avr_unanswered_log_suppress_after"],
+        id="avr_unanswered_log_suppress_after_negative",
+    ),
+    pytest.param(
+        {"avr_unanswered_log_suppress_after": 0},
+        ["avr_unanswered_log_suppress_after"],
+        id="avr_unanswered_log_suppress_after_zero_invalid",
+    ),
+    pytest.param(
+        {"avr_unanswered_response_timeout": 0.05},
+        ["avr_unanswered_response_timeout"],
+        id="avr_unanswered_response_timeout_too_small",
+    ),
+    pytest.param(
+        {"avr_unanswered_response_timeout": 200.0},
+        ["avr_unanswered_response_timeout"],
+        id="avr_unanswered_response_timeout_too_large",
+    ),
+    pytest.param(
+        {"dynamic_command_filtering": 2},
+        ["dynamic_command_filtering", "bool"],
+        id="dynamic_command_filtering_wrong_type",
+    ),
 ]
 
 
@@ -213,6 +238,12 @@ VALID_BOUNDARY_CONFIGS = [
     pytest.param({"ssdp_friendly_name": " My AVR "}, id="ssdp_friendly_name_stripped"),
     pytest.param({"client_aliases": {}}, id="client_aliases_empty"),
     pytest.param({"client_aliases": {"192.168.1.5": "Living Room"}}, id="client_aliases_valid"),
+    pytest.param({"avr_unanswered_log_suppress_after": 1}, id="avr_unanswered_log_suppress_after_min"),
+    pytest.param({"avr_unanswered_log_suppress_after": 5}, id="avr_unanswered_log_suppress_after_positive"),
+    pytest.param({"avr_unanswered_response_timeout": 0.1}, id="avr_unanswered_response_timeout_min"),
+    pytest.param({"avr_unanswered_response_timeout": 120.0}, id="avr_unanswered_response_timeout_max"),
+    pytest.param({"dynamic_command_filtering": False}, id="dynamic_command_filtering_false"),
+    pytest.param({"dynamic_command_filtering": True}, id="dynamic_command_filtering_true"),
 ]
 
 
@@ -259,6 +290,9 @@ def test_maximal_valid_config_accepted() -> None:
         "client_activity_log": True,
         "client_activity_log_max_entries": 100,
         "client_activity_log_hide_queries": False,
+        "dynamic_command_filtering": True,
+        "avr_unanswered_log_suppress_after": 1,
+        "avr_unanswered_response_timeout": 1.0,
         "ssdp_friendly_name": "My Denon Proxy",
         "sources": {"CD": "CD", "HDMI1": "Apple TV"},
         "client_aliases": {"192.168.1.5": "HA"},
