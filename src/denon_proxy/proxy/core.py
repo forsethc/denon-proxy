@@ -3,7 +3,8 @@ from __future__ import annotations
 import asyncio
 import time
 from collections import deque
-from typing import TYPE_CHECKING, Any, cast
+from functools import partial
+from typing import TYPE_CHECKING, Any, Literal, cast
 
 try:
     import denonavr
@@ -247,6 +248,7 @@ class ClientHandler(asyncio.Protocol):
         runtime_state: RuntimeState,
         config: Config,
         record_command: Callable[[str, str], None] | None = None,
+        broadcast_to_all: Callable[[str], None] | None = None,
     ) -> None:
         self.avr = avr
         self.avr_state = avr_state
@@ -254,6 +256,7 @@ class ClientHandler(asyncio.Protocol):
         self.logger = logger
         self.config = config
         self.runtime_state = runtime_state
+        self.broadcast_to_all = broadcast_to_all
         self.record_command = record_command or (lambda _cid, _cmd: None)
         self.transport: asyncio.Transport | None = None
         self._buffer = b""
@@ -311,11 +314,18 @@ class ClientHandler(asyncio.Protocol):
     def _broadcast_state(self) -> None:
         """Broadcast current state to all clients (emulates AVR confirmation)."""
         status = self.avr_state.get_status_dump()
-        if status:
-            for line in status.strip().splitlines():
-                if line.strip():
-                    for c in list(self.clients):
-                        c.broadcast(line.strip())
+        if not status:
+            return
+        broadcast = self.broadcast_to_all
+        for line in status.strip().splitlines():
+            s = line.strip()
+            if not s:
+                continue
+            if broadcast is not None:
+                broadcast(s)
+            else:
+                for c in list(self.clients):
+                    c.broadcast(s)
 
     async def _handle_command_async(self, command: str) -> None:
         """Apply optimistic state, send to AVR, revert only if send failed with AVR connected."""
@@ -437,16 +447,22 @@ class DenonProxyServer:
         self._client_activity_log[cid].append((ts, msg))
         self._notify_web_state()
 
-    def _broadcast(self, message: str) -> None:
-        """Broadcast an AVR response to all connected clients."""
+    def _broadcast(
+        self,
+        message: str,
+        *,
+        source: Literal["avr", "optimistic"] = "avr",
+    ) -> None:
+        """Broadcast a telnet line to all connected clients."""
         client_list = list(self.clients)
         for client in client_list:
             client.broadcast(message)
         if client_list:
+            src = "AVR" if source == "avr" else "optimistic state"
             if _should_log_command_info(self.config, message):
-                self.logger.info("Broadcast to %d client(s): %s", len(client_list), message)
+                self.logger.info("Broadcast (%s) to %d client(s): %s", src, len(client_list), message)
             else:
-                self.logger.debug("Broadcast to %d client(s): %s", len(client_list), message)
+                self.logger.debug("Broadcast (%s) to %d client(s): %s", src, len(client_list), message)
 
     def _on_avr_response(self, message: str) -> None:
         """Called when the AVR sends a response."""
@@ -545,6 +561,7 @@ class DenonProxyServer:
                 runtime_state=self.runtime_state,
                 config=self.config,
                 record_command=self.record_command,
+                broadcast_to_all=partial(self._broadcast, source="optimistic"),
             )
 
         host = self.config["proxy_host"]

@@ -1,4 +1,7 @@
 import logging
+from functools import partial
+
+import pytest
 
 from denon_proxy.avr.info import AVRInfo
 from denon_proxy.avr.state import AVRState
@@ -282,3 +285,76 @@ def test_avr_response_broadcast_lines_other():
     assert avr_response_broadcast_lines("MV50") == ["MV50"]
     assert avr_response_broadcast_lines("SIHDMI1") == ["SIHDMI1"]
     assert avr_response_broadcast_lines("MUON") == ["MUON"]
+
+
+class _ClientRecordingBroadcast:
+    """Minimal stand-in for ClientHandler: only .broadcast is used by DenonProxyServer._broadcast."""
+
+    _peername = ("127.0.0.1", 1)
+
+    def __init__(self) -> None:
+        self.lines: list[str] = []
+
+    def broadcast(self, message: str) -> None:
+        self.lines.append(message)
+
+
+def test_denon_proxy_server_broadcast_logs_avr_source(caplog: pytest.LogCaptureFixture) -> None:
+    """_broadcast(..., source='avr') labels INFO logs as AVR (default for _on_avr_response)."""
+    config = Config.model_validate({"log_command_groups_info": ["power"]})
+    logger = logging.getLogger("test.denon.broadcast.avr")
+    runtime_state = RuntimeState()
+
+    def fake_avr_factory(*args, **kwargs):
+        raise NotImplementedError("not used in this test")
+
+    server = DenonProxyServer(config, logger, fake_avr_factory, runtime_state)
+    server.clients.add(_ClientRecordingBroadcast())  # type: ignore[arg-type]
+
+    with caplog.at_level(logging.INFO, logger=logger.name):
+        server._broadcast("PWON", source="avr")
+
+    assert any("Broadcast (AVR) to 1 client(s): PWON" == r.message for r in caplog.records)
+
+
+def test_denon_proxy_server_broadcast_logs_optimistic_source(caplog: pytest.LogCaptureFixture) -> None:
+    """_broadcast(..., source='optimistic') labels INFO logs as optimistic state."""
+    config = Config.model_validate({"log_command_groups_info": ["power"]})
+    logger = logging.getLogger("test.denon.broadcast.optimistic")
+    runtime_state = RuntimeState()
+
+    def fake_avr_factory(*args, **kwargs):
+        raise NotImplementedError("not used in this test")
+
+    server = DenonProxyServer(config, logger, fake_avr_factory, runtime_state)
+    server.clients.add(_ClientRecordingBroadcast())  # type: ignore[arg-type]
+
+    with caplog.at_level(logging.INFO, logger=logger.name):
+        server._broadcast("PWON", source="optimistic")
+
+    assert any(
+        "Broadcast (optimistic state) to 1 client(s): PWON" == r.message for r in caplog.records
+    )
+
+
+def test_denon_proxy_server_partial_broadcast_matches_factory_wiring(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """ClientHandler is wired with partial(server._broadcast, source='optimistic'); same log label."""
+    config = Config.model_validate({"log_command_groups_info": ["power"]})
+    logger = logging.getLogger("test.denon.broadcast.partial")
+    runtime_state = RuntimeState()
+
+    def fake_avr_factory(*args, **kwargs):
+        raise NotImplementedError("not used in this test")
+
+    server = DenonProxyServer(config, logger, fake_avr_factory, runtime_state)
+    server.clients.add(_ClientRecordingBroadcast())  # type: ignore[arg-type]
+
+    optimistic_broadcast = partial(server._broadcast, source="optimistic")
+    with caplog.at_level(logging.INFO, logger=logger.name):
+        optimistic_broadcast("PWON")
+
+    assert any(
+        "Broadcast (optimistic state) to 1 client(s): PWON" == r.message for r in caplog.records
+    )
