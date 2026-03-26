@@ -10,6 +10,7 @@ import pytest
 
 from denon_proxy.avr.connection import AVRConnection
 from denon_proxy.avr.state import AVRState
+from denon_proxy.runtime.config import Config
 
 
 def _make_avr(host: str, port: int):
@@ -265,6 +266,43 @@ async def test_avr_connection_request_state_sends_commands():
         assert b"PW?" in combined
         assert b"MV?" in combined
         assert b"SI?" in combined
+    finally:
+        avr.close()
+        server.close()
+        await server.wait_closed()
+
+
+@pytest.mark.asyncio
+async def test_avr_connection_send_logs_info_when_command_group_configured(caplog: pytest.LogCaptureFixture):
+    """Sent to AVR is INFO when log_command_groups_info includes the command's group."""
+
+    async def server_cb(reader: asyncio.StreamReader, writer: asyncio.StreamWriter):
+        await reader.read(64)
+        writer.close()
+        await writer.wait_closed()
+
+    server = await asyncio.start_server(server_cb, "127.0.0.1", 0)
+    port = server.sockets[0].getsockname()[1]
+    state = AVRState()
+    logger = logging.getLogger("test.avr_physical.sent_info")
+    avr = AVRConnection(
+        host="127.0.0.1",
+        port=port,
+        on_response=lambda _: None,
+        on_disconnect=lambda: None,
+        avr_state=state,
+        logger=logger,
+        on_send_while_disconnected=None,
+        config=Config.model_validate({"log_command_groups_info": ["power"]}),
+    )
+    try:
+        await avr.connect()
+        await asyncio.sleep(0.05)
+        with caplog.at_level(logging.INFO, logger=logger.name):
+            await avr.send_command("PWSTANDBY")
+        assert any(
+            r.levelno == logging.INFO and "Sent to AVR: PWSTANDBY" in r.message for r in caplog.records
+        )
     finally:
         avr.close()
         server.close()

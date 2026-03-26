@@ -16,6 +16,8 @@ except ImportError:
 import httpx
 
 from denon_proxy.avr.discovery import get_advertise_ip
+from denon_proxy.command_log import command_group as _command_group
+from denon_proxy.command_log import should_log_command_info as _should_log_command_info
 from denon_proxy.avr.info import AVRInfo
 from denon_proxy.avr.state import AVRState, volume_to_level
 from denon_proxy.avr.telnet_utils import parse_telnet_lines, telnet_line_to_bytes
@@ -51,37 +53,6 @@ __all__ = [
     "build_json_state",
     "state_and_config_updates_from_denonavr",
 ]
-
-
-_COMMAND_GROUPS = {
-    "PW": "power",
-    "ZM": "power",
-    "MV": "volume",
-    "SI": "input",
-    "MU": "mute",
-    "MS": "sound_mode",
-}
-
-
-def _command_group(cmd: str) -> str:
-    """Return the group name for a Denon telnet command (e.g. PWON -> power)."""
-    if not cmd or len(cmd) < 2:
-        return "other"
-    # MSSMART is Smart Select slot, not sound mode; must check before MS
-    if cmd.upper().startswith("MSSMART"):
-        return "smart_select"
-    prefix = cmd[:2].upper()
-    if prefix == "MV" and len(cmd) > 2 and "MAX" in cmd.upper():
-        return "other"  # MVMAX is config, not state
-    return _COMMAND_GROUPS.get(prefix, "other")
-
-
-def _should_log_command_info(config: Config, cmd: str) -> bool:
-    """True if this command's group is configured for INFO-level logging."""
-    groups = config.get("log_command_groups_info") or []
-    if not groups:
-        return False
-    return _command_group(cmd) in groups
 
 
 def _client_ip_for_display(client: ClientHandler) -> str:
