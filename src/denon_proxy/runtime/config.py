@@ -77,7 +77,7 @@ class Config(BaseModel, Mapping[str, Any]):
     # Set false to disable.
     dynamic_command_filtering: bool = True
     # Suppress client + "Sent to AVR" logs after this many unanswered sends per command (must be > 0).
-    avr_unanswered_log_suppress_after: int = Field(1, gt=0)
+    avr_unanswered_log_suppress_after: int = Field(3, gt=0)
     # Seconds to wait after each physical AVR send for a matching response line; if none arrives, that
     # send counts toward avr_unanswered_log_suppress_after (dynamic_command_filtering only).
     avr_unanswered_response_timeout: float = Field(1.0, ge=0.1, le=120.0)
