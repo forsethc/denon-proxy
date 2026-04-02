@@ -305,9 +305,9 @@ async def test_http_refresh_request_state_broadcasts_to_telnet_clients(
             burst_b = await asyncio.wait_for(reader_b.read(4096), timeout=2.0)
             text_a = burst_a.decode("utf-8", errors="replace")
             text_b = burst_b.decode("utf-8", errors="replace")
-            # request_state pushes PW, ZM, MV, SI, MU, MS (and optionally MSSMART)
+            # request_state pushes PW, MV, SI, MU, MS (and optionally MSSMART)
             for label, text in (("A", text_a), ("B", text_b)):
-                assert "PW" in text or "ZM" in text, f"[{label}] Expected power lines in broadcast, got: {text!r}"
+                assert "PW" in text, f"[{label}] Expected power lines in broadcast, got: {text!r}"
                 assert "MV" in text, f"[{label}] Expected volume line in broadcast, got: {text!r}"
                 assert "SI" in text, f"[{label}] Expected input line in broadcast, got: {text!r}"
                 assert "MU" in text, f"[{label}] Expected mute line in broadcast, got: {text!r}"

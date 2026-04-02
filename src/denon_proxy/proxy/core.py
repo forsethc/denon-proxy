@@ -192,16 +192,7 @@ def state_and_config_updates_from_denonavr(d: Any) -> tuple[dict[str, Any], AVRI
 
 
 def avr_response_broadcast_lines(message: str) -> list[str]:
-    """
-    Return the list of lines to broadcast for an AVR response.
-    HA denonavr only processes ZM (not PW) for telnet updates; we add ZM equivalents
-    for power so the UI updates without needing an integration reload.
-    Standby/off lines follow typical AVR ordering (ZMOFF before PWSTANDBY) for picky clients.
-    """
-    if message == "PWON":
-        return [message, "ZMON"]
-    if "STANDBY" in message.upper():
-        return ["ZMOFF", "ZMSTANDBY", message]
+    """Return telnet lines to broadcast for an AVR response (faithful one-to-one relay)."""
     return [message]
 
 

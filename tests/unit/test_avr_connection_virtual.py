@@ -14,7 +14,7 @@ from denon_proxy.avr.state import AVRState
 async def test_virtual_avr_request_state_pushes_status_dump_lines():
     """
     request_state() pushes each line from AVRState.get_status_dump() via on_response,
-    so the proxy receives the full status (PW, ZM, MV, SI, MU, MS, MSSMART) when ON.
+    so the proxy receives the full status (PW, MV, SI, MU, MS, MSSMART) when ON.
     """
     state = AVRState()
     state.power = "ON"
@@ -47,9 +47,8 @@ async def test_virtual_avr_request_state_pushes_status_dump_lines():
     assert recorded == expected, (
         f"on_response should be called with lines from get_status_dump(); got {recorded!r}, expected {expected!r}"
     )
-    # Sanity: we expect PW, ZM, MV, SI, MU, MS, and optionally MSSMART
+    # Sanity: we expect PW, MV, SI, MU, MS, and optionally MSSMART
     assert any(line.startswith("PW") for line in recorded)
-    assert any(line.startswith("ZM") for line in recorded)
     assert any(line.startswith("MV") for line in recorded)
     assert any(line.startswith("SI") for line in recorded)
     assert any(line.startswith("MU") for line in recorded)
@@ -58,8 +57,8 @@ async def test_virtual_avr_request_state_pushes_status_dump_lines():
 
 
 @pytest.mark.asyncio
-async def test_virtual_avr_request_state_standby_pushes_power_lines_only():
-    """When STANDBY, get_status_dump omits MV/SI/etc.; request_state matches."""
+async def test_virtual_avr_request_state_standby_pushes_full_dump():
+    """When STANDBY, request_state still pushes all get_status_dump() lines."""
     state = AVRState()
     state.power = "STANDBY"
     state.volume = "45"
@@ -79,7 +78,7 @@ async def test_virtual_avr_request_state_standby_pushes_power_lines_only():
 
     expected = [line.strip() for line in state.get_status_dump().strip().splitlines() if line.strip()]
     assert recorded == expected
-    assert recorded == ["ZMOFF", "ZMSTANDBY", "PWSTANDBY"]
+    assert recorded == ["PWSTANDBY", "MV45", "SIHDMI1", "MUOFF", "MSSTEREO"]
 
 
 @pytest.mark.asyncio
@@ -131,8 +130,8 @@ async def test_virtual_avr_send_command_empty_or_short_returns_true():
 
 
 @pytest.mark.asyncio
-async def test_virtual_avr_send_command_pwon_emits_pw_and_zm():
-    """send_command('PWON') emits both PW and ZM lines (PW/ZM cross-match branch)."""
+async def test_virtual_avr_send_command_pwon_emits_pwon_only():
+    """send_command('PWON') emits PWON only (status dump has no synthetic ZM)."""
     state = AVRState()
     state.power = "STANDBY"
     recorded = []
@@ -150,8 +149,7 @@ async def test_virtual_avr_send_command_pwon_emits_pw_and_zm():
     )
     await avr.connect()
     await avr.send_command("PWON")
-    assert "PWON" in recorded
-    assert "ZMON" in recorded
+    assert recorded == ["PWON"]
     assert state.power == "ON"
 
 

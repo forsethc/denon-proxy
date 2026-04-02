@@ -35,7 +35,7 @@ def integration_logger():
 @pytest.mark.asyncio
 async def test_telnet_pwon_receives_broadcast(integration_config, integration_logger):
     """
-    Put state in STANDBY then send PWON; assert client receives PWON and ZMON and state becomes ON.
+    Put state in STANDBY then send PWON; assert client receives PWON and state becomes ON.
     (Default state is already ON, so we establish STANDBY first to verify PWON actually changes state.)
     """
     server = DenonProxyServer(integration_config, integration_logger, create_avr_connection, RuntimeState())
@@ -54,7 +54,7 @@ async def test_telnet_pwon_receives_broadcast(integration_config, integration_lo
             port,
             [b"PWON"],
             {"power": "ON"},
-            ["PWON", "ZMON"],
+            ["PWON"],
         )
     finally:
         await server.stop()
