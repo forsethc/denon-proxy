@@ -57,8 +57,8 @@ async def test_virtual_avr_request_state_pushes_status_dump_lines():
 
 
 @pytest.mark.asyncio
-async def test_virtual_avr_request_state_standby_pushes_power_lines_only():
-    """When STANDBY, get_status_dump omits MV/SI/etc.; request_state matches."""
+async def test_virtual_avr_request_state_standby_pushes_full_dump():
+    """When STANDBY, request_state still pushes all get_status_dump() lines."""
     state = AVRState()
     state.power = "STANDBY"
     state.volume = "45"
@@ -78,7 +78,7 @@ async def test_virtual_avr_request_state_standby_pushes_power_lines_only():
 
     expected = [line.strip() for line in state.get_status_dump().strip().splitlines() if line.strip()]
     assert recorded == expected
-    assert recorded == ["PWSTANDBY"]
+    assert recorded == ["PWSTANDBY", "MV45", "SIHDMI1", "MUOFF", "MSSTEREO"]
 
 
 @pytest.mark.asyncio

@@ -132,17 +132,17 @@ def test_apply_command_and_get_status_dump_and_snapshot_restore():
     assert state.volume == snap["volume"]
 
 
-def test_get_status_dump_power_standby_pw_only():
-    """When power is STANDBY/OFF, status dump is PW only (no synthetic ZM lines)."""
+def test_get_status_dump_power_standby_includes_tracked_zone_state():
+    """STANDBY still serializes volume/input/mute/sound from tracked state (defaults unchanged)."""
     state = AVRState()
     state.power = "STANDBY"
     dump = state.get_status_dump()
     lines = [ln.strip() for ln in dump.strip().splitlines() if ln.strip()]
-    assert lines == ["PWSTANDBY"]
+    assert lines == ["PWSTANDBY", "MV50", "SICD", "MUOFF", "MSSTEREO"]
 
 
-def test_get_status_dump_standby_omits_volume_and_rest():
-    """When power is STANDBY, dump is PW line only even if internal state still has volume/input/etc."""
+def test_get_status_dump_standby_includes_volume_input_sound():
+    """When power is STANDBY, dump still includes other fields the proxy is tracking."""
     state = AVRState()
     state.power = "STANDBY"
     state.volume = "45"
@@ -150,7 +150,7 @@ def test_get_status_dump_standby_omits_volume_and_rest():
     state.sound_mode = "STEREO"
     dump = state.get_status_dump()
     lines = [ln.strip() for ln in dump.strip().splitlines() if ln.strip()]
-    assert lines == ["PWSTANDBY"]
+    assert lines == ["PWSTANDBY", "MV45", "SIHDMI1", "MUOFF", "MSSTEREO"]
 
 
 def test_apply_payload_normalizes_smart_select():
