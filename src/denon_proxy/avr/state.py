@@ -129,14 +129,14 @@ class AVRState:
         if self.power:
             # ZM (Zone Main) so HA denonavr receives power updates via telnet (it ignores PW).
             # ZMSTANDBY uses parameter "STANDBY" which denonavr accepts; ZMOFF for compatibility.
-            # Order matches typical AVR telnet (ZMOFF before PW…) for standby/off.
+            # Order matches observed AVR telnet (PW… before ZM cluster) for standby/off.
             if self.power == "ON":
                 lines.append(f"PW{self.power}")
                 lines.append("ZMON")
             elif self.power in ("STANDBY", "OFF"):
+                lines.append(f"PW{self.power}")
                 lines.append("ZMOFF")
                 lines.append("ZMSTANDBY")
-                lines.append(f"PW{self.power}")
             else:
                 lines.append(f"PW{self.power}")
         # When main zone is off, real AVRs typically do not emit MV/SI/MU/MS/MSSMART; omit them

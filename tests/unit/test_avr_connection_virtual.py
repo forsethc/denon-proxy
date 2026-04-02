@@ -79,7 +79,7 @@ async def test_virtual_avr_request_state_standby_pushes_power_lines_only():
 
     expected = [line.strip() for line in state.get_status_dump().strip().splitlines() if line.strip()]
     assert recorded == expected
-    assert recorded == ["ZMOFF", "ZMSTANDBY", "PWSTANDBY"]
+    assert recorded == ["PWSTANDBY", "ZMOFF", "ZMSTANDBY"]
 
 
 @pytest.mark.asyncio

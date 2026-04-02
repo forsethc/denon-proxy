@@ -275,9 +275,9 @@ def test_avr_response_broadcast_lines_pwon():
 
 
 def test_avr_response_broadcast_lines_standby():
-    assert avr_response_broadcast_lines("PWSTANDBY") == ["ZMOFF", "ZMSTANDBY", "PWSTANDBY"]
-    assert avr_response_broadcast_lines("PWSTANDBY ") == ["ZMOFF", "ZMSTANDBY", "PWSTANDBY "]
-    assert avr_response_broadcast_lines("PWstandby") == ["ZMOFF", "ZMSTANDBY", "PWstandby"]
+    assert avr_response_broadcast_lines("PWSTANDBY") == ["PWSTANDBY", "ZMOFF", "ZMSTANDBY"]
+    assert avr_response_broadcast_lines("PWSTANDBY ") == ["PWSTANDBY ", "ZMOFF", "ZMSTANDBY"]
+    assert avr_response_broadcast_lines("PWstandby") == ["PWstandby", "ZMOFF", "ZMSTANDBY"]
 
 
 def test_avr_response_broadcast_lines_other():

@@ -133,7 +133,7 @@ def test_apply_command_and_get_status_dump_and_snapshot_restore():
 
 
 def test_get_status_dump_power_off_includes_zm():
-    """When power is STANDBY/OFF, status dump includes ZM lines and PW in AVR-typical order."""
+    """When power is STANDBY/OFF, status dump includes PW then ZM lines (observed AVR order)."""
     state = AVRState()
     state.power = "STANDBY"
     dump = state.get_status_dump()
@@ -141,10 +141,10 @@ def test_get_status_dump_power_off_includes_zm():
     assert "ZMSTANDBY" in dump
     assert "ZMOFF" in dump
     ordered = [ln.strip() for ln in dump.strip().splitlines() if ln.strip()]
+    pw_i = ordered.index("PWSTANDBY")
     zm_off_i = ordered.index("ZMOFF")
     zm_sb_i = ordered.index("ZMSTANDBY")
-    pw_i = ordered.index("PWSTANDBY")
-    assert zm_off_i < zm_sb_i < pw_i
+    assert pw_i < zm_off_i < zm_sb_i
 
 
 def test_get_status_dump_standby_omits_volume_and_rest():
@@ -156,7 +156,7 @@ def test_get_status_dump_standby_omits_volume_and_rest():
     state.sound_mode = "STEREO"
     dump = state.get_status_dump()
     lines = [ln.strip() for ln in dump.strip().splitlines() if ln.strip()]
-    assert lines == ["ZMOFF", "ZMSTANDBY", "PWSTANDBY"]
+    assert lines == ["PWSTANDBY", "ZMOFF", "ZMSTANDBY"]
 
 
 def test_apply_payload_normalizes_smart_select():
