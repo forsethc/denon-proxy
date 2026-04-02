@@ -132,23 +132,17 @@ def test_apply_command_and_get_status_dump_and_snapshot_restore():
     assert state.volume == snap["volume"]
 
 
-def test_get_status_dump_power_off_includes_zm():
-    """When power is STANDBY/OFF, status dump includes ZM lines and PW in AVR-typical order."""
+def test_get_status_dump_power_standby_pw_only():
+    """When power is STANDBY/OFF, status dump is PW only (no synthetic ZM lines)."""
     state = AVRState()
     state.power = "STANDBY"
     dump = state.get_status_dump()
-    assert "PWSTANDBY" in dump
-    assert "ZMSTANDBY" in dump
-    assert "ZMOFF" in dump
-    ordered = [ln.strip() for ln in dump.strip().splitlines() if ln.strip()]
-    zm_off_i = ordered.index("ZMOFF")
-    zm_sb_i = ordered.index("ZMSTANDBY")
-    pw_i = ordered.index("PWSTANDBY")
-    assert zm_off_i < zm_sb_i < pw_i
+    lines = [ln.strip() for ln in dump.strip().splitlines() if ln.strip()]
+    assert lines == ["PWSTANDBY"]
 
 
 def test_get_status_dump_standby_omits_volume_and_rest():
-    """When power is STANDBY, dump is power/ZM only even if internal state still has volume/input/etc."""
+    """When power is STANDBY, dump is PW line only even if internal state still has volume/input/etc."""
     state = AVRState()
     state.power = "STANDBY"
     state.volume = "45"
@@ -156,7 +150,7 @@ def test_get_status_dump_standby_omits_volume_and_rest():
     state.sound_mode = "STEREO"
     dump = state.get_status_dump()
     lines = [ln.strip() for ln in dump.strip().splitlines() if ln.strip()]
-    assert lines == ["ZMOFF", "ZMSTANDBY", "PWSTANDBY"]
+    assert lines == ["PWSTANDBY"]
 
 
 def test_apply_payload_normalizes_smart_select():

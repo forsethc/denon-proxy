@@ -271,13 +271,13 @@ def test_record_command_stores_queries_when_hide_queries_false():
 
 
 def test_avr_response_broadcast_lines_pwon():
-    assert avr_response_broadcast_lines("PWON") == ["PWON", "ZMON"]
+    assert avr_response_broadcast_lines("PWON") == ["PWON"]
 
 
 def test_avr_response_broadcast_lines_standby():
-    assert avr_response_broadcast_lines("PWSTANDBY") == ["ZMOFF", "ZMSTANDBY", "PWSTANDBY"]
-    assert avr_response_broadcast_lines("PWSTANDBY ") == ["ZMOFF", "ZMSTANDBY", "PWSTANDBY "]
-    assert avr_response_broadcast_lines("PWstandby") == ["ZMOFF", "ZMSTANDBY", "PWstandby"]
+    assert avr_response_broadcast_lines("PWSTANDBY") == ["PWSTANDBY"]
+    assert avr_response_broadcast_lines("PWSTANDBY ") == ["PWSTANDBY "]
+    assert avr_response_broadcast_lines("PWstandby") == ["PWstandby"]
 
 
 def test_avr_response_broadcast_lines_other():
