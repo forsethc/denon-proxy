@@ -39,7 +39,7 @@ def _strip_telnet_sequences(chunk: bytes) -> bytes:
                 # Truncated or malformed negotiation: if the third byte is A–Z,
                 # it is almost certainly the start of a Denon command (PWON, …),
                 # not a telnet option — skip only IAC + WILL/WONT/DO/DONT.
-                if 65 <= opt <= 90:
+                if ord('A') <= opt <= ord('Z'):
                     i += 2
                 else:
                     i += 3
