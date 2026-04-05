@@ -19,6 +19,7 @@ htmlcov/
 # IDE
 .idea/
 .vscode/
+**/.DS_Store
 *.swp
 *.swo
 uv.lock
