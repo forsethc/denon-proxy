@@ -61,3 +61,17 @@ def test_parse_telnet_lines_skips_invalid_utf8_line():
     commands, remaining = parse_telnet_lines(b"", b"\xff\xfe\r\nPWON\r\n")
     assert commands == ["PWON"]
     assert remaining == b""
+
+
+def test_parse_telnet_lines_iac_prefix_same_line_as_command():
+    """Negotiation bytes before PWON on the same line must not drop the command (UTF-8 issue)."""
+    commands, remaining = parse_telnet_lines(b"", b"\xff\xfePWON\r\n")
+    assert commands == ["PWON"]
+    assert remaining == b""
+
+
+def test_parse_telnet_lines_valid_dont_then_command_same_line():
+    """Real IAC DONT + option (3 bytes) then ASCII command."""
+    commands, remaining = parse_telnet_lines(b"", b"\xff\xfe\x01PWON\r")
+    assert commands == ["PWON"]
+    assert remaining == b""
