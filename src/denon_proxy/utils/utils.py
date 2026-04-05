@@ -6,6 +6,7 @@ server port resolution, and version from git.
 from __future__ import annotations
 
 import ipaddress
+import subprocess
 from importlib import metadata
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -20,18 +21,38 @@ _DOCKER_NETWORKS = (
 )
 
 
+def _git_branch() -> str | None:
+    """Return the current git branch name, or None if unavailable."""
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+        if result.returncode == 0:
+            branch = result.stdout.strip()
+            if branch and branch != "HEAD":
+                return branch
+    except (OSError, subprocess.TimeoutExpired):
+        pass
+    return None
+
+
 def get_version() -> str:
     """
-    Get version from installed package metadata provided by setuptools-scm.
-
-    setuptools-scm derives the version from Git tags and the current state
-    (including local version information such as commits since tag and
-    dirty status), and exposes it via importlib.metadata.
+    Get version from installed package metadata provided by setuptools-scm,
+    suffixed with the current git branch name when on a named branch.
     """
     try:
-        return metadata.version("denon-proxy")
+        version = metadata.version("denon-proxy")
     except metadata.PackageNotFoundError:
-        return "unknown"
+        version = "unknown"
+
+    branch = _git_branch()
+    if branch:
+        return f"{version} ({branch})"
+    return version
 
 
 def is_running_in_docker() -> bool:
