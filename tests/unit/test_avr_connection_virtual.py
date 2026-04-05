@@ -47,8 +47,9 @@ async def test_virtual_avr_request_state_pushes_status_dump_lines():
     assert recorded == expected, (
         f"on_response should be called with lines from get_status_dump(); got {recorded!r}, expected {expected!r}"
     )
-    # Sanity: we expect PW, MV, SI, MU, MS, and optionally MSSMART
+    # Sanity: we expect PW, ZM, MV, SI, MU, MS, and optionally MSSMART
     assert any(line.startswith("PW") for line in recorded)
+    assert any(line.startswith("ZM") for line in recorded)
     assert any(line.startswith("MV") for line in recorded)
     assert any(line.startswith("SI") for line in recorded)
     assert any(line.startswith("MU") for line in recorded)
@@ -78,7 +79,7 @@ async def test_virtual_avr_request_state_standby_pushes_full_dump():
 
     expected = [line.strip() for line in state.get_status_dump().strip().splitlines() if line.strip()]
     assert recorded == expected
-    assert recorded == ["PWSTANDBY", "MV45", "SIHDMI1", "MUOFF", "MSSTEREO"]
+    assert recorded == ["PWSTANDBY", "ZMOFF", "MV45", "SIHDMI1", "MUOFF", "MSSTEREO"]
 
 
 @pytest.mark.asyncio
@@ -130,8 +131,8 @@ async def test_virtual_avr_send_command_empty_or_short_returns_true():
 
 
 @pytest.mark.asyncio
-async def test_virtual_avr_send_command_pwon_emits_pwon_only():
-    """send_command('PWON') emits PWON only (status dump has no synthetic ZM)."""
+async def test_virtual_avr_send_command_pwon_emits_pw_and_zm_status_lines():
+    """send_command('PWON') emits PW and ZM lines from get_status_dump (power group)."""
     state = AVRState()
     state.power = "STANDBY"
     recorded = []
@@ -149,7 +150,7 @@ async def test_virtual_avr_send_command_pwon_emits_pwon_only():
     )
     await avr.connect()
     await avr.send_command("PWON")
-    assert recorded == ["PWON"]
+    assert recorded == ["PWON", "ZMON"]
     assert state.power == "ON"
 
 
