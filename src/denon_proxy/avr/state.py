@@ -34,6 +34,11 @@ def _normalize_smart_select(value: str | None) -> str | None:
     return None
 
 
+def _zm_line_for_power(power: str) -> str:
+    """Telnet zone-main power line matching PW state (for status dumps and multi-zone clients)."""
+    return "ZMON" if power.upper() == "ON" else "ZMOFF"
+
+
 def _parse_mvmax(param: str) -> float | None:
     """Parse MVMAX nn from param (e.g. 'MAX 60' or 'MAX60'). Returns None if no number."""
     if not param.upper().startswith("MAX"):
@@ -128,6 +133,7 @@ class AVRState:
         lines = []
         if self.power:
             lines.append(f"PW{self.power}")
+            lines.append(_zm_line_for_power(self.power))
         if self.volume:
             lines.append(f"MV{self.volume}")
         if self.input_source:

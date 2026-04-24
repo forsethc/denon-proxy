@@ -118,6 +118,7 @@ def test_apply_command_and_get_status_dump_and_snapshot_restore():
     dump = state.get_status_dump()
     # Status dump should include core lines reflecting updated state
     assert "PWON" in dump
+    assert "ZMON" in dump
     assert "MV" in dump
     assert "MUON" in dump
     assert "SIHDRADIO" in dump
@@ -138,7 +139,7 @@ def test_get_status_dump_power_standby_includes_tracked_zone_state():
     state.power = "STANDBY"
     dump = state.get_status_dump()
     lines = [ln.strip() for ln in dump.strip().splitlines() if ln.strip()]
-    assert lines == ["PWSTANDBY", "MV50", "SICD", "MUOFF", "MSSTEREO"]
+    assert lines == ["PWSTANDBY", "ZMOFF", "MV50", "SICD", "MUOFF", "MSSTEREO"]
 
 
 def test_get_status_dump_standby_includes_volume_input_sound():
@@ -150,7 +151,7 @@ def test_get_status_dump_standby_includes_volume_input_sound():
     state.sound_mode = "STEREO"
     dump = state.get_status_dump()
     lines = [ln.strip() for ln in dump.strip().splitlines() if ln.strip()]
-    assert lines == ["PWSTANDBY", "MV45", "SIHDMI1", "MUOFF", "MSSTEREO"]
+    assert lines == ["PWSTANDBY", "ZMOFF", "MV45", "SIHDMI1", "MUOFF", "MSSTEREO"]
 
 
 def test_apply_payload_normalizes_smart_select():
