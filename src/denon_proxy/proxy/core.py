@@ -28,6 +28,7 @@ from denon_proxy.constants import (
     DEFAULT_HTTP_PORT,
     DEFAULT_PROXY_PORT,
     DEFAULT_SSDP_HTTP_PORT,
+    DEMO_SOURCES,
     DENONAVR_SYNC_TIMEOUT,
     POST_CONNECT_DELAY,
     RECONNECT_DELAY,
@@ -612,6 +613,23 @@ class DenonProxyServer:
 
             asyncio.create_task(_do())
 
+        def _get_avr_state_cb() -> AVRState:
+            return self.avr_state
+
+        def _get_sources_cb() -> list[tuple[str, str]]:
+            rs = self.runtime_state
+            if rs.resolved_sources:
+                return rs.resolved_sources
+            avr_info = rs.avr_info
+            if avr_info and avr_info.raw_sources:
+                return list(avr_info.raw_sources)
+            return list(DEMO_SOURCES)
+
+        def _get_base_url_cb() -> str:
+            ip = get_advertise_ip(self.config) or "localhost"
+            port = self.runtime_state.get_resolved_port(self.config, "http_port", DEFAULT_HTTP_PORT)
+            return f"http://{ip}:{port}"
+
         enable_http = bool(self.config.get("enable_http", True))
 
         if enable_http:
@@ -625,6 +643,9 @@ class DenonProxyServer:
                 dashboard_html=dashboard_html,
                 runtime_state=self.runtime_state,
                 on_command_sent=self.record_command,
+                get_avr_state=_get_avr_state_cb,
+                get_sources=_get_sources_cb,
+                get_base_url=_get_base_url_cb,
             )
             if result:
                 self._json_api_server, self._notify_web_state = result

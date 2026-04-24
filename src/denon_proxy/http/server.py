@@ -6,6 +6,9 @@ This module serves:
 - POST /api/command -> send telnet command to AVR
 - POST /api/refresh -> request state refresh from AVR
 - GET /events       -> Server-Sent Events (JSON state stream)
+- GET /api/avr/...  -> Feature-oriented AVR control (power, volume, mute, source)
+- GET /api/uc/capabilities         -> JSON description of all control endpoints
+- GET /api/uc/custom_entities.yaml -> UC Remote 3 custom-entity YAML
 
 When configured with a dashboard_html string, it also serves:
 - GET /            -> HTML dashboard (Web UI)
@@ -24,16 +27,19 @@ if TYPE_CHECKING:
     import logging
     from collections.abc import Callable
 
+    from denon_proxy.avr.state import AVRState
     from denon_proxy.runtime.config import Config
     from denon_proxy.runtime.state import RuntimeState
 
 
-def parse_http_request(buffer: bytes) -> tuple[str, str, bytes, bytes] | None:
+def parse_http_request(buffer: bytes) -> tuple[str, str, str, bytes, bytes] | None:
     """
     Parse an HTTP/1.1 request from a byte buffer.
 
-    Returns (method, path, header_bytes, body_bytes), or None if the request
-    is incomplete (no header terminator yet). This is pure and easy to unit-test.
+    Returns (method, path, query_string, header_bytes, body_bytes), or None if
+    the request is incomplete (no header terminator yet). path never contains
+    the query string; query_string is the raw text after '?' (empty string if
+    no query). This is pure and easy to unit-test.
     """
     if b"\r\n\r\n" not in buffer:
         return None
@@ -44,8 +50,12 @@ def parse_http_request(buffer: bytes) -> tuple[str, str, bytes, bytes] | None:
     req_line = lines[0] if lines else ""
     parts = req_line.split()
     method = parts[0].upper() if len(parts) >= 1 else ""
-    path = parts[1].split("?")[0] if len(parts) >= 2 else "/"
-    return method, path, header_bytes, body_bytes
+    raw_path = parts[1] if len(parts) >= 2 else "/"
+    if "?" in raw_path:
+        path, query_string = raw_path.split("?", 1)
+    else:
+        path, query_string = raw_path, ""
+    return method, path, query_string, header_bytes, body_bytes
 
 
 def parse_command_request(body_bytes: bytes) -> tuple[str | None, dict[str, Any] | None]:
@@ -80,6 +90,9 @@ class _HttpServerHandler(asyncio.Protocol):
         request_state: Callable[[], None] | None = None,
         dashboard_html: str | None = None,
         on_command_sent: Callable[[str, str], None] | None = None,
+        get_avr_state: Callable[[], AVRState] | None = None,
+        get_sources: Callable[[], list[tuple[str, str]]] | None = None,
+        get_base_url: Callable[[], str] | None = None,
     ) -> None:
         self.get_state = get_state
         self.send_command = send_command
@@ -92,21 +105,28 @@ class _HttpServerHandler(asyncio.Protocol):
         self._sse_mode = False
         self._dashboard_html = dashboard_html
         self.on_command_sent = on_command_sent
+        self._get_avr_state = get_avr_state
+        self._get_sources = get_sources
+        self._get_base_url = get_base_url
+        self._peer_ip: str = ""
 
     def connection_made(self, transport: asyncio.BaseTransport) -> None:
         self.transport = cast("asyncio.Transport", transport)
+        peer = self.transport.get_extra_info("peername")
+        self._peer_ip = peer[0] if peer else ""
 
     def connection_lost(self, exc: BaseException | None) -> None:
         if self._sse_mode and self.transport:
             self.sse_subscribers.discard(self.transport)
         self.transport = None
+        self._peer_ip = ""
 
     def data_received(self, data: bytes) -> None:
         self._buffer += data
         parsed = parse_http_request(self._buffer)
         if not parsed:
             return
-        method, path, _headers, body_bytes = parsed
+        method, path, query, _headers, body_bytes = parsed
         self._buffer = b""  # Clear so next request on same connection starts clean (e.g. keep-alive)
 
         if method == "GET" and path == "/":
@@ -119,6 +139,14 @@ class _HttpServerHandler(asyncio.Protocol):
             self._handle_post_command(body_bytes)
         elif method == "POST" and path == "/api/refresh":
             self._handle_post_refresh()
+        elif method == "GET" and path.startswith("/api/avr/"):
+            self._handle_avr_control(path, query, _headers)
+        elif method == "POST" and path.startswith("/api/avr/"):
+            self._handle_avr_control(path, query, _headers)
+        elif method == "GET" and path == "/api/uc/capabilities":
+            self._handle_uc_capabilities(_headers)
+        elif method == "GET" and path == "/api/uc/custom_entities.yaml":
+            self._handle_uc_yaml(_headers)
         else:
             self._send_json(404, {"error": "Not Found"})
 
@@ -187,6 +215,80 @@ class _HttpServerHandler(asyncio.Protocol):
             self.logger.warning("request_state error: %s", e)
             self._send_json(500, {"error": str(e)})
 
+    def _handle_avr_control(self, path: str, query: str, header_bytes: bytes) -> None:
+        """Handle GET /api/avr/... control endpoints."""
+        if not self.send_command:
+            self._send_json(501, {"error": "send_command not configured"})
+            return
+        if self._get_avr_state is None or self._get_sources is None:
+            self._send_json(501, {"error": "AVR control not configured"})
+            return
+
+        from denon_proxy.http.avr_control import route_to_command  # noqa: PLC0415
+
+        command, response, status = route_to_command(
+            path,
+            query,
+            self._get_avr_state(),
+            self._get_sources(),
+        )
+        if command is not None:
+            if self.on_command_sent:
+                self.on_command_sent(self._peer_ip or "HTTP", command)
+            try:
+                self.send_command(command)
+            except OSError as e:
+                self.logger.warning("avr_control send_command error: %s", e)
+                self._send_json(500, {"error": str(e)})
+                return
+        self._send_json(status, response)
+
+    def _handle_uc_capabilities(self, header_bytes: bytes) -> None:
+        """Handle GET /api/uc/capabilities -> JSON capabilities description."""
+        if self._get_sources is None:
+            self._send_json(501, {"error": "AVR control not configured"})
+            return
+
+        from denon_proxy.http.uc_yaml import build_capabilities  # noqa: PLC0415
+
+        base_url = self._resolve_base_url(header_bytes)
+        caps = build_capabilities(base_url, self._get_sources())
+        body = json.dumps(caps, indent=2).encode("utf-8")
+        self._send_body(200, body, content_type="application/json")
+
+    def _handle_uc_yaml(self, header_bytes: bytes) -> None:
+        """Handle GET /api/uc/custom_entities.yaml -> UC custom-entity YAML."""
+        if self._get_sources is None:
+            self._send_json(501, {"error": "AVR control not configured"})
+            return
+
+        from denon_proxy.http.uc_yaml import build_custom_entities_yaml  # noqa: PLC0415
+
+        base_url = self._resolve_base_url(header_bytes)
+        yaml_text = build_custom_entities_yaml(base_url, self._get_sources())
+        self._send_yaml(200, yaml_text)
+
+    def _resolve_base_url(self, header_bytes: bytes) -> str:
+        """
+        Determine the proxy's base URL for YAML/capabilities output.
+
+        Prefers the runtime-resolved advertise IP (get_base_url callback) so the
+        generated YAML always contains the LAN address the UC Remote needs, even
+        when the Web UI is opened via localhost. Falls back to the Host header
+        only when the callback is unavailable or returns a loopback address.
+        """
+        if self._get_base_url:
+            url = self._get_base_url()
+            # Use the callback URL unless it resolves to loopback
+            if url and not _is_loopback_url(url):
+                return url
+        host = _extract_host_header(header_bytes)
+        if host and not _is_loopback_url(f"http://{host}"):
+            return f"http://{host}"
+        if self._get_base_url:
+            return self._get_base_url()
+        return "http://localhost"
+
     # ------------------------------------------------------------------
     # Response helpers
     # ------------------------------------------------------------------
@@ -198,6 +300,10 @@ class _HttpServerHandler(asyncio.Protocol):
     def _send_html(self, status: int, html_content: str) -> None:
         body = html_content.encode("utf-8")
         self._send_body(status, body, content_type="text/html; charset=utf-8")
+
+    def _send_yaml(self, status: int, yaml_content: str) -> None:
+        body = yaml_content.encode("utf-8")
+        self._send_body(status, body, content_type="text/yaml; charset=utf-8")
 
     def _send_body(self, status: int, body: bytes, content_type: str = "application/json") -> None:
         reasons: dict[int, str] = {
@@ -225,6 +331,20 @@ class _HttpServerHandler(asyncio.Protocol):
             self.transport = None
 
 
+def _extract_host_header(header_bytes: bytes) -> str:
+    """Extract the value of the Host: header from raw HTTP request headers, or ''."""
+    for line in header_bytes.decode("utf-8", errors="ignore").split("\r\n")[1:]:
+        if line.lower().startswith("host:"):
+            return line[5:].strip()
+    return ""
+
+
+def _is_loopback_url(url: str) -> bool:
+    """Return True if the URL's host is a loopback address (localhost / 127.x.x.x / ::1)."""
+    host = url.split("//", 1)[-1].split("/")[0].split(":")[0].lower()
+    return host in ("localhost", "127.0.0.1", "::1") or host.startswith("127.")
+
+
 async def run_http_server(
     config: Config,
     logger: logging.Logger,
@@ -235,6 +355,9 @@ async def run_http_server(
     dashboard_html: str | None = None,
     runtime_state: RuntimeState,
     on_command_sent: Callable[[str, str], None] | None = None,
+    get_avr_state: Callable[[], AVRState] | None = None,
+    get_sources: Callable[[], list[tuple[str, str]]] | None = None,
+    get_base_url: Callable[[], str] | None = None,
 ) -> tuple[asyncio.Server, Callable[[], None]] | None:
     """
     Start the HTTP server (JSON API, SSE, and optional Web UI).
@@ -278,6 +401,9 @@ async def run_http_server(
                 request_state=request_state,
                 dashboard_html=dashboard_html,
                 on_command_sent=on_command_sent,
+                get_avr_state=get_avr_state,
+                get_sources=get_sources,
+                get_base_url=get_base_url,
             )
             h.on_sse_push = notify_state_changed
             return h

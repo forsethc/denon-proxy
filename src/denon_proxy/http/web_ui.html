@@ -98,6 +98,23 @@
       max-height: none;
       overflow: auto;
     }
+    .yaml-block {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0.75rem;
+      font-family: ui-monospace, monospace;
+      font-size: 0.75rem;
+      max-height: 320px;
+      overflow: auto;
+      white-space: pre;
+    }
+    .panel-body > .yaml-block {
+      flex: 1;
+      min-height: 0;
+      max-height: none;
+      overflow: auto;
+    }
     .xml-link-pills { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.35rem; }
     .xml-link-pills a {
       display: inline-block;
@@ -376,6 +393,30 @@
       </div>
       </div>
     </div>
+    <div class="panel-wrapper card" data-panel-id="uc-remote" data-panel-group="control">
+      <div class="panel-header">
+        <span class="panel-drag-handle" title="Drag to reorder">⋮⋮</span>
+        <h2>UC Remote 3 Custom Entity</h2>
+        <div class="panel-actions">
+          <button type="button" class="panel-btn" title="Hide panel" data-action="hide">⊗</button>
+        </div>
+      </div>
+      <div class="panel-body">
+        <p class="muted" style="margin:0 0 0.75rem;">
+          Paste this into the <strong>custom_entities.yaml</strong> configuration when setting up the
+          <a href="https://github.com/kennymc-c/ucr2-integration-requests" target="_blank" rel="noopener">ucr2-integration-requests</a>
+          integration on your Unfolded Circle Remote 3.
+          The <code>denon_proxy_url</code> variable is set to this page's host automatically.
+        </p>
+        <div style="display:flex;gap:0.5rem;align-items:center;margin-bottom:0.5rem;flex-wrap:wrap;">
+          <button class="btn btn-primary" id="uc-copy-btn" onclick="copyUcYaml()">Copy YAML</button>
+          <button class="btn" onclick="loadUcYaml()">Refresh</button>
+          <a class="btn" href="/api/uc/custom_entities.yaml" download="custom_entities.yaml" style="text-decoration:none;">Download</a>
+          <span id="uc-copy-status" class="muted" style="display:none;"></span>
+        </div>
+        <pre class="yaml-block" id="uc-yaml-block">Loading...</pre>
+      </div>
+    </div>
     <div class="panel-wrapper card" data-panel-id="internal-state-json" data-panel-group="debug">
       <div class="panel-header">
         <span class="panel-drag-handle" title="Drag to reorder">⋮⋮</span>
@@ -429,13 +470,14 @@
       'avr-state': 'AVR State',
       'connected-clients': 'Connected Clients',
       'send-commands': 'Send Commands',
+      'uc-remote': 'UC Remote 3 Custom Entity',
       'internal-state-json': 'Internal State (JSON)',
       'xml-endpoints': 'XML Endpoints',
       'client-activity': 'Client activity'
     };
     var GROUP_LABELS = { 'status': 'Status', 'control': 'Control', 'debug': 'Debug', 'activity': 'Activity' };
-    var GROUP_PANELS = { 'status': ['avr-connection', 'avr-state', 'connected-clients'], 'control': ['send-commands'], 'debug': ['internal-state-json', 'xml-endpoints'], 'activity': ['client-activity'] };
-    var DEFAULT_PANEL_ORDER = ['avr-connection', 'avr-state', 'connected-clients', 'send-commands', 'internal-state-json', 'xml-endpoints', 'client-activity'];
+    var GROUP_PANELS = { 'status': ['avr-connection', 'avr-state', 'connected-clients'], 'control': ['send-commands', 'uc-remote'], 'debug': ['internal-state-json', 'xml-endpoints'], 'activity': ['client-activity'] };
+    var DEFAULT_PANEL_ORDER = ['avr-connection', 'avr-state', 'connected-clients', 'send-commands', 'uc-remote', 'internal-state-json', 'xml-endpoints', 'client-activity'];
     var RESIZE_GRID_STEP = 24;
     var RESIZE_MIN_W = 200;
     var RESIZE_MAX_W = 900;
@@ -497,6 +539,25 @@
         }
       });
       var orderToUse = order && order.length ? order : DEFAULT_PANEL_ORDER;
+      // Merge any panels not in the saved order into their default positions
+      if (order && order.length) {
+        DEFAULT_PANEL_ORDER.forEach(function (id) {
+          if (orderToUse.indexOf(id) === -1) {
+            var defaultIdx = DEFAULT_PANEL_ORDER.indexOf(id);
+            var inserted = false;
+            for (var i = defaultIdx - 1; i >= 0; i--) {
+              var prevId = DEFAULT_PANEL_ORDER[i];
+              var pos = orderToUse.indexOf(prevId);
+              if (pos !== -1) {
+                orderToUse.splice(pos + 1, 0, id);
+                inserted = true;
+                break;
+              }
+            }
+            if (!inserted) orderToUse.unshift(id);
+          }
+        });
+      }
       var idToEl = {};
       panels.forEach(function (el) { var id = el.getAttribute('data-panel-id'); if (id) idToEl[id] = el; });
       var ordered = orderToUse.filter(function (id) { return idToEl[id]; }).map(function (id) { return idToEl[id]; });
@@ -920,6 +981,30 @@
     }
     function escapeHtml(s) { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
     async function sendCmd(cmd) { await api('/api/command', { method: 'POST', body: JSON.stringify({ command: cmd }) }); }
+    async function loadUcYaml() {
+      const el = document.getElementById('uc-yaml-block');
+      if (!el) return;
+      try {
+        const r = await fetch('/api/uc/custom_entities.yaml');
+        if (!r.ok) { el.textContent = 'Error: HTTP ' + r.status; return; }
+        el.textContent = await r.text();
+      } catch (e) {
+        el.textContent = 'Error loading YAML: ' + e.message;
+      }
+    }
+    async function copyUcYaml() {
+      const el = document.getElementById('uc-yaml-block');
+      const statusEl = document.getElementById('uc-copy-status');
+      if (!el) return;
+      const text = el.textContent || '';
+      if (!text || text.startsWith('Error') || text === 'Loading...') return;
+      try {
+        await navigator.clipboard.writeText(text);
+        if (statusEl) { statusEl.textContent = 'Copied!'; statusEl.style.display = ''; setTimeout(() => { statusEl.style.display = 'none'; }, 2000); }
+      } catch (e) {
+        if (statusEl) { statusEl.textContent = 'Copy failed: ' + e.message; statusEl.style.display = ''; }
+      }
+    }
     async function reconnectAvr(btn) {
       if (!btn || btn.disabled) return;
       btn.disabled = true;
@@ -948,6 +1033,7 @@
     es.onmessage = (e) => { loadFromData(JSON.parse(e.data)); };
     fetch('/api/status').then(r => r.json()).then(loadFromData).catch(() => { document.getElementById('update-status').textContent = 'Initial load failed'; });
     initLayout();
+    loadUcYaml();
   </script>
 </body>
 </html>

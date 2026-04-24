@@ -23,3 +23,4 @@ htmlcov/
 *.swp
 *.swo
 uv.lock
+*.DS_STORE

@@ -132,6 +132,9 @@ docker run -d --name denon-proxy \
 3. Enter the proxy's IP address (and port if not 23)
 >>  **Note:** I recommend selecting .5 as the volume step (the default is 1). If it's not .5, the remote always sends an exact volume to go to, instead of just MVUP or MVDOWN.  This means that when the remote first wakes up and doesn't know what volume the AVR is at, it will default to 65.  If you press either the volume up or down buttons, it will go to 66 or 64, which can be a large jump in volume at once (mine is generally between 45-50).
 
+**Alternative — HTTP custom entity (recommended if the Denon AVR integration is unreliable):**
+The proxy exposes a feature-oriented HTTP API (`/api/avr/power/...`, `/api/avr/volume/...`, etc.) and a YAML generator that produces a ready-to-paste `custom_entities.yaml` for the [ucr2-integration-requests](https://github.com/kennymc-c/ucr2-integration-requests) integration. Open the Web UI and use the **UC Remote 3 Custom Entity** panel to copy the YAML. See [UC-REMOTE.md](docs/UC-REMOTE.md) for the full walkthrough.
+
 ### Telnet
 
 See [TELNET.md](docs/TELNET.md) for connecting via Telnet, example commands, and supported commands.
