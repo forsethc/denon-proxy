@@ -250,9 +250,7 @@ async def test_uc_yaml_uses_host_header(avr_control_server):
     reader, writer = await _open(port)
     try:
         writer.write(
-            b"GET /api/uc/custom_entities.yaml HTTP/1.1\r\n"
-            b"Host: myproxy.local:8081\r\n"
-            b"Connection: close\r\n\r\n"
+            b"GET /api/uc/custom_entities.yaml HTTP/1.1\r\nHost: myproxy.local:8081\r\nConnection: close\r\n\r\n"
         )
         await writer.drain()
         raw = await asyncio.wait_for(reader.read(65536), timeout=2.0)
@@ -271,7 +269,10 @@ async def test_avr_power_on_via_post(avr_control_server):
     reader, writer = await _open(port)
     try:
         writer.write(
-            f"POST /api/avr/power/on HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".encode()
+            f"POST /api/avr/power/on HTTP/1.1\r\n"
+            f"Host: 127.0.0.1:{port}\r\n"
+            f"Content-Length: 0\r\n"
+            f"Connection: close\r\n\r\n".encode()
         )
         await writer.drain()
         raw = await asyncio.wait_for(reader.read(65536), timeout=2.0)

@@ -139,9 +139,7 @@ class _HttpServerHandler(asyncio.Protocol):
             self._handle_post_command(body_bytes)
         elif method == "POST" and path == "/api/refresh":
             self._handle_post_refresh()
-        elif method == "GET" and path.startswith("/api/avr/"):
-            self._handle_avr_control(path, query, _headers)
-        elif method == "POST" and path.startswith("/api/avr/"):
+        elif method == "GET" and path.startswith("/api/avr/") or method == "POST" and path.startswith("/api/avr/"):
             self._handle_avr_control(path, query, _headers)
         elif method == "GET" and path == "/api/uc/capabilities":
             self._handle_uc_capabilities(_headers)
