@@ -506,8 +506,9 @@ class DenonProxyServer:
                 self.avr_state.sound_mode,
                 self.avr_state.smart_select,
             )
-        except (OSError, asyncio.TimeoutError, httpx.HTTPError) as e:
-            self.logger.debug("Could not sync initial state via HTTP: %s", e)
+        # Best effort: telnet fills in state anyway. denonavr wraps HTTP failures in its own exceptions.
+        except (OSError, asyncio.TimeoutError, httpx.HTTPError, denonavr.exceptions.DenonAvrError) as e:
+            self.logger.debug("Could not sync initial state via HTTP: %r", e)
 
     async def start(self) -> None:
         """Start the proxy server and AVR connection."""
