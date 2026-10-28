@@ -15,9 +15,9 @@ except ImportError:
 
 import httpx
 
-from denon_proxy.avr.discovery import get_advertise_ip
+from denon_proxy.avr.discovery import get_advertise_ip, resolve_sources
 from denon_proxy.avr.info import AVRInfo
-from denon_proxy.avr.state import AVRState, volume_to_level
+from denon_proxy.avr.state import AVRState, InputVariant, volume_to_level
 from denon_proxy.avr.telnet_utils import parse_telnet_lines, telnet_line_to_bytes
 from denon_proxy.avr.unanswered_tracker import UnansweredCommandTracker, is_avr_query_command
 from denon_proxy.command_log import (
@@ -28,8 +28,8 @@ from denon_proxy.constants import (
     DEFAULT_HTTP_PORT,
     DEFAULT_PROXY_PORT,
     DEFAULT_SSDP_HTTP_PORT,
-    DEMO_SOURCES,
     DENONAVR_SYNC_TIMEOUT,
+    EXPANDED_COMMAND_DELAY,
     POST_CONNECT_DELAY,
     RECONNECT_DELAY,
 )
@@ -192,9 +192,36 @@ def state_and_config_updates_from_denonavr(d: Any) -> tuple[dict[str, Any], AVRI
     return state_updates, avr_info
 
 
-def avr_response_broadcast_lines(message: str) -> list[str]:
-    """Return telnet lines to broadcast for an AVR response (faithful one-to-one relay)."""
+def avr_response_broadcast_lines(message: str, avr_state: AVRState | None = None) -> list[str]:
+    """Return telnet lines to broadcast for an AVR response (faithful one-to-one relay).
+
+    The one exception is virtual sources: avr_state (already updated from message) knows whether the
+    real input + input mode amount to a virtual source, and clients are told that source instead.
+    """
+    if avr_state is None or not avr_state.has_variants() or len(message) <= 2:
+        return [message]
+    presented = f"SI{avr_state.input_source}"
+    if message.startswith("SI") and message.strip() != presented:
+        return [presented]
+    # An input mode change can turn the current input into (or out of) a virtual source, which
+    # clients only learn about from an SI line.
+    if message.startswith("SD") and avr_state.has_variant_for_current_input():
+        return [message, presented]
     return [message]
+
+
+async def send_expanded(avr: AVRConnection | VirtualAVRConnection, commands: list[str]) -> bool:
+    """Send commands in order (from AVRState.expand_command). Returns True if all were sent.
+
+    Stops at the first failure: an SD<mode> sent after a failed SI<input> would change the mode of
+    whatever input the AVR is still on.
+    """
+    for i, cmd in enumerate(commands):
+        if i:
+            await asyncio.sleep(EXPANDED_COMMAND_DELAY)
+        if not await avr.send_command(cmd):
+            return False
+    return True
 
 
 def _is_valid_client_command(command: str) -> tuple[bool, str | None]:
@@ -319,6 +346,7 @@ class ClientHandler(asyncio.Protocol):
         delay = max(0.0, float(self.config.get("optimistic_broadcast_delay", 0.1)))
         snapshot = None
         had_connection = self.avr.is_connected()
+        commands = self.avr_state.expand_command(command)
 
         if optimistic:
             snapshot = self.avr_state.snapshot()
@@ -328,7 +356,7 @@ class ClientHandler(asyncio.Protocol):
             ):
                 snapshot = None  # command didn't change state, nothing to revert
 
-        send_task = asyncio.create_task(self.avr.send_command(command))
+        send_task = asyncio.create_task(send_expanded(self.avr, commands))
         if delay > 0:
             await asyncio.sleep(delay)
         success = await send_task
@@ -386,6 +414,12 @@ class DenonProxyServer:
         self.logger = logger
         self.runtime_state = runtime_state
         self.avr_state = AVRState()
+        self.avr_state.set_variants(
+            {
+                code: InputVariant(vs.input, vs.input_mode, vs.default_input_mode)
+                for code, vs in config.get("virtual_sources", {}).items()
+            }
+        )
         self.clients: set[ClientHandler] = set()
         self.avr: (AVRConnection | VirtualAVRConnection) | None = None
         self._unanswered_tracker: UnansweredCommandTracker | None = None
@@ -449,9 +483,13 @@ class DenonProxyServer:
             self.logger.info("AVR response: %s", message)
         else:
             self.logger.debug("AVR response: %s", message)
-        for line in avr_response_broadcast_lines(message):
+        for line in avr_response_broadcast_lines(message, self.avr_state):
             self._broadcast(line)
         self.runtime_state.notify_web_state()
+        # The AVR doesn't report an input's mode on its own, so ask when the input changes to one that
+        # has a virtual source. Only SI lines trigger this, so an AVR that never answers SD? isn't spammed.
+        if message.startswith("SI") and self.avr_state.needs_input_mode_query() and self.avr is not None:
+            asyncio.create_task(self.avr.send_command("SD?"))
 
     def _on_avr_disconnect(self) -> None:
         """Called when AVR disconnects or send attempted while disconnected - schedule reconnect (idempotent)."""
@@ -506,8 +544,9 @@ class DenonProxyServer:
                 self.avr_state.sound_mode,
                 self.avr_state.smart_select,
             )
-        except (OSError, asyncio.TimeoutError, httpx.HTTPError) as e:
-            self.logger.debug("Could not sync initial state via HTTP: %s", e)
+        # Best effort: telnet fills in state anyway. denonavr wraps HTTP failures in its own exceptions.
+        except (OSError, asyncio.TimeoutError, httpx.HTTPError, denonavr.exceptions.DenonAvrError) as e:
+            self.logger.debug("Could not sync initial state via HTTP: %r", e)
 
     async def start(self) -> None:
         """Start the proxy server and AVR connection."""
@@ -517,6 +556,9 @@ class DenonProxyServer:
                 self.runtime_state.avr_info = AVRInfo.unknown()
         else:
             self.runtime_state.avr_info = AVRInfo.virtual()
+        # Resolve the source list once AVR sources are known, so the HTTP API, Web UI and discovery
+        # all see the same list (including virtual sources) even when SSDP is disabled.
+        resolve_sources(self.config, self.runtime_state)
 
         ua_n = int(self.config.get("avr_unanswered_log_suppress_after", 1))
         self._unanswered_tracker = None
@@ -602,7 +644,7 @@ class DenonProxyServer:
         def _send_command_cb(cmd: str) -> None:
             async def _do() -> None:
                 if self.avr:
-                    await self.avr.send_command(cmd)
+                    await send_expanded(self.avr, self.avr_state.expand_command(cmd))
 
             asyncio.create_task(_do())
 
@@ -617,13 +659,7 @@ class DenonProxyServer:
             return self.avr_state
 
         def _get_sources_cb() -> list[tuple[str, str]]:
-            rs = self.runtime_state
-            if rs.resolved_sources:
-                return rs.resolved_sources
-            avr_info = rs.avr_info
-            if avr_info and avr_info.raw_sources:
-                return list(avr_info.raw_sources)
-            return list(DEMO_SOURCES)
+            return resolve_sources(self.config, self.runtime_state)
 
         def _get_base_url_cb() -> str:
             ip = get_advertise_ip(self.config) or "localhost"

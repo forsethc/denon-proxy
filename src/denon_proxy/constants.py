@@ -22,6 +22,9 @@ RECONNECT_DELAY = 2.0
 POST_CONNECT_DELAY = 0.3
 # Delay between individual commands in request_state (PW?, MV?, etc.).
 REQUEST_STATE_INTERVAL = 0.05
+# Delay between the commands a virtual source expands to (SI<input> then SD<mode>), so the AVR has
+# switched inputs before the input mode is applied to the new input.
+EXPANDED_COMMAND_DELAY = 0.2
 # Max wait for discovery/HTTP servers to close during shutdown.
 SHUTDOWN_SERVER_WAIT = 2.0
 # Max wait for proxy.stop() during shutdown.

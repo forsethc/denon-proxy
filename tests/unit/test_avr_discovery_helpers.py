@@ -9,7 +9,7 @@ from denon_proxy.avr.discovery import (
     _deviceinfo_xml as deviceinfo_xml,
     _escape_xml_text,
     _get_proxy_friendly_name as get_proxy_friendly_name,
-    _get_sources as get_sources,
+    resolve_sources as get_sources,
     _mainzone_xml as mainzone_xml,
     _parse_appcommand_request as parse_appcommand_request,
     _rewrite_avr_description,
