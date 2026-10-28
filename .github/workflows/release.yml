@@ -11,7 +11,43 @@ on:
         type: string
 
 jobs:
+  preflight:
+    name: Validate release request
+    runs-on: ubuntu-latest
+    env:
+      VERSION: ${{ github.event.inputs.version }}
+
+    steps:
+      - name: Require main branch
+        run: |
+          if [ "${GITHUB_REF}" != "refs/heads/main" ]; then
+            echo "::error::Releases must be dispatched on main (got ${GITHUB_REF}). Re-run with --ref main / 'Use workflow from: main'."
+            exit 1
+          fi
+
+      - name: Validate version format
+        run: |
+          if ! [[ "${VERSION}" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+            echo "::error::Version '${VERSION}' is not plain semver X.Y.Z (no leading 'v', no suffix)."
+            exit 1
+          fi
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Compare with latest release tag
+        run: |
+          LATEST=$(git tag -l 'v[0-9]*' --sort=-v:refname | head -n 1)
+          LATEST="${LATEST#v}"
+          if [ -n "${LATEST}" ] && [ "${LATEST}" != "${VERSION}" ] \
+            && [ "$(printf '%s\n%s\n' "${LATEST}" "${VERSION}" | sort -V | tail -n 1)" != "${VERSION}" ]; then
+            echo "::warning::Version ${VERSION} is not greater than the latest tag v${LATEST}."
+          fi
+
   tests:
+    needs: [preflight]
     uses: ./.github/workflows/tests.yml
 
   release:
@@ -47,11 +83,19 @@ jobs:
             exit 1
           fi
 
+      # An existing tag is reused only if it is on main (e.g. re-running after the
+      # tag was pushed but the release step failed). A tag off main would make the
+      # auto-generated release notes wrong, so refuse it.
       - name: Create tag
         run: |
           TAG="v${{ github.event.inputs.version }}"
           if git ls-remote --exit-code --tags origin "refs/tags/${TAG}" >/dev/null 2>&1; then
-            echo "Tag ${TAG} already exists on remote — skipping tag creation"
+            git fetch --force origin "refs/tags/${TAG}:refs/tags/${TAG}"
+            if ! git merge-base --is-ancestor "${TAG}^{commit}" origin/main; then
+              echo "::error::Tag ${TAG} already exists but points at $(git rev-parse --short "${TAG}^{commit}"), which is not on main. Delete it (git push origin :refs/tags/${TAG}) and re-run, or release a different version from main."
+              exit 1
+            fi
+            echo "Tag ${TAG} already exists on main — reusing it"
           else
             git tag -a "${TAG}" -m "Release ${TAG}"
             git push origin "${TAG}"
