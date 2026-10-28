@@ -74,6 +74,8 @@ Example: `GET /api/avr/source/HDMI1` sends `SIHDMI1`.
 
 Available source codes are listed in `/api/status` (`avr.sources[].func`) and `/api/uc/capabilities`.
 
+Configured [`virtual_sources`](CONFIG.md) appear in the source list like any other code. Selecting one (e.g. `GET /api/avr/source/MPLAY_ANALOG`) sends `SI<input>` followed by `SD<input_mode>`; the same expansion applies to `POST /api/command` and Telnet clients.
+
 ---
 
 ## UC Remote 3 Endpoints

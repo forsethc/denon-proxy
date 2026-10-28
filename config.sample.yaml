@@ -49,6 +49,24 @@ sources: null
 #   HDMI2: "Cable Box"
 #   NET: "Streaming"
 
+# Virtual sources: extra entries in the source list that select a real input AND an input mode
+# (Denon SD command: AUTO, HDMI, DIGITAL, ANALOG, ...). The key is the code clients send as SI<code>.
+# Example: Apple TV with analog audio and HDMI video. Choosing it sends SIMPLAY then SDANALOG;
+# choosing plain Apple TV sends SIMPLAY then SDAUTO (default_input_mode) so analog doesn't stick, even when
+# coming back from another input (the receiver remembers each input's mode).
+# Only inputs that have a virtual source cause the proxy to query SD? from the AVR.
+virtual_sources: {}
+# virtual_sources:
+#   MPLAY_ANALOG:
+#     input: MPLAY             # real source code (must be in the source list / `sources` above)
+#     input_mode: ANALOG       # input mode applied after selecting the input (see below)
+#     name: "Apple TV (Analog Audio)"   # optional; default "<input name> (Analog)"
+#     default_input_mode: AUTO # optional; input mode set whenever the plain input is selected
+#
+# Input mode values are usually AUTO, HDMI, DIGITAL or ANALOG. Each input only offers the connectors
+# assigned to it (check Input Mode for that input in the receiver's web UI or setup menu), and some
+# models have more, so other values are passed through as-is.
+
 # SSDP discovery (e.g. for Home Assistant auto-discovery)
 enable_ssdp: true
 
