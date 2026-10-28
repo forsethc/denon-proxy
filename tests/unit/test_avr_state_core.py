@@ -1,3 +1,5 @@
+import pytest
+
 from denon_proxy.avr.state import AVRState
 from denon_proxy.constants import VOLUME_DEFAULT_LEVEL
 
@@ -92,6 +94,22 @@ def test_update_from_message_mvmax_updates_volume_max_and_not_volume():
     # Other values still unchanged when MVMAX received
     state.update_from_message("MVMAX ?")
     assert state.volume_max == 60.0
+
+
+@pytest.mark.parametrize(
+    ("message", "expected"),
+    [
+        ("MVMAX60", 60.0),
+        ("MVMAX 60", 60.0),
+        ("MVMAX 765", 76.5),  # three digits are a half step, as for MV (seen on a real Marantz)
+        ("MVMAX765", 76.5),
+        ("MVMAX 805", 80.5),
+    ],
+)
+def test_update_from_message_mvmax_parses_whole_and_half_steps(message, expected):
+    state = AVRState()
+    state.update_from_message(message)
+    assert state.volume_max == expected
 
 
 def test_apply_command_and_get_status_dump_and_snapshot_restore():

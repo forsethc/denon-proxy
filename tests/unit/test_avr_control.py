@@ -131,6 +131,16 @@ def test_volume_set_out_of_range_returns_400() -> None:
     assert cmd is None
 
 
+def test_volume_set_respects_half_step_mvmax_from_avr() -> None:
+    """A receiver reporting MVMAX 765 allows up to 76.5, not 765."""
+    state = AVRState()
+    state.update_from_message("MVMAX 765")
+    cmd, _, status = route_to_command("/api/avr/volume/set", "level=77", state, SOURCES)
+    assert (cmd, status) == (None, 400)
+    cmd, _, status = route_to_command("/api/avr/volume/set", "level=76.5", state, SOURCES)
+    assert (cmd, status) == ("MV765", 200)
+
+
 def test_volume_set_negative_returns_400() -> None:
     cmd, resp, status = route_to_command("/api/avr/volume/set", "level=-1", _state(), SOURCES)
     assert status == 400

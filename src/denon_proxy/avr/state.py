@@ -39,8 +39,14 @@ def _zm_line_for_power(power: str) -> str:
     return "ZMON" if power.upper() == "ON" else "ZMOFF"
 
 
+def _digits_to_level(digits: str) -> float:
+    """Convert Denon volume digits to a level: two digits are whole steps (50 = 50.0), three are
+    half steps (535 = 53.5). Used for both MV and MVMAX so the two can't disagree."""
+    return float(digits) / 10.0 if len(digits) == 3 else float(digits)
+
+
 def _parse_mvmax(param: str) -> float | None:
-    """Parse MVMAX nn from param (e.g. 'MAX 60' or 'MAX60'). Returns None if no number."""
+    """Parse MVMAX nn from param (e.g. 'MAX 60', 'MAX60', 'MAX 765' = 76.5). Returns None if no number."""
     if not param.upper().startswith("MAX"):
         return None
     rest = param[3:].strip() if len(param) > 3 else ""
@@ -48,7 +54,7 @@ def _parse_mvmax(param: str) -> float | None:
         parts = param.split()
         rest = parts[-1] if len(parts) > 1 else ""
     match = re.search(r"\d+", rest) if rest else None
-    return max(0.0, float(match.group())) if match else None
+    return max(0.0, _digits_to_level(match.group())) if match else None
 
 
 class InputVariant(NamedTuple):
@@ -410,11 +416,9 @@ def volume_to_level(vol_str: str | None, max_volume: float = 98.0) -> float:
     s = str(vol_str).strip().upper()
     if "MAX" in s:
         parts = s.split()
-        return min(max_volume, float(parts[-1]) if len(parts) > 1 and parts[-1].isdigit() else max_volume)
+        return min(max_volume, _digits_to_level(parts[-1]) if len(parts) > 1 and parts[-1].isdigit() else max_volume)
     if s.isdigit():
-        # 3 digits = XX.X (e.g. 535 = 53.5), 2 digits = XX (e.g. 50 = 50)
-        val = float(s) / 10.0 if len(s) == 3 else float(s)
-        return max(0.0, min(max_volume, val))
+        return max(0.0, min(max_volume, _digits_to_level(s)))
     return VOLUME_DEFAULT_LEVEL
 
 
