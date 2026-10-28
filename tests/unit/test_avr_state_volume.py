@@ -14,6 +14,8 @@ def test_volume_to_level_empty_and_max_clamp():
     assert default_level > 0
     # MAX with explicit value should clamp to that value (or max_volume)
     assert volume_to_level("MAX 60", max_volume=80.0) == 60.0
+    # ...including a half-step MAX value (765 = 76.5)
+    assert volume_to_level("MAX 765", max_volume=98.0) == 76.5
     # Values above max_volume are clamped (e.g. 990 -> 99.0, then clamped to 80.0)
     assert volume_to_level("990", max_volume=80.0) == 80.0
     # MAX with no number or non-digit uses max_volume
