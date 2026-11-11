@@ -63,6 +63,11 @@ virtual_sources: {}
 #     name: "Apple TV (Analog Audio)"   # optional; default "<input name> (Analog)"
 #     default_input_mode: AUTO # optional; input mode set whenever the plain input is selected
 #
+# Prerequisite: the receiver must already have the connector assigned to that input. For the example
+# above, assign an analog audio jack to Media Player under Inputs > Input Assign in the receiver's
+# setup menu or web UI. The proxy can't do this; without the assignment the receiver has no ANALOG
+# mode for that input to switch to.
+#
 # Input mode values are usually AUTO, HDMI, DIGITAL or ANALOG. Each input only offers the connectors
 # assigned to it (check Input Mode for that input in the receiver's web UI or setup menu), and some
 # models have more, so other values are passed through as-is.
