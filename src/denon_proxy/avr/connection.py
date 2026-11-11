@@ -227,8 +227,10 @@ class VirtualAVRConnection:
         self.logger.debug("Virtual AVR received: %s", cmd)
         self.avr_state.apply_command(cmd, volume_step=self.volume_step)
         # Emit the response(s) a real AVR would send for this command
-        dump = self.avr_state.get_status_dump().strip()
+        dump = self.avr_state.get_status_dump(as_avr=True).strip()
         prefix = cmd[:2].upper()
+        if prefix == "SD":
+            prefix = "SI"  # input mode changes are reported through the (virtual) source line
         for line in dump.splitlines():
             line = line.strip()
             if not line or len(line) < 2:
@@ -242,7 +244,7 @@ class VirtualAVRConnection:
     async def request_state(self) -> None:
         if not self._connected:
             return
-        for line in self.avr_state.get_status_dump().strip().splitlines():
+        for line in self.avr_state.get_status_dump(as_avr=True).strip().splitlines():
             if line.strip():
                 self.on_response(line.strip())
 

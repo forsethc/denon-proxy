@@ -59,19 +59,38 @@ if TYPE_CHECKING:
     from denon_proxy.runtime.config import Config
     from denon_proxy.runtime.state import RuntimeState
 
-__all__ = ["get_advertise_ip", "run_discovery_servers"]
+__all__ = ["get_advertise_ip", "resolve_sources", "run_discovery_servers"]
 
 _logger = logging.getLogger(__name__)
 
 
-def _get_sources(config: Config, runtime_state: RuntimeState) -> list[tuple[str, str]]:
+def _virtual_sources(config: Config, real_sources: list[tuple[str, str]]) -> list[tuple[str, str]]:
+    """(code, display_name) for configured virtual sources whose input is in real_sources."""
+    # Config validation already rejects these cases when `sources` is configured. Without it the
+    # list comes from the AVR at runtime (or a configured source may be missing on the AVR), so
+    # skip with a warning rather than refuse to start over a source the AVR doesn't report.
+    # Config codes are upper-cased; AVR function codes are usually upper case but not guaranteed.
+    names = {func.upper(): display_name for func, display_name in real_sources}
+    out: list[tuple[str, str]] = []
+    for code, vs in config.get("virtual_sources", {}).items():
+        if code in names:
+            _logger.warning("Virtual source '%s' has the same code as a real input, skipping", code)
+        elif vs.input not in names:
+            _logger.warning("Virtual source '%s': input '%s' is not in the source list, skipping", code, vs.input)
+        else:
+            out.append((code, vs.name or f"{names[vs.input]} ({vs.input_mode.title()})"))
+    return out
+
+
+def resolve_sources(config: Config, runtime_state: RuntimeState) -> list[tuple[str, str]]:
     """
     Return list of (func_name, display_name) for input sources.
     func_name is the Denon code (e.g. CD, BD, HDMI1) used in SI commands.
     display_name is shown in Home Assistant.
     Uses config['sources'] if provided (dict of func_code -> display_name).
     If no config mapping and runtime_state.avr_info.raw_sources exist, uses those.
-    Otherwise DEMO_SOURCES. Cache is read/written on runtime_state.
+    Otherwise DEMO_SOURCES. Configured virtual_sources are appended after the real sources.
+    Cache is read/written on runtime_state.
     """
     if runtime_state.resolved_sources is not None:
         return runtime_state.resolved_sources
@@ -116,6 +135,7 @@ def _get_sources(config: Config, runtime_state: RuntimeState) -> list[tuple[str,
         else:
             result = DEMO_SOURCES
 
+    result = [*result, *_virtual_sources(config, result)]
     runtime_state.resolved_sources = result
     if raw_sources:
         _logger.info(
@@ -164,7 +184,7 @@ def _deviceinfo_xml(config: Config, runtime_state: RuntimeState) -> str:
     (avoids port 60006 aios_device.xml which can cause HA config flow issues)."""
     sources_xml = "\n".join(
         f"      <Source><FuncName>{func_name}</FuncName><DefaultName>{display_name}</DefaultName></Source>"
-        for func_name, display_name in _get_sources(config, runtime_state)
+        for func_name, display_name in resolve_sources(config, runtime_state)
     )
     return f"""<?xml version="1.0" encoding="utf-8"?>
 <Device_Info>
@@ -317,7 +337,7 @@ def _mainzone_xml(avr_state: AVRState, config: Config, runtime_state: RuntimeSta
     mute_val = "on" if (avr_state and getattr(avr_state, "mute", None)) else "off"
     input_src = (getattr(avr_state, "input_source", None) if avr_state else None) or "CD"
     sound_mode = (getattr(avr_state, "sound_mode", None) if avr_state else None) or "STEREO"
-    sources = _get_sources(config, runtime_state)
+    sources = resolve_sources(config, runtime_state)
     func_names = [func_name for func_name, _ in sources]
     display_names = [display_name for _, display_name in sources]
     input_func_list = "\n".join(f"    <Value>{func_name}</Value>" for func_name in func_names)

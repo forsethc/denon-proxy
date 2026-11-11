@@ -9,8 +9,8 @@ Volume helpers are used for presentation (JSON, XML).
 from __future__ import annotations
 
 import re
-from dataclasses import asdict, dataclass
-from typing import Any
+from dataclasses import asdict, dataclass, field
+from typing import Any, NamedTuple
 
 from denon_proxy.constants import (
     DEFAULT_MAX_VOLUME,
@@ -57,6 +57,14 @@ def _parse_mvmax(param: str) -> float | None:
     return max(0.0, _digits_to_level(match.group())) if match else None
 
 
+class InputVariant(NamedTuple):
+    """A virtual source: a real input selected together with an input mode (all upper case)."""
+
+    input: str  # real source code, e.g. MPLAY
+    mode: str  # SD parameter applied with it, e.g. ANALOG
+    default_mode: str  # SD parameter set whenever the plain input is selected, e.g. AUTO
+
+
 # -----------------------------------------------------------------------------
 # AVR State
 # -----------------------------------------------------------------------------
@@ -65,7 +73,7 @@ def _parse_mvmax(param: str) -> float | None:
 @dataclass
 class AVRState:
     """
-    Tracks Denon AVR state (power, volume, input, mute, sound_mode, smart_select).
+    Tracks Denon AVR state (power, volume, input, input mode, mute, sound_mode, smart_select).
     Used by the connection layer for telnet and by discovery for HTTP/XML.
     """
 
@@ -76,9 +84,19 @@ class AVRState:
     sound_mode: str | None = "STEREO"  # e.g. STEREO, MULTI CH IN, DOLBY DIGITAL
     smart_select: str | None = None  # Smart Select slot, always "SMART{n}" (e.g. SMART0, SMART1)
     volume_max: float = DEFAULT_MAX_VOLUME  # AVR max volume limit from MVMAX
+    # Input mode (SD) of the current input, e.g. AUTO, ANALOG; None until the AVR reports it.
+    input_mode: str | None = None
+    # With virtual sources, input_source is what clients see (the real input, or a virtual source
+    # code while the real input is in that virtual source's mode) and _real_input is what the AVR
+    # reports. Without virtual sources the two are always equal.
+    _real_input: str | None = field(default=None, init=False, repr=False)
+    _variants: dict[str, InputVariant] = field(default_factory=dict, init=False, repr=False)
+
+    def __post_init__(self) -> None:
+        self._real_input = self.input_source
 
     def update_from_message(self, message: str) -> None:
-        """Update state from a Denon telnet response (PW, MV, SI, MU, ZM, MS, MSSMART)."""
+        """Update state from a Denon telnet response (PW, MV, SI, SD, MU, ZM, MS, MSSMART)."""
         if not message or len(message) < 2:
             return
 
@@ -121,7 +139,12 @@ class AVRState:
         elif message.startswith("SI") and len(message) > 2:
             param = message[2:].strip()
             if param and param != "?":
-                self.input_source = param
+                self._set_real_input(param)
+
+        elif message.startswith("SD") and len(message) > 2:
+            param = message[2:].strip()
+            if param and param != "?":
+                self._set_input_mode(param)
 
         elif message.upper().startswith("MSSMART") and len(message) > 7:
             # MSSMART ? response gives Smart Select slot (e.g. smart0, 0), not sound mode
@@ -134,16 +157,22 @@ class AVRState:
             if param and param != "?":
                 self.sound_mode = param
 
-    def get_status_dump(self) -> str:
-        """Return Denon telnet-format status lines for new clients and telnet sync."""
+    def get_status_dump(self, *, as_avr: bool = False) -> str:
+        """Return Denon telnet-format status lines for new clients and telnet sync.
+
+        as_avr: report the real input, as a physical AVR would, instead of a virtual source
+        (used by the virtual AVR, whose responses are fed back into this state).
+        """
         lines = []
         if self.power:
             lines.append(f"PW{self.power}")
             lines.append(_zm_line_for_power(self.power))
         if self.volume:
             lines.append(f"MV{self.volume}")
-        if self.input_source:
-            lines.append(f"SI{self.input_source}")
+        # Without virtual sources input_source is authoritative (callers may assign it directly).
+        source = self._real_input if as_avr and self._variants else self.input_source
+        if source:
+            lines.append(f"SI{source}")
         if self.mute is not None:
             lines.append("MUON" if self.mute else "MUOFF")
         if self.sound_mode:
@@ -163,6 +192,8 @@ class AVRState:
         self.power = snapshot.get("power")
         self.volume = snapshot.get("volume")
         self.input_source = snapshot.get("input_source")
+        self._real_input = snapshot.get("_real_input", self.input_source)
+        self.input_mode = snapshot.get("input_mode")
         self.mute = snapshot.get("mute")
         self.sound_mode = snapshot.get("sound_mode")
         self.smart_select = snapshot.get("smart_select")
@@ -181,7 +212,7 @@ class AVRState:
             self.volume = str(v) if v is not None else None
         if "input_source" in payload:
             v = payload["input_source"]
-            self.input_source = str(v) if v is not None else None
+            self._set_real_input(str(v) if v is not None else None)
         if "mute" in payload:
             self.mute = bool(payload["mute"])
         if "sound_mode" in payload:
@@ -248,7 +279,12 @@ class AVRState:
         elif cmd.startswith("SI") and len(cmd) > 2:
             param = cmd[2:].strip()
             if param and param != "?":
-                self.input_source = param
+                self._apply_input_command(param)
+                applied = True
+        elif cmd.startswith("SD") and len(cmd) > 2:
+            param = cmd[2:].strip()
+            if param and param != "?":
+                self._set_input_mode(param)
                 applied = True
         elif cmd.upper().startswith("MSSMART") and len(cmd) > 7:
             param = cmd[7:].strip()
@@ -261,6 +297,99 @@ class AVRState:
                 self.sound_mode = param
                 applied = True
         return applied
+
+    # -- Virtual sources ----------------------------------------------------------------------------
+    # A virtual source lets clients that only know "pick a source" (e.g. Home Assistant) pick an input
+    # *and* its input mode, e.g. Apple TV with analog audio. Denon stores the input mode per input, so
+    # the mode is only meaningful together with the input it was reported for.
+
+    def set_variants(self, variants: dict[str, InputVariant]) -> None:
+        """Configure virtual sources (code -> InputVariant). Codes and fields are upper-cased."""
+        self._variants = {
+            code.upper(): InputVariant(v.input.upper(), v.mode.upper(), v.default_mode.upper())
+            for code, v in variants.items()
+        }
+        self._refresh_input_source()
+
+    def has_variants(self) -> bool:
+        """True when any virtual sources are configured."""
+        return bool(self._variants)
+
+    def has_variant_for_current_input(self) -> bool:
+        """True when the input the AVR is on has at least one virtual source."""
+        real = (self._real_input or "").upper()
+        return any(v.input == real for v in self._variants.values())
+
+    def needs_input_mode_query(self) -> bool:
+        """True when the current input has a virtual source but its input mode is not known yet."""
+        return self.input_mode is None and self.has_variant_for_current_input()
+
+    def expand_command(self, command: str) -> list[str]:
+        """Return the commands to send to the AVR for a client command.
+
+        Call before apply_command(): the result depends on the state the command starts from.
+        - SI<virtual code> -> SI<input>, SD<mode>. The input goes first so the mode lands on it.
+        - SI<input> for an input that has virtual sources -> SI<input>, SD<default_mode>, unless the
+          input is already known to be in default_mode. The AVR remembers each input's mode, so without
+          this, coming back to the plain input (even via another input) would bring the virtual
+          source's mode back with it.
+        - Anything else is sent unchanged.
+        """
+        cmd = command.strip().upper()
+        if not self._variants or not cmd.startswith("SI") or len(cmd) <= 2:
+            return [command]
+        param = cmd[2:]
+        variant = self._variants.get(param)
+        if variant is not None:
+            return [f"SI{variant.input}", f"SD{variant.mode}"]
+        # The default comes from the input being selected, never from the virtual source being left.
+        default = self._default_mode_for(param)
+        if default is not None and not self._is_in_mode(param, default):
+            return [command, f"SD{default}"]
+        return [command]
+
+    def _default_mode_for(self, input_code: str) -> str | None:
+        """default_mode of the input's virtual sources (config ensures they agree), or None if it has none."""
+        return next((v.default_mode for v in self._variants.values() if v.input == input_code.upper()), None)
+
+    def _is_in_mode(self, input_code: str, mode: str) -> bool:
+        """True when the AVR is known to be on input_code in mode."""
+        return (self._real_input or "").upper() == input_code.upper() and self.input_mode == mode
+
+    def _active_variant(self) -> tuple[str, InputVariant] | None:
+        """(code, variant) of the virtual source matching the current input and input mode, if any."""
+        if self._real_input is None or self.input_mode is None:
+            return None
+        real, mode = self._real_input.upper(), self.input_mode.upper()
+        return next(((c, v) for c, v in self._variants.items() if v.input == real and v.mode == mode), None)
+
+    def _refresh_input_source(self) -> None:
+        """Recompute the client-facing input_source from the real input and input mode."""
+        active = self._active_variant()
+        self.input_source = active[0] if active else self._real_input
+
+    def _set_real_input(self, value: str | None) -> None:
+        # A different input has its own (not yet known) mode; the same input keeps the known one.
+        if value is None or (self._real_input or "").upper() != value.upper():
+            self.input_mode = None
+        self._real_input = value
+        self._refresh_input_source()
+
+    def _set_input_mode(self, value: str) -> None:
+        self.input_mode = value.upper()
+        self._refresh_input_source()
+
+    def _apply_input_command(self, param: str) -> None:
+        """Optimistic state for SI<param>; mirrors expand_command so state matches what is sent."""
+        variant = self._variants.get(param)
+        default = self._default_mode_for(param)
+        if variant is not None:
+            self._set_real_input(variant.input)
+            self._set_input_mode(variant.mode)
+        else:
+            self._set_real_input(param)
+            if default is not None:
+                self._set_input_mode(default)
 
 
 # -----------------------------------------------------------------------------

@@ -19,6 +19,45 @@ from denon_proxy.constants import (
 _VALID_COMMAND_GROUPS = frozenset({"power", "volume", "input", "mute", "sound_mode", "smart_select", "other"})
 
 
+class VirtualSource(BaseModel):
+    """An extra entry in the source list that selects a real input plus an input mode (Denon ``SD``).
+
+    Example: Apple TV with analog audio and HDMI video is ``input: MPLAY, input_mode: ANALOG``.
+    """
+
+    model_config = {"extra": "forbid", "frozen": True}
+
+    input: str = Field(min_length=1)  # real Denon source code, e.g. MPLAY
+    # Denon input mode (SD) values are usually AUTO, HDMI, DIGITAL or ANALOG; some models have more, and
+    # each input only offers the connectors assigned to it, so the value isn't restricted to a fixed set.
+    input_mode: str = Field(min_length=1)  # SD parameter to apply, e.g. ANALOG
+    name: str | None = None  # display name; defaults to "<input's display name> (<Input_mode>)"
+    default_input_mode: str = "AUTO"  # SD parameter set whenever the plain input is selected
+
+    @field_validator("input", "input_mode", "default_input_mode", mode="before")
+    @classmethod
+    def _normalize_code(cls, v: Any) -> Any:
+        if not isinstance(v, str):
+            return v
+        v = v.strip().upper()
+        if not v or any(c.isspace() or c == "?" for c in v):
+            raise ValueError("must be a non-empty code without spaces or '?'")
+        return v
+
+    @field_validator("name", mode="before")
+    @classmethod
+    def _strip_name(cls, v: Any) -> Any:
+        if isinstance(v, str):
+            return v.strip() or None
+        return v
+
+    @model_validator(mode="after")
+    def _modes_differ(self) -> VirtualSource:
+        if self.input_mode == self.default_input_mode:
+            raise ValueError("input_mode and default_input_mode must differ")
+        return self
+
+
 def _apply_env_to_dict(
     raw: dict[str, Any],
     env: Mapping[str, str] | None = None,
@@ -86,6 +125,9 @@ class Config(BaseModel, Mapping[str, Any]):
     ssdp_friendly_name: str | None = None
     # Map Denon function codes to display names (e.g. {"CD": "CD Player", "HDMI1": "Apple TV"})
     sources: dict[str, str] | None = None
+    # Extra source-list entries that pick a real input and an input mode (Denon SD), keyed by the
+    # code clients send as SI<code> (e.g. MPLAY_ANALOG: Apple TV with analog audio).
+    virtual_sources: dict[str, VirtualSource] = Field(default_factory=dict)
     # IP -> friendly name for connected clients (e.g. {"192.168.1.5": "Living Room HA"})
     client_aliases: dict[str, str] = Field(default_factory=dict)
 
@@ -164,6 +206,22 @@ class Config(BaseModel, Mapping[str, Any]):
                 raise ValueError("sources keys and values must be strings")
         return v
 
+    @field_validator("virtual_sources", mode="before")
+    @classmethod
+    def _virtual_source_codes(cls, v: Any) -> Any:
+        """Normalize codes to upper case (SI commands are matched case-insensitively) and reject bad ones."""
+        if not isinstance(v, dict):
+            return v
+        out: dict[str, Any] = {}
+        for code, entry in v.items():
+            if not isinstance(code, str) or not code.strip() or any(c.isspace() or c == "?" for c in code.strip()):
+                raise ValueError(f"invalid virtual source code {code!r}: no spaces or '?'")
+            key = code.strip().upper()
+            if key in out:
+                raise ValueError(f"duplicate virtual source code {key!r}")
+            out[key] = entry
+        return out
+
     @field_validator("ssdp_friendly_name", mode="before")
     @classmethod
     def _ssdp_friendly_name_normalize(cls, v: str | None) -> str | None:
@@ -174,6 +232,34 @@ class Config(BaseModel, Mapping[str, Any]):
             stripped = v.strip()
             return stripped or None
         return v
+
+    @model_validator(mode="after")
+    def _virtual_sources_consistent(self) -> Config:
+        """Cross-check virtual_sources against each other and, when configured, against sources.
+
+        Runs after all field validators, so codes are already normalized. Without a sources mapping
+        the source list comes from the AVR at runtime, which resolve_sources checks instead.
+        """
+        real_codes = {code.strip().upper() for code in self.sources or {}}
+        seen: dict[tuple[str, str], str] = {}
+        default_modes: dict[str, tuple[str, str]] = {}  # input -> (first code, its default_input_mode)
+        for code, vs in self.virtual_sources.items():
+            if real_codes and code in real_codes:
+                raise ValueError(f"virtual source {code!r} has the same code as an entry in sources")
+            if real_codes and vs.input not in real_codes:
+                raise ValueError(f"virtual source {code!r}: input {vs.input!r} is not in sources")
+            # Each (input, mode) may back only one virtual source, so the AVR state maps to one code.
+            pair = (vs.input, vs.input_mode)
+            if pair in seen:
+                raise ValueError(f"virtual sources {seen[pair]!r} and {code!r} both use {pair[0]} + {pair[1]}")
+            seen[pair] = code
+            # Selecting the plain input sets default_input_mode, so an input can only have one.
+            other = default_modes.setdefault(vs.input, (code, vs.default_input_mode))
+            if other[1] != vs.default_input_mode:
+                raise ValueError(
+                    f"virtual sources {other[0]!r} and {code!r} use input {vs.input} with different default_input_mode"
+                )
+        return self
 
     @model_validator(mode="after")
     def _no_avr_host_force_optimistic_off(self) -> Config:

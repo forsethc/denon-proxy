@@ -258,3 +258,127 @@ async def _telnet_send_and_assert(
     finally:
         writer.close()
         await writer.wait_closed()
+
+
+async def _read_until(reader: asyncio.StreamReader, needle: str, timeout: float = 2.0) -> str:
+    """Read from reader until needle appears (commands can expand into several AVR round trips)."""
+    received = ""
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + timeout
+    while needle not in received:
+        chunk = await asyncio.wait_for(reader.read(4096), timeout=max(0.01, deadline - loop.time()))
+        if not chunk:
+            break
+        received += chunk.decode("utf-8", errors="replace")
+    return received
+
+
+def _virtual_sources_config(virtual_sources: dict) -> Config:
+    """Integration config (virtual AVR, ephemeral port, no HTTP/SSDP) with the given virtual_sources."""
+    return Config.model_validate(
+        {
+            "avr_host": "",
+            "proxy_host": "127.0.0.1",
+            "proxy_port": 0,
+            "enable_http": False,
+            "enable_ssdp": False,
+            "virtual_sources": virtual_sources,
+        }
+    )
+
+
+def _record_avr_commands(server: DenonProxyServer) -> list[str]:
+    """Wrap the server's AVR connection so every command it is sent is recorded (and still delivered)."""
+    assert server.avr is not None
+    sent: list[str] = []
+    send = server.avr.send_command
+
+    async def recording_send(command: str) -> bool:
+        sent.append(command)
+        return await send(command)
+
+    server.avr.send_command = recording_send  # type: ignore[method-assign]
+    return sent
+
+
+@pytest.mark.asyncio
+async def test_telnet_virtual_source_selects_input_and_mode(integration_logger):
+    """
+    A client selecting a virtual source (as Home Assistant would) gets the input switched and the
+    input mode applied, and every client sees the virtual source; selecting the plain input restores it.
+    """
+    config = _virtual_sources_config({"MPLAY_ANALOG": {"input": "MPLAY", "input_mode": "ANALOG"}})
+    server = DenonProxyServer(config, integration_logger, create_avr_connection, RuntimeState())
+    await server.start()
+    port = server.runtime_state.proxy_port or server.config["proxy_port"]
+    try:
+        reader, writer = await asyncio.wait_for(asyncio.open_connection("127.0.0.1", port), timeout=2.0)
+        try:
+            await asyncio.wait_for(reader.read(4096), timeout=1.0)
+
+            writer.write(b"SIMPLAY_ANALOG\r")
+            await writer.drain()
+            assert "SIMPLAY_ANALOG\r" in await _read_until(reader, "SIMPLAY_ANALOG\r")
+            assert (server.avr_state.input_source, server.avr_state.input_mode) == ("MPLAY_ANALOG", "ANALOG")
+
+            writer.write(b"SIMPLAY\r")
+            await writer.drain()
+            await _read_until(reader, "SIMPLAY\r")
+            await asyncio.sleep(0.4)  # let the follow-up SDAUTO land
+            assert (server.avr_state.input_source, server.avr_state.input_mode) == ("MPLAY", "AUTO")
+        finally:
+            writer.close()
+            await writer.wait_closed()
+    finally:
+        await server.stop()
+
+
+@pytest.mark.asyncio
+async def test_telnet_plain_source_uses_default_of_input_being_selected(integration_logger):
+    """
+    Two inputs, each with an analog virtual source. Going from "Apple TV (Analog)" to plain Playstation
+    must send Playstation's default_input_mode, so the client lands on the plain source and not on
+    "Playstation (Analog)" (a real receiver would otherwise restore Playstation's remembered mode).
+    """
+    config = _virtual_sources_config(
+        {
+            "MPLAY_ANALOG": {"input": "MPLAY", "input_mode": "ANALOG"},
+            "BD_ANALOG": {"input": "BD", "input_mode": "ANALOG", "default_input_mode": "HDMI"},
+        }
+    )
+    server = DenonProxyServer(config, integration_logger, create_avr_connection, RuntimeState())
+    await server.start()
+    sent = _record_avr_commands(server)
+    port = server.runtime_state.proxy_port or server.config["proxy_port"]
+    try:
+        reader, writer = await asyncio.wait_for(asyncio.open_connection("127.0.0.1", port), timeout=2.0)
+        try:
+            await asyncio.wait_for(reader.read(4096), timeout=1.0)
+
+            writer.write(b"SIMPLAY_ANALOG\r")
+            await writer.drain()
+            await _read_until(reader, "SIMPLAY_ANALOG\r")
+
+            writer.write(b"SIBD\r")
+            await writer.drain()
+            received = await _read_until(reader, "SIBD\r")
+            await asyncio.sleep(0.4)  # let the follow-up SDHDMI land
+            received += await _read_available(reader)
+
+            assert sent == ["SIMPLAY", "SDANALOG", "SIBD", "SDHDMI"]
+            assert (server.avr_state.input_source, server.avr_state.input_mode) == ("BD", "HDMI")
+            assert "SIBD_ANALOG" not in received
+        finally:
+            writer.close()
+            await writer.wait_closed()
+    finally:
+        await server.stop()
+
+
+async def _read_available(reader: asyncio.StreamReader, timeout: float = 0.2) -> str:
+    """Read whatever arrives within timeout (empty string if nothing does)."""
+    try:
+        chunk = await asyncio.wait_for(reader.read(4096), timeout=timeout)
+    except asyncio.TimeoutError:
+        return ""
+    return chunk.decode("utf-8", errors="replace")

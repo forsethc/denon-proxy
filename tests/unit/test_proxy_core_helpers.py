@@ -353,3 +353,26 @@ def test_denon_proxy_server_partial_broadcast_matches_factory_wiring(
         optimistic_broadcast("PWON")
 
     assert any(r.message == "Broadcast (optimistic state) to 1 client(s): PWON" for r in caplog.records)
+
+
+@pytest.mark.asyncio
+async def test_sync_initial_state_survives_denonavr_errors(monkeypatch: pytest.MonkeyPatch) -> None:
+    """denonavr raises its own exceptions (e.g. AvrTimoutError) on HTTP failure; startup must carry on."""
+    import denonavr  # noqa: PLC0415
+
+    class TimingOutDenonAVR:
+        def __init__(self, _host: str) -> None:
+            pass
+
+        async def async_setup(self) -> None:
+            raise denonavr.exceptions.AvrTimoutError("TimeoutException: ", None)
+
+    monkeypatch.setattr(denonavr, "DenonAVR", TimingOutDenonAVR)
+    config = Config.model_validate({"avr_host": "avr.invalid"})
+
+    def unused_factory(*_args, **_kwargs):
+        raise NotImplementedError
+
+    server = DenonProxyServer(config, logging.getLogger("test.sync"), unused_factory, RuntimeState())
+    await server._sync_initial_state()
+    assert server.runtime_state.avr_info is None
